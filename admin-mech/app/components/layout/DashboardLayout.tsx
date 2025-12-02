@@ -14,7 +14,6 @@ import {
 import { useAuth } from '@/lib/hooks/useAuth'
 import { auth } from '@/lib/firebase/auth'
 import { signOut } from 'firebase/auth'
-import { useRouter } from 'next/navigation'
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -40,14 +39,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       icon: <StoreIcon size={20} />,
     },
   ]
-  const router = useRouter()
   const { user } = useAuth()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const handleSignOut = async () => {
     try {
       await signOut(auth)
-      router.push('/auth')
     } catch (error) {
       console.error('Error signing out:', error)
     }

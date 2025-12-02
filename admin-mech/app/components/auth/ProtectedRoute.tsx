@@ -1,7 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import Login from './Login'
 interface ProtectedRouteProps {
@@ -10,13 +8,7 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth()
-  const router = useRouter()
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth')
-    }
-  }, [user, loading, router])
 
   if (loading) {
     return (

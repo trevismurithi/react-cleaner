@@ -2,7 +2,6 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { LockIcon, UserIcon, ShieldIcon } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
 import { app } from '@/lib/firebase/auth'
 
@@ -13,7 +12,6 @@ interface LoginFormData {
 }
 
 const AdminLoginPage = () => {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const auth = getAuth(app)
 
@@ -38,8 +36,6 @@ const AdminLoginPage = () => {
       
       // Set the token in cookies
       document.cookie = `token=${token}; path=/; max-age=3600` // Token expires in 1 hour
-      
-      router.push('/')
     } catch (error) {
       const firebaseError = error as { code: string; message: string }
       setError('root', {
