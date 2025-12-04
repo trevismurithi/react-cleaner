@@ -1,27 +1,26 @@
 const fg = require("fast-glob");
 const fs = require("fs");
-const Table = require('cli-table3');
+const Table = require("cli-table3");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
 const path = require("path");
 const { createResolver } = require("./utils/resolver");
-
-
-
+const { loadCache, getFileHash, needsRebuild, saveCache } = require("./utils/cache");
 
 async function getFiles(directory = "src", options, chalk) {
-    const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
-    if (options.excludeDir && options.excludeDir.length > 0) {
-        options.excludeDir.forEach(dir => {
-            contentPaths.push(`!${dir}/**`);
-        });
-    }
-    if (options.excludeFile && options.excludeFile.length > 0) {
-        options.excludeFile.forEach(file => {
-            contentPaths.push(`!${directory}/**/${file}`);
-        });
-    }
-    const files = await fg(contentPaths);
+  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
+  if (options.excludeDir && options.excludeDir.length > 0) {
+    options.excludeDir.forEach((dir) => {
+      contentPaths.push(`!${dir}/**`);
+    });
+  }
+  if (options.excludeFile && options.excludeFile.length > 0) {
+    options.excludeFile.forEach((file) => {
+      contentPaths.push(`!${directory}/**/${file}`);
+    });
+  }
+
+  const files = await fg(contentPaths);
   const imports = [];
   for (const file of files) {
     const code = fs.readFileSync(file, "utf8");
@@ -32,13 +31,12 @@ async function getFiles(directory = "src", options, chalk) {
     traverse(ast, {
       ImportDeclaration: ({ node }) => {
         imports.push({
-            from: node.source.value,
-            file: file,
-            line: node.loc.start.line,
-            column: node.loc.start.column,
+          from: node.source.value,
+          file: file,
+          line: node.loc.start.line,
+          column: node.loc.start.column,
         });
       },
-
     });
     //   ExportNamedDeclaration: ({ node }) => {
     //     if (node.declaration.declarations && node.declaration.declarations[0].id && node.declaration.declarations[0].id.name) {
@@ -53,119 +51,162 @@ async function getFiles(directory = "src", options, chalk) {
     //   },
     // });
   }
-  
+
   if (options.table) {
     const tableImports = new Table({
-        head: ['File', 'Line', 'Column', 'Import'],
-        colWidths: [20, 10, 10, 20],
-      });
-    
-      const tableFiles = new Table({
-        head: ['File'],
-        colWidths: [20],
-      });
-    
-      if (options.listFiles) {
-        files.forEach((file) => {
-            tableFiles.push([file]);
-        })
-      }
-      if (options.listImports) {
-        imports.forEach((importStatement) => {
-          tableImports.push([importStatement.file, importStatement.line, importStatement.column, importStatement.from]);
-        })
-      }
-      return { tableImports, tableFiles };
-  }else{
+      head: ["File", "Line", "Column", "Import"],
+      colWidths: [20, 10, 10, 20],
+    });
+
+    const tableFiles = new Table({
+      head: ["File"],
+      colWidths: [20],
+    });
+
     if (options.listFiles) {
-        console.log(chalk.green('***************** Files *****************'));
-        files.forEach((file) => {
-            console.log(chalk.green(file));
-        })
-      }
-      if (options.listImports) {
-        console.log(chalk.yellow('***************** Imports *****************'));
-        imports.forEach((importStatement) => {
-          console.log(chalk.yellow(`${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`));
-        })
-      }
-      return { tableImports: imports, tableFiles: files };
+      files.forEach((file) => {
+        tableFiles.push([file]);
+      });
+    }
+    if (options.listImports) {
+      imports.forEach((importStatement) => {
+        tableImports.push([
+          importStatement.file,
+          importStatement.line,
+          importStatement.column,
+          importStatement.from,
+        ]);
+      });
+    }
+    return { tableImports, tableFiles };
+  } else {
+    if (options.listFiles) {
+      console.log(chalk.green("***************** Files *****************"));
+      files.forEach((file) => {
+        console.log(chalk.green(file));
+      });
+    }
+    if (options.listImports) {
+      console.log(chalk.yellow("***************** Imports *****************"));
+      imports.forEach((importStatement) => {
+        console.log(
+          chalk.yellow(
+            `${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`
+          )
+        );
+      });
+    }
+    return { tableImports: imports, tableFiles: files };
   }
 }
 
-async function unUsedFiles(chalk,directory = "src", options) {
+async function unUsedFiles(chalk, directory = "src", options) {
+  console.time('unUsedFiles');
   const resolver = createResolver(directory);
-    const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
-    if (options.excludeDir && options.excludeDir.length > 0) {
-        options.excludeDir.forEach(dir => {
-            contentPaths.push(`!${dir}/**`);
-        });
-    }
-    if (options.excludeFile && options.excludeFile.length > 0) {
-        options.excludeFile.forEach(file => {
-            contentPaths.push(`!${directory}/**/${file}`);
-        });
-    }
-    
-    const files = await fg(contentPaths);
-    const imports = [];
-    const unusedFiles = [];
-    for (const file of files) {
-      const code = fs.readFileSync(file, "utf8");
+  const cache = loadCache(process.cwd());
+  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
+  if (options.excludeDir && options.excludeDir.length > 0) {
+    options.excludeDir.forEach((dir) => {
+      contentPaths.push(`!${dir}/**`);
+    });
+  }
+  if (options.excludeFile && options.excludeFile.length > 0) {
+    options.excludeFile.forEach((file) => {
+      contentPaths.push(`!${directory}/**/${file}`);
+    });
+  }
+
+  const files = await fg(contentPaths);
+  const imports = [];
+  const unusedFiles = [];
+
+  // debug log
+  // let debugCount = 0;
+  // console.log('total files---', files.length);
+  for (const file of files) {
+    const code = fs.readFileSync(file, "utf8");
+    if(needsRebuild(file, code, cache)) {
       const ast = parser.parse(code, {
         sourceType: "module",
-        plugins: [
-          "jsx",
-          "typescript",
-        ],
+        plugins: ["jsx", "typescript"],
       });
-  
+      cache[file] = {
+        hash: getFileHash(code),
+        imports: [],
+        isImported: false,
+        lastModified: fs.statSync(file).mtime.getTime(),
+      };
       traverse(ast, {
         ImportDeclaration: ({ node }) => {
           imports.push({
-              from: node.source.value,
-              file: file,
-              line: node.loc.start.line,
-              column: node.loc.start.column,
+            from: node.source.value,
+            file: file,
+            line: node.loc.start.line,
+            column: node.loc.start.column,
+          });
+          cache[file].imports.push({
+            from: node.source.value,
+            file: file,
+            line: node.loc.start.line,
+            column: node.loc.start.column,
+            lastModified: fs.statSync(file).mtime.getTime(),
           });
         },
       });
+    }else {
+      // debugCount++;
+      // console.log('cache hit', debugCount);
     }
+  }
 
-    // console.log('imports', imports);
-    // console.log('files', files);
-    for (const file of files) {
-        let i = 0;
-        // console.log('Checking', file);
-        let isFound = false;
-        while (!isFound && i < imports.length) {
-          const importFilePath = await resolver(chalk,imports[i].file, imports[i].from);
-          // console.log(chalk.blue('importFilePath'), importFilePath);
-            
-            if (compareFiles(chalk,path.resolve(file), importFilePath)) {
-                isFound = true;
-                break;
-            }else if(i === imports.length - 1) {
-                if(options.excludeFilePrint && options.excludeFilePrint.length > 0) {
-                    if(!isExcludedFile(file, options.excludeFilePrint)){
-                        unusedFiles.push(file); 
-                    }
-                }else {
-                    unusedFiles.push(file);
-                }
-                break;
+  // console.log('imports', imports);
+  // console.log('files', files);
+  // debugCount = 0;
+  // console.log('total files', files.length);
+  for (const file of files) {
+    const code = fs.readFileSync(file, "utf8");
+    if(!cache[file].isImported || needsRebuild(file, code, cache)) {
+      let i = 0;
+      // console.log('Checking', file);
+      let isFound = false;
+      while (!isFound && i < imports.length) {
+        const importFilePath = await resolver(
+          chalk,
+          imports[i].file,
+          imports[i].from
+        );
+        // console.log(chalk.blue('importFilePath'), importFilePath);
+        if (compareFiles(path.resolve(file), importFilePath)) {
+          isFound = true;
+          cache[file].isImported = true;
+          break;
+        } else if (i === imports.length - 1) {
+          if (options.excludeFilePrint && options.excludeFilePrint.length > 0) {
+            if (!isExcludedFile(file, options.excludeFilePrint)) {
+              unusedFiles.push(file);
             }
-            i++;
+          } else {
+            unusedFiles.push(file);
+          }
+          break;
         }
+        i++;
+      }
+    }else {
+      // debugCount++;
+      // console.log('debug hit', debugCount);
     }
-    return unusedFiles;
+  }
+  console.timeEnd('unUsedFiles');
+  saveCache(process.cwd(), cache);
+  return unusedFiles;
 }
 
 function isExcludedFile(file, excludeFiles) {
-    return excludeFiles.some(exclude => file.includes(exclude));
+  return excludeFiles.some((exclude) => file.includes(exclude));
 }
 
-function compareFiles(chalk,filePath, importPath) {  
+function compareFiles(filePath, importPath) {
   return filePath === importPath;
 }
 

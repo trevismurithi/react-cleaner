@@ -28,7 +28,6 @@ async function askDeleteFiles(files) {
             return await deleteFiles(response.toDelete);
         }
     }
-    return response && response.toDelete ? response.toDelete : [];
 }
 
 async function moveToTrash(files) {

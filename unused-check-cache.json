@@ -1,0 +1,180 @@
+{
+  "src/hello.find.tsx": {
+    "hash": "13088ef1169a758d26b7fde99ca67d5a",
+    "imports": [
+      {
+        "from": "./demo/functions",
+        "file": "src/hello.find.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380790
+      },
+      {
+        "from": "~/demo/book/hidden",
+        "file": "src/hello.find.tsx",
+        "line": 2,
+        "column": 0,
+        "lastModified": 1764776380790
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764776380790
+  },
+  "src/jambo.tsx": {
+    "hash": "6b9a7f99ad2bd68e567368a35bc2831c",
+    "imports": [
+      {
+        "from": "./demo/functions",
+        "file": "src/jambo.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380792
+      },
+      {
+        "from": "hello.find",
+        "file": "src/jambo.tsx",
+        "line": 2,
+        "column": 0,
+        "lastModified": 1764776380792
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764776380792
+  },
+  "src/main.js": {
+    "hash": "961f4425237e1551bb8ec8a136f12a66",
+    "imports": [
+      {
+        "from": "jambo",
+        "file": "src/main.js",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380796
+      },
+      {
+        "from": "poa",
+        "file": "src/main.js",
+        "line": 2,
+        "column": 0,
+        "lastModified": 1764776380796
+      },
+      {
+        "from": "./style.css",
+        "file": "src/main.js",
+        "line": 3,
+        "column": 0,
+        "lastModified": 1764776380796
+      },
+      {
+        "from": "./demo/demo",
+        "file": "src/main.js",
+        "line": 4,
+        "column": 0,
+        "lastModified": 1764776380796
+      },
+      {
+        "from": "./jambo",
+        "file": "src/main.js",
+        "line": 5,
+        "column": 0,
+        "lastModified": 1764776380796
+      },
+      {
+        "from": "@/demo/book/hidden",
+        "file": "src/main.js",
+        "line": 6,
+        "column": 0,
+        "lastModified": 1764776380796
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764776380796
+  },
+  "src/poa.tsx": {
+    "hash": "09d1c8072d500780c9d6b223f5609cc5",
+    "imports": [
+      {
+        "from": "one.png",
+        "file": "src/poa.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380809
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764776380809
+  },
+  "src/demo/demo.tsx": {
+    "hash": "fe20d628c85aad8b491b3e45e6559ce4",
+    "imports": [
+      {
+        "from": "../hello.find",
+        "file": "src/demo/demo.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764828590237
+      },
+      {
+        "from": "../demo/book/hidden",
+        "file": "src/demo/demo.tsx",
+        "line": 2,
+        "column": 0,
+        "lastModified": 1764828590237
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764828590237
+  },
+  "src/demo/functions.js": {
+    "hash": "091a10616a5be2b7c7803a3f7513453e",
+    "imports": [],
+    "isImported": true,
+    "lastModified": 1764776380788
+  },
+  "src/demo/public.tsx": {
+    "hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "imports": [],
+    "isImported": false,
+    "lastModified": 1764690373726
+  },
+  "src/shell/main.js": {
+    "hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "imports": [],
+    "isImported": false,
+    "lastModified": 1764822800241
+  },
+  "src/demo/book/hidden.tsx": {
+    "hash": "6c3fb783f6f246ad67252489ba9367f4",
+    "imports": [
+      {
+        "from": "../../main",
+        "file": "src/demo/book/hidden.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380785
+      }
+    ],
+    "isImported": true,
+    "lastModified": 1764776380785
+  },
+  "src/demo/book/public.tsx": {
+    "hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "imports": [],
+    "isImported": false,
+    "lastModified": 1764690329997
+  },
+  "src/layer/shell/shell.tsx": {
+    "hash": "659029bd48113a93f0ce44bc1e8005d3",
+    "imports": [
+      {
+        "from": "../../demo/book/hidden",
+        "file": "src/layer/shell/shell.tsx",
+        "line": 1,
+        "column": 0,
+        "lastModified": 1764776380795
+      }
+    ],
+    "isImported": false,
+    "lastModified": 1764776380795
+  }
+}

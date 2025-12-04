@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
-const { getFiles, unUsedFiles } = require("../command");
-const Table = require('cli-table3')
+const { list, scan } = require("../controllers/list");
+
 
 async function loadChalk() {
   return (await import("chalk")).default;
@@ -31,13 +31,7 @@ async function loadChalk() {
     )
     .option("-t, --table", "Print the results in a table")
     .action(async (path, options) => {
-      const { tableImports, tableFiles } = await getFiles(path, options, chalk);
-      if(options.table){
-        console.log(chalk.yellow('***************** Imported Files *****************'));
-        console.log(tableImports.toString());
-        console.log(chalk.green('***************** List Files *****************'));
-        console.log(tableFiles.toString());
-      }
+      await list(chalk, path, options);
     });
 
   program
@@ -51,24 +45,24 @@ async function loadChalk() {
       "Scan but don't print the excluded files"
     )
     .option("-t, --table", "Print the results in a table")
+    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
     .action(async (path, options) => {
-      const unusedFiles = await unUsedFiles(chalk,path, options);
-      // console.clear()
-      if(options.table){
-        const table = new Table({
-            head: ['Unused Files'],
-            colWidths: [50]
-        })
-        unusedFiles.forEach(file => {
-            table.push([file])
-        })
-        console.log(table.toString())
-
-      }else {
-        unusedFiles.forEach((file) => {
-            console.log(chalk.red(file));
-          });
-      }
+      await scan(chalk, path, options);
     });
+
+  program
+  .command('qlean-image')
+  .description("Scan the project for unused images")
+  .argument("<path>", "The path to the directory to scan for unused images")
+  .option("-e, --exclude-dir <dir...>", "Exclude directories from the scan")
+  .option("-f, --exclude-file <file...>", "Exclude files from the scan")
+  .option(
+    "-F, --exclude-file-print <files...>",
+    "Scan but don't print the excluded files"
+  )
+  .option("-t, --table", "Print the results in a table")
+  .action(async (path, options) => {
+
+  });
   program.parse(process.argv);
 })();
