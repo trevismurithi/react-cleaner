@@ -30,9 +30,17 @@ function saveCache(rootPath, cache) {
     fs.writeFileSync(file, JSON.stringify(cache, null, 2))
 }
 
+
+function clearCache(rootPath) {
+    const file = path.join(rootPath, "unused-check-cache.json");
+    if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+    }
+}
 module.exports = {
     loadCache,
     getFileHash,
     needsRebuild,
-    saveCache
+    saveCache,
+    clearCache
 }

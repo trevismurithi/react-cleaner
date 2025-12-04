@@ -5,7 +5,12 @@ const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
 const path = require("path");
 const { createResolver } = require("./utils/resolver");
-const { loadCache, getFileHash, needsRebuild, saveCache } = require("./utils/cache");
+const {
+  loadCache,
+  getFileHash,
+  needsRebuild,
+  saveCache,
+} = require("./utils/cache");
 
 async function getFiles(directory = "src", options, chalk) {
   const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
@@ -101,7 +106,6 @@ async function getFiles(directory = "src", options, chalk) {
 }
 
 async function unUsedFiles(chalk, directory = "src", options) {
-  console.time('unUsedFiles');
   const resolver = createResolver(directory);
   const cache = loadCache(process.cwd());
   const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
@@ -117,7 +121,7 @@ async function unUsedFiles(chalk, directory = "src", options) {
   }
 
   const files = await fg(contentPaths);
-  const imports = [];
+  let imports = [];
   const unusedFiles = [];
 
   // debug log
@@ -125,7 +129,7 @@ async function unUsedFiles(chalk, directory = "src", options) {
   // console.log('total files---', files.length);
   for (const file of files) {
     const code = fs.readFileSync(file, "utf8");
-    if(needsRebuild(file, code, cache)) {
+    if (needsRebuild(file, code, cache)) {
       const ast = parser.parse(code, {
         sourceType: "module",
         plugins: ["jsx", "typescript"],
@@ -149,25 +153,26 @@ async function unUsedFiles(chalk, directory = "src", options) {
             file: file,
             line: node.loc.start.line,
             column: node.loc.start.column,
-            lastModified: fs.statSync(file).mtime.getTime(),
+            lastModified: fs.statSync(path.resolve(file)).mtime.getTime(),
           });
         },
       });
-    }else {
+    } else {
       // debugCount++;
       // console.log('cache hit', debugCount);
     }
   }
 
-  // console.log('imports', imports);
-  // console.log('files', files);
+  // imports beings empty shows all the files were cached
+  if(imports.length === 0) {
+    imports = cache[directory]? cache[directory].imports: [];
+  }
+
   // debugCount = 0;
-  // console.log('total files', files.length);
   for (const file of files) {
     const code = fs.readFileSync(file, "utf8");
-    if(!cache[file].isImported || needsRebuild(file, code, cache)) {
+    if (!cache[file].isImported || needsRebuild(file, code, cache)) {
       let i = 0;
-      // console.log('Checking', file);
       let isFound = false;
       while (!isFound && i < imports.length) {
         const importFilePath = await resolver(
@@ -175,7 +180,6 @@ async function unUsedFiles(chalk, directory = "src", options) {
           imports[i].file,
           imports[i].from
         );
-        // console.log(chalk.blue('importFilePath'), importFilePath);
         if (compareFiles(path.resolve(file), importFilePath)) {
           isFound = true;
           cache[file].isImported = true;
@@ -192,12 +196,14 @@ async function unUsedFiles(chalk, directory = "src", options) {
         }
         i++;
       }
-    }else {
+    } else {
       // debugCount++;
-      // console.log('debug hit', debugCount);
+      // console.log("debug hit", debugCount);
     }
   }
-  console.timeEnd('unUsedFiles');
+  cache[directory] =  {
+    imports: imports,
+  }
   saveCache(process.cwd(), cache);
   return unusedFiles;
 }

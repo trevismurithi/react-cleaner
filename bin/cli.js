@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
 const { list, scan } = require("../controllers/list");
-
+const { clearCache } = require("../utils/cache");
 
 async function loadChalk() {
   return (await import("chalk")).default;
@@ -46,7 +46,12 @@ async function loadChalk() {
     )
     .option("-t, --table", "Print the results in a table")
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .option("-C, --clear-cache", "Clear the cache")
     .action(async (path, options) => {
+      if(options.clearCache) {
+        clearCache(process.cwd());
+        console.log(chalk.green('✓ Cache cleared successfully'));
+      }
       await scan(chalk, path, options);
     });
 
