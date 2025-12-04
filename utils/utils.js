@@ -1,0 +1,57 @@
+const prompts = require('prompts');
+const fs = require('fs');
+const path = require('path');
+
+async function askDeleteFiles(files) {
+    const response = await prompts({
+        type: 'multiselect',
+        name: 'toDelete',
+        message: 'Select unused files to delete or move to .trash directory',
+        choices: files.map(file => ({
+            title: file,
+            value: file,
+        })) 
+    })
+    if(response && response.toDelete && response.toDelete.length > 0) {
+        const method = await prompts({
+            type: 'select',
+            name: 'method',
+            message: 'Select a method to delete the files',
+            choices: [
+                { title: 'Move to .trash directory', value: 'moveToTrash' },
+                { title: 'Delete files', value: 'deleteFiles' },
+            ]
+        })
+        if(method.method === 'moveToTrash') {
+            return await moveToTrash(response.toDelete);
+        } else if(method.method === 'deleteFiles') {
+            return await deleteFiles(response.toDelete);
+        }
+    }
+    return response && response.toDelete ? response.toDelete : [];
+}
+
+async function moveToTrash(files) {
+    const trashDir = path.join(process.cwd(), '.trash');
+
+    if(!fs.existsSync(trashDir)) {
+        fs.mkdirSync(trashDir);
+    }
+
+    for(const file of files) {
+       const fileName = path.basename(file);
+       const destination = path.join(trashDir, fileName);
+       fs.renameSync(file, destination);
+    }
+
+    console.log(`Moved ${files.length} files to .trash directory`);
+}
+
+async function deleteFiles(files) {
+    for(const file of files) {
+        fs.unlinkSync(file);
+    }
+    console.log(`Deleted ${files.length} files`);
+}
+
+module.exports = askDeleteFiles;

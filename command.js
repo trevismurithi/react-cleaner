@@ -1,11 +1,15 @@
 const fg = require("fast-glob");
 const fs = require("fs");
-const path = require("path");
+const Table = require('cli-table3');
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+const path = require("path");
+const { createResolver } = require("./utils/resolver");
 
 
-async function getFiles(directory = "src", options) {
+
+
+async function getFiles(directory = "src", options, chalk) {
     const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
     if (options.excludeDir && options.excludeDir.length > 0) {
         options.excludeDir.forEach(dir => {
@@ -49,22 +53,48 @@ async function getFiles(directory = "src", options) {
     //   },
     // });
   }
-
-  if (options.listFiles) {
-    console.log('***************** Files *****************');
-    files.forEach((file) => {
-        console.log(file);
-    })
-  }
-  if (options.listImports) {
-    console.log('***************** Imports *****************');
-    imports.forEach((importStatement) => {
-      console.log(`${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`);
-    })
+  
+  if (options.table) {
+    const tableImports = new Table({
+        head: ['File', 'Line', 'Column', 'Import'],
+        colWidths: [20, 10, 10, 20],
+      });
+    
+      const tableFiles = new Table({
+        head: ['File'],
+        colWidths: [20],
+      });
+    
+      if (options.listFiles) {
+        files.forEach((file) => {
+            tableFiles.push([file]);
+        })
+      }
+      if (options.listImports) {
+        imports.forEach((importStatement) => {
+          tableImports.push([importStatement.file, importStatement.line, importStatement.column, importStatement.from]);
+        })
+      }
+      return { tableImports, tableFiles };
+  }else{
+    if (options.listFiles) {
+        console.log(chalk.green('***************** Files *****************'));
+        files.forEach((file) => {
+            console.log(chalk.green(file));
+        })
+      }
+      if (options.listImports) {
+        console.log(chalk.yellow('***************** Imports *****************'));
+        imports.forEach((importStatement) => {
+          console.log(chalk.yellow(`${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`));
+        })
+      }
+      return { tableImports: imports, tableFiles: files };
   }
 }
 
-async function unUsedFiles(directory = "src", options) {
+async function unUsedFiles(chalk,directory = "src", options) {
+  const resolver = createResolver(directory);
     const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
     if (options.excludeDir && options.excludeDir.length > 0) {
         options.excludeDir.forEach(dir => {
@@ -76,6 +106,7 @@ async function unUsedFiles(directory = "src", options) {
             contentPaths.push(`!${directory}/**/${file}`);
         });
     }
+    
     const files = await fg(contentPaths);
     const imports = [];
     const unusedFiles = [];
@@ -108,8 +139,10 @@ async function unUsedFiles(directory = "src", options) {
         // console.log('Checking', file);
         let isFound = false;
         while (!isFound && i < imports.length) {
+          const importFilePath = await resolver(chalk,imports[i].file, imports[i].from);
+          // console.log(chalk.blue('importFilePath'), importFilePath);
             
-            if (compareFiles(file, imports[i].from)) {
+            if (compareFiles(chalk,path.resolve(file), importFilePath)) {
                 isFound = true;
                 break;
             }else if(i === imports.length - 1) {
@@ -132,12 +165,8 @@ function isExcludedFile(file, excludeFiles) {
     return excludeFiles.some(exclude => file.includes(exclude));
 }
 
-function compareFiles(filePath, importPath) {  
-    const importNoExt = importPath.replace(/\.[^/.]+$/, "");
-    const prefixImportPath = importNoExt.replace(/^(?:\.{1,2}\/|[@~]+\/)+/, "");
-    // console.log('importNoExt', importNoExt, '  prefixImportPath', prefixImportPath, '  filePath', filePath, '  ', filePath.includes(prefixImportPath));
-    
-    return  filePath.includes(prefixImportPath);
+function compareFiles(chalk,filePath, importPath) {  
+  return filePath === importPath;
 }
 
 module.exports = {
