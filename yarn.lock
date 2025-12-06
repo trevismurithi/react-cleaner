@@ -213,6 +213,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cli-progress@npm:^3.12.0":
+  version: 3.12.0
+  resolution: "cli-progress@npm:3.12.0"
+  dependencies:
+    string-width: "npm:^4.2.3"
+  checksum: 10c0/f464cb19ebde2f3880620a2adfaeeefaec6cb15c8e610c8a659ca1047ee90d69f3bf2fdabbb1fe33ac408678e882e3e0eecdb84ab5df0edf930b269b8a72682d
+  languageName: node
+  linkType: hard
+
 "cli-spinners@npm:^3.2.0":
   version: 3.3.0
   resolution: "cli-spinners@npm:3.3.0"
@@ -489,6 +498,7 @@ __metadata:
     "@babel/traverse": "npm:^7.28.5"
     "@types/node": "npm:^20.10.5"
     chalk: "npm:^5.6.2"
+    cli-progress: "npm:^3.12.0"
     cli-table3: "npm:^0.6.5"
     commander: "npm:^14.0.2"
     enhanced-resolve: "npm:^5.18.3"
@@ -555,7 +565,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string-width@npm:^4.2.0":
+"string-width@npm:^4.2.0, string-width@npm:^4.2.3":
   version: 4.2.3
   resolution: "string-width@npm:4.2.3"
   dependencies:

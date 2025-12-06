@@ -1,188 +1,301 @@
 const fg = require("fast-glob");
 const fs = require("fs");
+const path = require("path");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+const Table = require("cli-table3");
 const { getCssImages } = require("../utils/cssImages");
-const path = require("path");
-const { createResolver } = require("../utils/resolver");
-const { compareFiles, isExcludedFile, askDeleteFiles } = require("../utils/utils");
-const Table = require('cli-table3');
+const { askDeleteFiles } = require("../utils/utils");
 
+// Regex for matching url("x.png") or url('x.png') or bg-[url('x.png')]
+const URL_EXTRACT_REGEX = /url\((['"]?)([^"')]+)\1\)/gi;
+
+// Normal image file regex
+const IMAGE_REGEX = /\.(png|jpe?g|svg|gif|webp)$/i;
+
+/**
+ * Normalize image paths for consistent matching.
+ */
+function normalize(value, imageDirectory) {
+  if (!value) return null;
+
+  // Extract url() paths
+  const match = [...value.matchAll(URL_EXTRACT_REGEX)];
+  if (match.length > 0) {
+    value = match[0][2];
+  }
+
+  // Remove query params
+  value = value.split("?")[0];
+
+  // Convert leading "/" to relative project path
+  if (value.startsWith("/")) {
+    return path.resolve(path.join(imageDirectory, value.slice(1)));
+  }
+
+  // Resolve relative paths
+  return path.resolve(path.join(imageDirectory, value));
+}
+
+/**
+ * Extracts all strings in a tagged template literal (styled-components, css``)
+ */
+function extractFromTemplateLiteral(quasis) {
+  const results = [];
+  quasis.forEach((q) => {
+    const matches = [...q.value.raw.matchAll(URL_EXTRACT_REGEX)];
+    for (const m of matches) {
+      results.push(m[2]);
+    }
+    if (IMAGE_REGEX.test(q.value.raw)) {
+      results.push(q.value.raw);
+    }
+  });
+  return results;
+}
+
+/**
+ * Extract images from JSX style object: style={{ backgroundImage: "url('/img/a.png')" }}
+ */
+function extractFromJSXStyle(node, file, collected) {
+  if (!node || node.type !== "JSXExpressionContainer") return;
+
+  const expr = node.expression;
+  if (!expr || expr.type !== "ObjectExpression") return;
+
+  expr.properties.forEach((prop) => {
+    if (
+      prop.type !== "ObjectProperty" ||
+      !prop.key ||
+      !prop.value
+    ) return;
+
+    const keyName = prop.key.name || prop.key.value;
+
+    if (!keyName) return;
+
+    const isImageField =
+      keyName.toLowerCase().includes("background") ||
+      keyName.toLowerCase().includes("image") ||
+      keyName.toLowerCase().includes("mask");
+
+    if (!isImageField) return;
+
+    // String literal
+    if (prop.value.type === "StringLiteral") {
+      const raw = prop.value.value;
+      const matches = [...raw.matchAll(URL_EXTRACT_REGEX)];
+      if (matches.length > 0) {
+        matches.forEach((m) =>
+          collected.add(JSON.stringify({ path: m[2], file }))
+        );
+      } else if (IMAGE_REGEX.test(raw)) {
+        collected.add(JSON.stringify({ path: raw, file }));
+      }
+    }
+
+    // Template literal
+    if (prop.value.type === "TemplateLiteral") {
+      extractFromTemplateLiteral(prop.value.quasis).forEach((v) => {
+        collected.add(JSON.stringify({ path: v, file }));
+      });
+    }
+  });
+}
+
+/**
+ * MAIN FUNCTION
+ */
 async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
-  const usedImages = [];
+  const used = new Set();
   const unusedImages = [];
-  const imageRegex = /\.(png|jpg|jpeg|svg|gif|webp)$/i;
-  const contentPaths = [`${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`];
-  if (options.excludeDirAssets && options.excludeDirAssets.length > 0) {
-    options.excludeDirAssets.forEach((dir) => {
-      contentPaths.push(`!${dir}/**`);
-    });
-  }
-  if (options.excludeFileAsset && options.excludeFileAsset.length > 0) {
-    options.excludeFileAsset.forEach((file) => {
-      contentPaths.push(`!${imageDirectory}/**/${file}`);
-    });
-  }
 
-  const rootPaths = [`${codeDirectory}/**/*.{js,jsx,ts,tsx}`];
-  if (options.excludeDirCode && options.excludeDirCode.length > 0) {
-    options.excludeDirCode.forEach((dir) => {
-      rootPaths.push(`!${dir}/**`);
-    });
-  }
-  if (options.excludeFileCode && options.excludeFileCode.length > 0) {
-    options.excludeFileCode.forEach((file) => {
-      rootPaths.push(`!${codeDirectory}/**/${file}`);
-    });
-  }
+  // ---- Collect image files in asset directory ----
+  const imageFiles = await fg([`${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`]);
 
-  const files = await fg(contentPaths);
-  const codeFiles = await fg(rootPaths);
-
+  // ---- Scan Code Files ----
+  const codeFiles = await fg([`${codeDirectory}/**/*.{js,jsx,ts,tsx}`]);
+  let index = 0;
   for (const file of codeFiles) {
-
+    index++;
+    console.clear();
+    console.log('Scanning code files...', index, 'of', codeFiles.length);
     const code = fs.readFileSync(file, "utf8");
+
     const ast = parser.parse(code, {
       sourceType: "module",
       plugins: ["jsx", "typescript"],
     });
 
     traverse(ast, {
-      // <img src="...">
-      JSXAttribute(path) {
-        if (path.node.name.name !== "src") return;
+      /**
+       * import logo from './img/a.png'
+       */
+      ImportDeclaration(pathNode) {
+        const val = pathNode.node.source.value;
+        if (IMAGE_REGEX.test(val)) {
+          used.add(JSON.stringify({ path: val, file }));
+        }
+      },
 
-        const value = path.node.value;
+      /**
+       * require('./img/a.png')
+       */
+      CallExpression(pathNode) {
+        const callee = pathNode.node.callee;
+        const args = pathNode.node.arguments;
 
-        // String literals: `img/a.png`
-        if (value.type === "StringLiteral") {
-          if (imageRegex.test(value.value)) {
-            usedImages.push({
-              value: value.value,
-              file,
-            });
+        if (
+          callee.type === "Identifier" &&
+          callee.name === "require" &&
+          args.length &&
+          args[0].type === "StringLiteral"
+        ) {
+          const val = args[0].value;
+          if (IMAGE_REGEX.test(val)) {
+            used.add(JSON.stringify({ path: val, file }));
           }
         }
 
-        if (value.type === "JSXExpressionContainer") {
-          const expr = value.expression;
-          // String literals: `img/a.png`
-          if (expr.type === "StringLiteral" && imageRegex.test(expr.value)) {
-            usedImages.push({
-              value: expr.value,
-              file,
-            });
+        // dynamic import("./a.png")
+        if (
+          callee.type === "Import" &&
+          args.length &&
+          args[0].type === "StringLiteral"
+        ) {
+          const val = args[0].value;
+          if (IMAGE_REGEX.test(val)) {
+            used.add(JSON.stringify({ path: val, file }));
+          }
+        }
+      },
+
+      /**
+       * <img src="...">
+       */
+      JSXAttribute(attr) {
+        if (attr.node.name.name === "src") {
+          const v = attr.node.value;
+          if (!v) return;
+
+          if (v.type === "StringLiteral") {
+            if (IMAGE_REGEX.test(v.value)) {
+              used.add(JSON.stringify({ path: v.value, file }));
+            }
           }
 
-          // Template literals: `/images/${name}.png`
-          if (expr.type === "TemplateLiteral") {
-            expr.quasis.forEach((q) => {
-              if (imageRegex.test(q.value.raw)) {
-                usedImages.push({
-                  value: q.value.raw,
-                  file,
-                });
+          if (v.type === "JSXExpressionContainer") {
+            const expr = v.expression;
+
+            if (expr.type === "StringLiteral") {
+              if (IMAGE_REGEX.test(expr.value)) {
+                used.add(JSON.stringify({ path: expr.value, file }));
               }
-            });
+            }
+
+            if (expr.type === "TemplateLiteral") {
+              extractFromTemplateLiteral(expr.quasis).forEach((v) => {
+                used.add(JSON.stringify({ path: v, file }));
+              });
+            }
           }
+        }
+
+        // Handle style={{ backgroundImage: "url(...)" }}
+        if (attr.node.name.name === "style") {
+          extractFromJSXStyle(attr.node.value, file, used);
         }
       },
 
-      // String literals anywhere in code
-      StringLiteral(path) {
-        if (imageRegex.test(path.node.value)) {
-          usedImages.push({
-            value: path.node.value,
-            file,
-          });
+      /**
+       * String Literals anywhere
+       */
+      StringLiteral(p) {
+        const val = p.node.value;
+
+        if (IMAGE_REGEX.test(val)) {
+          used.add(JSON.stringify({ path: val, file }));
         }
+
+        // detect url("...") inside strings (e.g., Tailwind)
+        const matches = [...val.matchAll(URL_EXTRACT_REGEX)];
+        matches.forEach((m) =>
+          used.add(JSON.stringify({ path: m[2], file }))
+        );
       },
 
-      // Template literals: `/images/${name}.png`
-      TemplateLiteral(path) {
-        path.node.quasis.forEach((quasi) => {
-          if (imageRegex.test(quasi.value.raw)) {
-            usedImages.push({
-              value: quasi.value.raw,
-              file,
-            });
-          }
+      /**
+       * Template Literals anywhere
+       */
+      TemplateLiteral(p) {
+        extractFromTemplateLiteral(p.node.quasis).forEach((v) => {
+          used.add(JSON.stringify({ path: v, file }));
         });
       },
 
-      // Arrays: ["img/a.png", "img/b.png"]
-      ArrayExpression(path) {
-        path.node.elements.forEach((el) => {
-          if (el?.type === "StringLiteral" && imageRegex.test(el.value)) {
-            usedImages.push({
-              value: el.value,
-              file,
-            });
-          }
-        });
-      },
-
-      // Objects: { image: "img/a.png" }
-      ObjectProperty(path) {
-        const val = path.node.value;
-        if (val.type === "StringLiteral" && imageRegex.test(val.value)) {
-          usedImages.push({
-            value: val.value,
-            file,
-          });
-        }
+      /**
+       * styled-components & css`` blocks
+       */
+      TaggedTemplateExpression(p) {
+        const quasi = p.node.quasi;
+        const extracted = extractFromTemplateLiteral(quasi.quasis);
+        extracted.forEach((v) => used.add(JSON.stringify({ path: v, file })));
       },
     });
   }
 
+  // Add CSS images
   const cssImages = await getCssImages(codeDirectory);
-  const combinedImages = [...usedImages, ...cssImages];
+  cssImages.forEach((img) =>
+    used.add(JSON.stringify({ path: img.value, file: img.file }))
+  );
 
+  // Normalize all used images
+  const normalizedUsed = new Set();
+  index = 0;
+  for (const entry of used) {
+    index++;
+    console.clear();
+    console.log('Normalizing images...', index, 'of', used.size);
+    const { path: p } = JSON.parse(entry);
+    const normalized = normalize(p, imageDirectory);
+    if (normalized) normalizedUsed.add(normalized);
+  }
 
-  const resolver = createResolver(imageDirectory);
-
-  for (const file of files) {
-    let i = 0
-    let isFound = false;
-    while(!isFound && i < combinedImages.length) {
-        const imageFilePath = await resolver(path.resolve(combinedImages[i].file), combinedImages[i].value);
-        if(compareFiles(path.resolve(file), imageFilePath)) {
-            isFound = true;
-            break;
-        }else if(i === combinedImages.length - 1) {
-            if(options.excludeFilePrint && options.excludeFilePrint.length > 0) {
-                if(!isExcludedFile(file, options.excludeFilePrint)) {
-                    unusedImages.push(file);
-                }
-            }else{
-                unusedImages.push(file);
-            }
-        }
-        i++;
+  // ---- Determine unused ----
+  index = 0;
+  for (const img of imageFiles) {
+    index++;
+    console.clear();
+    console.log('Determining unused images...', index, 'of', imageFiles.length);
+    const full = path.resolve(img);
+    if (!normalizedUsed.has(full)) {
+      unusedImages.push(full);
     }
   }
-
-  if(options.table) {
+  // ---- Output table or list ----
+  if (options.table) {
     const table = new Table({
-      head: options.dryRun ? ['Unused Images (Would Delete)'] : ['Unused Images'],
-      colWidths: [50]
+      head: options.dryRun ? ["Unused Images (Would Delete)"] : ["Unused Images"],
+      colWidths: [100],
     });
-    unusedImages.forEach(image => {
-      table.push([image]);
-    });
+    unusedImages.forEach((img) => table.push([img]));
     console.log(table.toString());
-  }else{
-    unusedImages.forEach(image => {
-      console.log(chalk.red(image));
-    });
+  } else {
+    unusedImages.forEach((img) => console.log(chalk.red(img)));
   }
 
-  if(options.dryRun && unusedImages.length > 0) {
-    console.log(chalk.cyan(`\n[DRY RUN] Would delete ${unusedImages.length} file(s)`));
-    console.log(chalk.cyan('Run without --dry-run to actually delete files\n'));
-  } else if (!options.dryRun && unusedImages.length > 0) {
+  // ---- deletion logic ----
+  if (options.dryRun) {
+    console.log(
+      chalk.cyan(
+        `\n[DRY RUN] Would delete ${unusedImages.length} file(s)`
+      )
+    );
+  } else if (unusedImages.length > 0) {
     askDeleteFiles(unusedImages);
   }
+
   return unusedImages;
 }
 

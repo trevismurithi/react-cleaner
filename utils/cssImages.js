@@ -25,7 +25,11 @@ async function getCssImages(directory = "src") {
     `${directory}/**/*.{css,scss}`,
   ]);
   let images = [];
+  let index = 0;
   for (const file of cssFiles) {
+    index++;
+    console.clear();
+    console.log('Scanning CSS files...', index, 'of', cssFiles.length);
     const css = fs.readFileSync(file, "utf-8");
     images = extractCssImages(css, images, file);
   }

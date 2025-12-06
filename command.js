@@ -28,7 +28,12 @@ async function getFiles(directory = "src", options, chalk) {
 
   const files = await fg(contentPaths);
   const imports = [];
+  
+  let index = 0;
   for (const file of files) {
+    index++;
+    console.clear();
+    console.log('Scanning file...', index, 'of', files.length);
     const code = fs.readFileSync(file, "utf8");
     const ast = parser.parse(code, {
       sourceType: "module",
@@ -127,8 +132,11 @@ async function unUsedFiles(chalk, directory = "src", options) {
 
   // debug log
   // let debugCount = 0;
-  // console.log('total files---', files.length);
+  let index = 0;
   for (const file of files) {
+    index++;
+    console.clear();
+    console.log('Checking file...', index, 'of', files.length);
     const code = fs.readFileSync(file, "utf8");
     if (needsRebuild(file, code, cache)) {
       const ast = parser.parse(code, {
@@ -169,8 +177,13 @@ async function unUsedFiles(chalk, directory = "src", options) {
     imports = cache[directory]? cache[directory].imports: [];
   }
 
+
   // debugCount = 0;
+  index = 0;
   for (const file of files) {
+    index++;
+    console.clear();
+    console.log('Checking file...', index, 'of', files.length);
     const code = fs.readFileSync(file, "utf8");
     if (!cache[file].isImported || needsRebuild(file, code, cache)) {
       let i = 0;
@@ -201,6 +214,7 @@ async function unUsedFiles(chalk, directory = "src", options) {
       // console.log("debug hit", debugCount);
     }
   }
+  
   cache[directory] =  {
     imports: imports,
   }

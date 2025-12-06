@@ -1,6 +1,6 @@
 const { getFiles, unUsedFiles } = require("../command");
 const Table = require('cli-table3');
-const askDeleteFiles = require("../utils/utils");
+const { askDeleteFiles } = require("../utils/utils");
 
 
 async function list(chalk, path, options) {

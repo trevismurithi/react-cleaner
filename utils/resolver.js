@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const {create} = require('enhanced-resolve');
 
 
@@ -27,6 +28,9 @@ const resolver = create({
   }
 }
 
+
+
+
 module.exports = {
-  createResolver
+  createResolver,
 };

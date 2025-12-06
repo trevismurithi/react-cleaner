@@ -1,12 +1,13 @@
 {
   "name": "qleaner",
   "packageManager": "yarn@4.6.0",
-  "version": "1.0.18",
+  "version": "1.0.23",
   "main": "command.js",
   "bin": "./bin/cli.js",
   "scripts": {
     "start": "node ./bin/cli.js",
-    "resolve": "node ./utils/resolver.js"
+    "resolve": "node ./utils/resolver.js",
+    "scan": "node ./scanning.js"
   },
   "devDependencies": {
     "@types/node": "^20.10.5",
@@ -16,6 +17,7 @@
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",
     "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
     "enhanced-resolve": "^5.18.3",
