@@ -20,6 +20,7 @@
     "commander": "^14.0.2",
     "enhanced-resolve": "^5.18.3",
     "fast-glob": "^3.3.3",
+    "ora": "^9.0.0",
     "prompts": "^2.4.2"
   }
 }

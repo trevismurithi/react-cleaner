@@ -1,9 +1,9 @@
 const fs = require('fs');
 const fg = require('fast-glob');
+const path = require('path');
 
-function extractCssImages(cssContent) {
+function extractCssImages(cssContent, images, file) {
   const urlRegex = /url\((['"]?)(.*?)\1\)/g;
-  const images = new Set();
   let match;
 
   while ((match = urlRegex.exec(cssContent)) !== null) {
@@ -11,23 +11,28 @@ function extractCssImages(cssContent) {
 
     // Only collect image file types
     if (/\.(png|jpg|jpeg|svg|gif|webp)$/i.test(url)) {
-      images.add(url);
+      images.push({
+        value: url,
+        file: path.resolve(file),
+      });
     }
   }
-
-  return Array.from(images);
+  return images
 }
 
-async function getCssImages() {
+async function getCssImages(directory = "src") {
   const cssFiles = await fg([
-    "src/**/*.{css,scss}",
+    `${directory}/**/*.{css,scss}`,
   ]);
+  let images = [];
   for (const file of cssFiles) {
     const css = fs.readFileSync(file, "utf-8");
-    const images = extractCssImages(css);
-    console.log(images);
+    images = extractCssImages(css, images, file);
   }
+  return images;
 }
 
-getCssImages();
+module.exports = {
+  getCssImages,
+};
 

@@ -11,6 +11,7 @@ const {
   needsRebuild,
   saveCache,
 } = require("./utils/cache");
+const { isExcludedFile, compareFiles } = require("./utils/utils");
 
 async function getFiles(directory = "src", options, chalk) {
   const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
@@ -176,7 +177,6 @@ async function unUsedFiles(chalk, directory = "src", options) {
       let isFound = false;
       while (!isFound && i < imports.length) {
         const importFilePath = await resolver(
-          chalk,
           imports[i].file,
           imports[i].from
         );
@@ -208,13 +208,7 @@ async function unUsedFiles(chalk, directory = "src", options) {
   return unusedFiles;
 }
 
-function isExcludedFile(file, excludeFiles) {
-  return excludeFiles.some((exclude) => file.includes(exclude));
-}
 
-function compareFiles(filePath, importPath) {
-  return filePath === importPath;
-}
 
 module.exports = {
   getFiles,

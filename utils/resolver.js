@@ -16,7 +16,7 @@ const resolver = create({
     ]
   });
 
-  return function resolveImport(chalk,sourceFile, importPath) {
+  return function resolveImport(sourceFile, importPath) {
     // console.log(chalk.yellow('sourceFile--resolver'), sourceFile, chalk.yellow('importPath--resolver'), importPath);
     return new Promise((resolve, reject) => {
       resolver(path.dirname(sourceFile), importPath, (err, result) => {

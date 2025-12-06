@@ -53,4 +53,16 @@ async function deleteFiles(files) {
     console.log(`Deleted ${files.length} files`);
 }
 
-module.exports = askDeleteFiles;
+function isExcludedFile(file, excludeFiles) {
+    return excludeFiles.some((exclude) => file.includes(exclude));
+  }
+  
+  function compareFiles(filePath, importPath) {
+    return filePath === importPath;
+  }
+
+module.exports = {
+    askDeleteFiles,
+    isExcludedFile,
+    compareFiles,
+};

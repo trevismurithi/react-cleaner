@@ -45,15 +45,6 @@ async function scan(chalk, path, options) {
     }
 }
 
-async function image(chalk, path, options) {
-    const unusedImages = await unUsedImages(chalk,path, options);
-    if(options.table){
-      console.log(chalk.yellow('***************** Unused Images *****************'));
-      console.log(unusedImages.toString());
-    }
-}
-
-
 module.exports = {
   list,
   scan
