@@ -77,7 +77,7 @@ async function loadChalk() {
   .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
   .option("-C, --clear-cache", "Clear the cache")
   .action(async (directory, rootPath, options) => {
-    await getUnusedImages(ora, chalk, directory, rootPath, options);
+    await getUnusedImages(chalk, directory, rootPath, options);
   });
   program.parse(process.argv);
 })();
