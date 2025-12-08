@@ -1,9 +1,18 @@
 {
   "name": "qleaner",
   "packageManager": "yarn@4.6.0",
-  "version": "1.0.23",
+  "version": "1.0.27",
+  "license": "MIT",
   "main": "command.js",
   "bin": "./bin/cli.js",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:trevismurithi/react-cleaner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trevismurithi/react-cleaner/issues"
+  },
+  "homepage": "https://github.com/trevismurithi/react-cleaner#readme",
   "scripts": {
     "start": "node ./bin/cli.js",
     "resolve": "node ./utils/resolver.js",

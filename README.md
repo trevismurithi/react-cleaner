@@ -5,6 +5,7 @@ A powerful CLI tool to analyze and clean up your React codebase by finding unuse
 ## Features
 
 - 🔍 **Scan for unused files**: Identify files that are not imported anywhere in your project
+- 🖼️ **Scan for unused images**: Find image files that are not referenced in your codebase
 - 📋 **List all imports**: Get a complete list of all import statements in your codebase with file locations
 - 🎯 **File listing**: List all files in your project
 - 📊 **Table output**: Display results in formatted tables for better readability
@@ -13,6 +14,7 @@ A powerful CLI tool to analyze and clean up your React codebase by finding unuse
 - 💪 **TypeScript support**: Works with TypeScript, JavaScript, JSX, and TSX files
 - 🧪 **Dry run mode**: Preview what would be deleted without actually deleting files
 - 💾 **Smart caching**: Caches scan results for faster subsequent runs (automatically invalidates on file changes)
+- 🎨 **CSS and styled-components support**: Detects images used in CSS files and styled-components
 
 ## Installation
 
@@ -117,6 +119,63 @@ qleaner qlean-scan src --clear-cache
 qleaner qlean-scan src --clear-cache --dry-run
 ```
 
+### Scan for Unused Images
+
+Find image files that are not referenced anywhere in your codebase:
+
+```bash
+qleaner qlean-image <directory> <rootPath> [options]
+```
+
+**Arguments:**
+- `<directory>` - The path to the directory containing image files to scan
+- `<rootPath>` - The root path to the project code that utilizes the images
+
+**Options:**
+- `-e, --exclude-dir-assets <dir...>` - Exclude directories from the asset scan
+- `-f, --exclude-file-asset <file...>` - Exclude files from the asset scan
+- `-F, --exclude-file-print-asset <files...>` - Scan but don't print the excluded asset files
+- `-E, --exclude-dir-code <dir...>` - Exclude directories from the code scan
+- `-S, --exclude-file-code <file...>` - Exclude files from the code scan
+- `-P, --exclude-file-print-code <files...>` - Scan but don't print the excluded code files
+- `-t, --table` - Display results in a formatted table
+- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-C, --clear-cache` - Clear the cache before scanning
+
+**Examples:**
+
+```bash
+# Scan for unused images in public/images directory
+qleaner qlean-image public/images src
+
+# Display unused images in a table format
+qleaner qlean-image public/images src --table
+
+# Scan with exclusions for assets
+qleaner qlean-image public/images src -e public/images/icons
+
+# Scan with exclusions for code files
+qleaner qlean-image public/images src -E __tests__ node_modules
+
+# Dry run - preview what would be deleted
+qleaner qlean-image public/images src --dry-run
+
+# Dry run with table output
+qleaner qlean-image public/images src --dry-run --table
+
+# Scan with multiple exclusions
+qleaner qlean-image public/images src -e public/images/icons -E __tests__ -S "**/*.test.*"
+```
+
+**What it detects:**
+- Images imported via `import` statements
+- Images required via `require()` calls
+- Images used in JSX `src` attributes
+- Images in CSS `url()` functions (CSS and SCSS files)
+- Images in styled-components and CSS-in-JS template literals
+- Images in inline styles (backgroundImage, etc.)
+- Images referenced in string literals and template literals
+
 ## Output Formats
 
 Qleaner provides two output formats:
@@ -131,8 +190,11 @@ Qleaner provides two output formats:
    - Import tables show: File, Line, Column, and Import path
    - File tables show: File path
    - Unused files table shows: Unused file paths (or "Would Delete" in dry run mode)
+   - Unused images table shows: Unused image paths (or "Would Delete" in dry run mode)
 
 ## How It Works
+
+### File Scanning (qlean-scan)
 
 1. **File Discovery**: Recursively finds all `.tsx`, `.ts`, `.js`, and `.jsx` files in the specified directory
 2. **Caching**: Checks cache for previously scanned files. Files that haven't changed are skipped for faster performance
@@ -143,19 +205,49 @@ Qleaner provides two output formats:
 7. **Reporting**: Outputs the results in standard or table format based on your preferences
 8. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
 
+### Image Scanning (qlean-image)
+
+1. **Image Discovery**: Recursively finds all image files (`.png`, `.jpg`, `.jpeg`, `.svg`, `.gif`, `.webp`) in the specified directory
+2. **Code Scanning**: Scans all code files (`.js`, `.jsx`, `.ts`, `.tsx`) for image references
+3. **Image Detection**: Detects images through multiple methods:
+   - Import statements (`import img from './image.png'`)
+   - Require calls (`require('./image.png')`)
+   - JSX src attributes (`<img src="./image.png" />`)
+   - CSS url() functions in CSS/SCSS files
+   - Styled-components and CSS-in-JS template literals
+   - Inline styles (backgroundImage, etc.)
+   - String and template literals containing image paths
+4. **Path Normalization**: Normalizes all detected image paths for consistent matching
+5. **Analysis**: Compares discovered image files with detected references to identify unused images
+6. **Reporting**: Outputs the results in standard or table format
+7. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
+
 ## Supported File Types
 
+**Code files:**
 - `.js` - JavaScript files
 - `.jsx` - JavaScript React files
 - `.ts` - TypeScript files
 - `.tsx` - TypeScript React files
 
+**Image files (for qlean-image):**
+- `.png` - PNG images
+- `.jpg`, `.jpeg` - JPEG images
+- `.svg` - SVG images
+- `.gif` - GIF images
+- `.webp` - WebP images
+
+**CSS files (for image detection):**
+- `.css` - CSS files
+- `.scss` - SCSS files
+
 ## Use Cases
 
 - 🧹 **Code cleanup**: Remove dead code and unused files from your React projects
+- 🖼️ **Image cleanup**: Find and remove unused image assets to reduce project size
 - 📊 **Code analysis**: Understand import patterns and dependencies in your codebase
-- 🔍 **Project audit**: Identify orphaned files that may have been forgotten
-- 📦 **Bundle optimization**: Find files that can be removed to reduce bundle size
+- 🔍 **Project audit**: Identify orphaned files and assets that may have been forgotten
+- 📦 **Bundle optimization**: Find files and images that can be removed to reduce bundle size
 - 🎯 **Maintenance**: Keep your codebase clean and maintainable
 
 ## Configuration
@@ -216,4 +308,4 @@ MIT
 
 ## Version
 
-Current version: 1.0.13
+Current version: 1.0.27
