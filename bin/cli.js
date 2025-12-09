@@ -75,7 +75,7 @@ async function loadChalk() {
   )
   .option("-t, --table", "Print the results in a table")
   .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-  .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
+  // .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
   .action(async (directory, rootPath, options) => {
     await getUnusedImages(chalk, directory, rootPath, options);
   });

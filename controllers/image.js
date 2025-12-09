@@ -105,20 +105,29 @@ function extractFromJSXStyle(node, file, collected) {
 async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   const used = new Set();
   const unusedImages = [];
+  const imagePaths = [`${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`];
   const codePaths = [`${codeDirectory}/**/*.{js,jsx,ts,tsx}`];
 
+  if (options.excludeDirAssets && options.excludeDirAssets.length > 0) {
+    options.excludeDirAssets.forEach((dir) => {
+      imagePaths.push(`!${dir}/**`);
+    });
+  }
+  if (options.excludeFileAssets && options.excludeFileAssets.length > 0) {
+    options.excludeFileAssets.forEach((file) => {
+      imagePaths.push(`!${imageDirectory}/**/${file}`);
+    });
+  }
   // ---- Collect image files in asset directory ----
-  const imageFiles = await fg([
-    `${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`,
-  ]);
+  const imageFiles = await fg(imagePaths);
 
-  if (options.excludeDir && options.excludeDir.length > 0) {
-    options.excludeDir.forEach((dir) => {
+  if (options.excludeDirCode && options.excludeDirCode.length > 0) {
+    options.excludeDirCode.forEach((dir) => {
       codePaths.push(`!${dir}/**`);
     });
   }
-  if (options.excludeFile && options.excludeFile.length > 0) {
-    options.excludeFile.forEach((file) => {
+  if (options.excludeFileCode && options.excludeFileCode.length > 0) {
+    options.excludeFileCode.forEach((file) => {
       codePaths.push(`!${codeDirectory}/**/${file}`);
     });
   }
