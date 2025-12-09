@@ -105,7 +105,7 @@ function extractFromJSXStyle(node, file, collected) {
 async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   const used = new Set();
   const unusedImages = [];
-  const codePaths = [[`${codeDirectory}/**/*.{js,jsx,ts,tsx}`]];
+  const codePaths = [`${codeDirectory}/**/*.{js,jsx,ts,tsx}`];
 
   // ---- Collect image files in asset directory ----
   const imageFiles = await fg([
