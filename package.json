@@ -4,10 +4,12 @@
   "version": "1.0.33",
   "license": "MIT",
   "main": "command.js",
-  "bin": "./bin/cli.js",
+  "bin": {
+    "qleaner": "bin/cli.js"
+  },
   "repository": {
     "type": "git",
-    "url": "git@github.com:trevismurithi/react-cleaner.git"
+    "url": "git+ssh://git@github.com/trevismurithi/react-cleaner.git"
   },
   "bugs": {
     "url": "https://github.com/trevismurithi/react-cleaner/issues"
