@@ -105,14 +105,25 @@ function extractFromJSXStyle(node, file, collected) {
 async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   const used = new Set();
   const unusedImages = [];
+  const codePaths = [[`${codeDirectory}/**/*.{js,jsx,ts,tsx}`]];
 
   // ---- Collect image files in asset directory ----
   const imageFiles = await fg([
     `${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`,
   ]);
 
+  if (options.excludeDir && options.excludeDir.length > 0) {
+    options.excludeDir.forEach((dir) => {
+      codePaths.push(`!${dir}/**`);
+    });
+  }
+  if (options.excludeFile && options.excludeFile.length > 0) {
+    options.excludeFile.forEach((file) => {
+      codePaths.push(`!${codeDirectory}/**/${file}`);
+    });
+  }
   // ---- Scan Code Files ----
-  const codeFiles = await fg([`${codeDirectory}/**/*.{js,jsx,ts,tsx}`]);
+  const codeFiles = await fg(codePaths);
   let index = 0;
   for (const file of codeFiles) {
     index++;
