@@ -64,11 +64,7 @@ function extractFromJSXStyle(node, file, collected) {
   if (!expr || expr.type !== "ObjectExpression") return;
 
   expr.properties.forEach((prop) => {
-    if (
-      prop.type !== "ObjectProperty" ||
-      !prop.key ||
-      !prop.value
-    ) return;
+    if (prop.type !== "ObjectProperty" || !prop.key || !prop.value) return;
 
     const keyName = prop.key.name || prop.key.value;
 
@@ -111,7 +107,9 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   const unusedImages = [];
 
   // ---- Collect image files in asset directory ----
-  const imageFiles = await fg([`${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`]);
+  const imageFiles = await fg([
+    `${imageDirectory}/**/*.{png,jpg,jpeg,svg,gif,webp}`,
+  ]);
 
   // ---- Scan Code Files ----
   const codeFiles = await fg([`${codeDirectory}/**/*.{js,jsx,ts,tsx}`]);
@@ -119,7 +117,7 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   for (const file of codeFiles) {
     index++;
     console.clear();
-    console.log('Scanning code files...', index, 'of', codeFiles.length);
+    console.log("Scanning code files...", index, "of", codeFiles.length);
     const code = fs.readFileSync(file, "utf8");
 
     const ast = parser.parse(code, {
@@ -219,9 +217,7 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
 
         // detect url("...") inside strings (e.g., Tailwind)
         const matches = [...val.matchAll(URL_EXTRACT_REGEX)];
-        matches.forEach((m) =>
-          used.add(JSON.stringify({ path: m[2], file }))
-        );
+        matches.forEach((m) => used.add(JSON.stringify({ path: m[2], file })));
       },
 
       /**
@@ -256,7 +252,7 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   for (const entry of used) {
     index++;
     console.clear();
-    console.log('Normalizing images...', index, 'of', used.size);
+    console.log("Normalizing images...", index, "of", used.size);
     const { path: p } = JSON.parse(entry);
     const normalized = normalize(p, imageDirectory);
     if (normalized) normalizedUsed.add(normalized);
@@ -267,7 +263,7 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   for (const img of imageFiles) {
     index++;
     console.clear();
-    console.log('Determining unused images...', index, 'of', imageFiles.length);
+    console.log("Determining unused images...", index, "of", imageFiles.length);
     const full = path.resolve(img);
     if (!normalizedUsed.has(full)) {
       unusedImages.push(full);
@@ -276,7 +272,9 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   // ---- Output table or list ----
   if (options.table) {
     const table = new Table({
-      head: options.dryRun ? ["Unused Images (Would Delete)"] : ["Unused Images"],
+      head: options.dryRun
+        ? ["Unused Images (Would Delete)"]
+        : ["Unused Images"],
       colWidths: [100],
     });
     unusedImages.forEach((img) => table.push([img]));
@@ -288,9 +286,7 @@ async function getUnusedImages(chalk, imageDirectory, codeDirectory, options) {
   // ---- deletion logic ----
   if (options.dryRun) {
     console.log(
-      chalk.cyan(
-        `\n[DRY RUN] Would delete ${unusedImages.length} file(s)`
-      )
+      chalk.cyan(`\n[DRY RUN] Would delete ${unusedImages.length} file(s)`)
     );
   } else if (unusedImages.length > 0) {
     askDeleteFiles(unusedImages);
