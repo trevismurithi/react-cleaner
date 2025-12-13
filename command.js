@@ -10,6 +10,7 @@ const {
   getFileHash,
   needsRebuild,
   saveCache,
+  clearCache,
 } = require("./utils/cache");
 const { isExcludedFile, compareFiles } = require("./utils/utils");
 
@@ -28,12 +29,12 @@ async function getFiles(directory = "src", options, chalk) {
 
   const files = await fg(contentPaths);
   const imports = [];
-  
+
   let index = 0;
   for (const file of files) {
     index++;
     console.clear();
-    console.log('Scanning file...', index, 'of', files.length);
+    console.log("Scanning file...", index, "of", files.length);
     const code = fs.readFileSync(file, "utf8");
     const ast = parser.parse(code, {
       sourceType: "module",
@@ -111,9 +112,20 @@ async function getFiles(directory = "src", options, chalk) {
   }
 }
 
-async function unUsedFiles(chalk, directory = "src", options) {
+async function unUsedFiles(ora, chalk, directory = "src", options) {
+  // Start spinner
+  const spinner = ora("Start Qleaner scan...").start();
+
   const resolver = createResolver(directory);
+  // check for clearCache option
+  if (options.clearCache) {
+    spinner.text = "🔍 Clearing cache...";
+    clearCache(process.cwd());
+    spinner.succeed("✓ Cache cleared successfully");
+  }
+  spinner.text = "🔍 Loading cache...";
   const cache = loadCache(process.cwd());
+  spinner.succeed("✓ Cache loaded successfully");
   const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
   if (options.excludeDir && options.excludeDir.length > 0) {
     options.excludeDir.forEach((dir) => {
@@ -126,17 +138,23 @@ async function unUsedFiles(chalk, directory = "src", options) {
     });
   }
 
+  const LOG_PREFIX = "Qleaner scan";
+  console.time(LOG_PREFIX);
+  // STEP 1
+  spinner.text = "🔍 Discovering files...";
   const files = await fg(contentPaths);
-  let imports = [];
-  const unusedFiles = [];
+  spinner.succeed(`Found ${files.length} files`);
 
-  // debug log
-  // let debugCount = 0;
+  let imports = [];
+  let unusedFiles = new Set();
+
+  // STEP 2
+  spinner.text = "🔍 Checking files...";
   let index = 0;
   for (const file of files) {
     index++;
-    console.clear();
-    console.log('Checking file...', index, 'of', files.length);
+    // console.clear();
+    // console.log("Checking file...", index, "of", files.length);
     const code = fs.readFileSync(file, "utf8");
     if (needsRebuild(file, code, cache)) {
       const ast = parser.parse(code, {
@@ -147,6 +165,7 @@ async function unUsedFiles(chalk, directory = "src", options) {
         hash: getFileHash(code),
         imports: [],
         isImported: false,
+        isChecked: false,
         lastModified: fs.statSync(file).mtime.getTime(),
       };
       traverse(ast, {
@@ -171,28 +190,35 @@ async function unUsedFiles(chalk, directory = "src", options) {
       // console.log('cache hit', debugCount);
     }
   }
+  spinner.succeed(`Checked ${files.length} files`);
 
-  // imports beings empty shows all the files were cached
-  if(imports.length === 0) {
-    imports = cache[directory]? cache[directory].imports: [];
+  // imports being empty shows all the files were cached
+  if (imports.length === 0) {
+    imports = cache[directory] ? cache[directory].imports : [];
   }
 
-
+  // STEP 3
+  spinner.text = "🔍 Checking imports...";
   // debugCount = 0;
   index = 0;
+  unusedFiles =
+    cache[directory] &&
+    cache[directory].unusedFiles &&
+    cache[directory].unusedFiles.length > 0
+      ? new Set(cache[directory].unusedFiles)
+      : new Set();
+
   for (const file of files) {
     index++;
-    console.clear();
-    console.log('Checking file...', index, 'of', files.length);
+    // console.clear();
+    // console.log("Checking file...", index, "of", files.length);
     const code = fs.readFileSync(file, "utf8");
-    if (!cache[file].isImported || needsRebuild(file, code, cache)) {
+    if (needsRebuild(file, code, cache) || !cache[file].isChecked) {
+      cache[file].isChecked = true;
       let i = 0;
       let isFound = false;
       while (!isFound && i < imports.length) {
-        const importFilePath = await resolver(
-          imports[i].file,
-          imports[i].from
-        );
+        const importFilePath = await resolver(imports[i].file, imports[i].from);
         if (compareFiles(path.resolve(file), importFilePath)) {
           isFound = true;
           cache[file].isImported = true;
@@ -200,29 +226,51 @@ async function unUsedFiles(chalk, directory = "src", options) {
         } else if (i === imports.length - 1) {
           if (options.excludeFilePrint && options.excludeFilePrint.length > 0) {
             if (!isExcludedFile(file, options.excludeFilePrint)) {
-              unusedFiles.push(file);
+              unusedFiles.add(file);
             }
           } else {
-            unusedFiles.push(file);
+            unusedFiles.add(file);
           }
           break;
         }
         i++;
       }
     } else {
-      // debugCount++;
-      // console.log("debug hit", debugCount);
+      // if file is not in unused files set and not imported, add it to unused files set
+      // if excludeFilePrint is provided, check if file is excluded
+      // if excludeFilePrint is not provided, add file to unused files set
+      if (!unusedFiles.has(file) && !cache[file].isImported) {
+        if (options.excludeFilePrint && options.excludeFilePrint.length > 0) {
+          if (!isExcludedFile(file, options.excludeFilePrint)) {
+            unusedFiles.add(file);
+          }
+        } else {
+          unusedFiles.add(file);
+        }
+      }
+      // if file is in unused files set and excludeFilePrint is provided, delete it if it is excluded
+      else if (
+        unusedFiles.has(file) &&
+        options.excludeFilePrint &&
+        options.excludeFilePrint.length > 0
+      ) {
+        if (isExcludedFile(file, options.excludeFilePrint)) {
+          unusedFiles.delete(file);
+        }
+      }
     }
   }
-  
-  cache[directory] =  {
+
+  cache[directory] = {
     imports: imports,
-  }
+  };
+  spinner.succeed(`Found ${unusedFiles.size} unused files`);
+  console.timeEnd(LOG_PREFIX);
+  const unusedFilesArray = Array.from(unusedFiles);
+  cache[directory].unusedFiles = unusedFilesArray;
   saveCache(process.cwd(), cache);
-  return unusedFiles;
+  return unusedFilesArray;
 }
-
-
 
 module.exports = {
   getFiles,

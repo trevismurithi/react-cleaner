@@ -4,9 +4,7 @@
   "version": "1.0.34",
   "license": "MIT",
   "main": "command.js",
-  "bin": {
-    "qleaner": "bin/cli.js"
-  },
+  "bin": "bin/cli.js",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/trevismurithi/react-cleaner.git"
@@ -53,10 +51,15 @@
   "scripts": {
     "start": "node ./bin/cli.js",
     "resolve": "node ./utils/resolver.js",
-    "scan": "node ./scanning.js"
+    "scan": "node ./scanning.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^20.10.5",
+    "eslint": "^9.39.2",
+    "globals": "^16.5.0",
     "typescript": "^5.3.3"
   },
   "dependencies": {

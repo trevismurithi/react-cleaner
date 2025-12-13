@@ -8,8 +8,13 @@ async function loadChalk() {
   return (await import("chalk")).default;
 }
 
+async function loadOra(){
+  return (await import("ora")).default
+}
+
 (async () => {
   const chalk = await loadChalk();
+  const ora = await loadOra()
 
   const program = new Command();
 
@@ -53,7 +58,7 @@ async function loadChalk() {
         clearCache(process.cwd());
         console.log(chalk.green('✓ Cache cleared successfully'));
       }
-      await scan(chalk, path, options);
+      await scan(ora,chalk, path, options);
     });
 
   program

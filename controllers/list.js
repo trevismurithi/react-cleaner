@@ -13,8 +13,8 @@ async function list(chalk, path, options) {
     }
 }
 
-async function scan(chalk, path, options) {
-    const unusedFiles = await unUsedFiles(chalk,path, options);
+async function scan(ora, chalk, path, options) {
+    const unusedFiles = await unUsedFiles(ora, chalk,path, options);
     // console.clear()
     
     if (options.dryRun) {
@@ -37,6 +37,11 @@ async function scan(chalk, path, options) {
         });
     }
     
+    // inform about the cache, that already scanned files were skipped
+    // Everytime they need a new scan, they should clear the cache
+    console.log(chalk.cyan('***************** Cache *****************'));
+    console.log(chalk.cyan('Run with --clear-cache or -C to clear the cache for a new scan'));
+    console.log(chalk.cyan('***************** Cache *****************'));
     if (options.dryRun && unusedFiles.length > 0) {
       console.log(chalk.cyan(`\n[DRY RUN] Would delete ${unusedFiles.length} file(s)`));
       console.log(chalk.cyan('Run without --dry-run to actually delete files\n'));

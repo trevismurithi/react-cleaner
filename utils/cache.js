@@ -37,6 +37,7 @@ function clearCache(rootPath) {
         fs.unlinkSync(file);
     }
 }
+
 module.exports = {
     loadCache,
     getFileHash,

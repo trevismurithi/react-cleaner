@@ -1,5 +1,4 @@
 const path = require('path');
-const fs = require('fs');
 const {create} = require('enhanced-resolve');
 
 
@@ -19,7 +18,7 @@ const resolver = create({
 
   return function resolveImport(sourceFile, importPath) {
     // console.log(chalk.yellow('sourceFile--resolver'), sourceFile, chalk.yellow('importPath--resolver'), importPath);
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _) => {
       resolver(path.dirname(sourceFile), importPath, (err, result) => {
         if (err) return resolve(null);
         resolve(path.resolve(result));
@@ -27,9 +26,6 @@ const resolver = create({
     });
   }
 }
-
-
-
 
 module.exports = {
   createResolver,
