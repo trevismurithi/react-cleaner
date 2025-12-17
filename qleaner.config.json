@@ -1,0 +1,19 @@
+{
+  "excludeDir": [
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "excludeFile": [],
+  "excludeFilePrint": [
+    "page.tsx"
+  ],
+  "excludeDirAssets": [],
+  "excludeFileAsset": [],
+  "excludeFilePrintAsset": [],
+  "excludeDirCode": [],
+  "excludeFileCode": [],
+  "excludeFilePrintCode": [],
+  "isRootFolderReferenced": false,
+  "alias": false
+}

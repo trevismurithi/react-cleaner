@@ -3,6 +3,7 @@ const { Command } = require("commander");
 const { list, scan } = require("../controllers/list");
 const { clearCache } = require("../utils/cache");
 const { getUnusedImages } = require("../controllers/image");
+const { init } = require("../controllers/initialize");
 
 async function loadChalk() {
   return (await import("chalk")).default;
@@ -21,7 +22,13 @@ async function loadOra(){
   program
     .name("qleaner")
     .description("A tool to clean up your React code")
-    .version("1.0.0");
+    .version("1.0.34");
+
+  program.command("qlean-init")
+  .description("Initialize the project for Qleaner")
+  .action(async () => {
+    await init(chalk);
+  });
 
   program
     .command("qlean-list")
@@ -78,9 +85,10 @@ async function loadOra(){
     "-P, --exclude-file-print-code <files...>",
     "Scan but don't print the excluded files"
   )
+  .option("-r, --is-root-folder-referenced", "Is the root folder referenced in the image path eg /img/a.png where img is the root folder")
+  .option("-a, --alias", "Is the alias referenced in the image path eg @/assets/images/a.png")
   .option("-t, --table", "Print the results in a table")
   .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-  // .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
   .action(async (directory, rootPath, options) => {
     await getUnusedImages(chalk, directory, rootPath, options);
   });
