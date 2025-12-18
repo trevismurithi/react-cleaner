@@ -14,6 +14,8 @@ A powerful CLI tool to analyze and clean up your React codebase by finding unuse
 - 💪 **TypeScript support**: Works with TypeScript, JavaScript, JSX, and TSX files
 - 🧪 **Dry run mode**: Preview what would be deleted without actually deleting files
 - 💾 **Smart caching**: Caches scan results for faster subsequent runs (automatically invalidates on file changes)
+- 📊 **Dependency graph**: Builds a complete dependency graph tracking import relationships between files
+- ⚡ **Incremental scanning**: Only processes files that have changed since the last scan
 - 🎨 **CSS and styled-components support**: Detects images used in CSS files and styled-components
 
 ## Installation
@@ -197,13 +199,21 @@ Qleaner provides two output formats:
 ### File Scanning (qlean-scan)
 
 1. **File Discovery**: Recursively finds all `.tsx`, `.ts`, `.js`, and `.jsx` files in the specified directory
-2. **Caching**: Checks cache for previously scanned files. Files that haven't changed are skipped for faster performance
-3. **Import Extraction**: Parses files using Babel AST and extracts all import statements (only for changed files or cache misses)
-4. **Module Resolution**: Uses enhanced-resolve to properly resolve import paths (supports path aliases like `@/` and `~/`)
-5. **Analysis**: Compares file paths with resolved import paths to identify unused files
-6. **Cache Update**: Saves scan results to cache for faster subsequent runs
-7. **Reporting**: Outputs the results in standard or table format based on your preferences
-8. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
+2. **Cache Initialization**: Loads the dependency graph from cache (if available) or initializes a new empty graph
+3. **Incremental Scanning**: 
+   - Calculates content hash (MD5) for each file
+   - Only processes files that have changed since the last scan (skips unchanged files for faster performance)
+   - Files are checked against cache using content hashing to determine if they need rebuilding
+4. **Import Extraction**: Parses changed files using Babel AST and extracts all import statements
+5. **Dependency Graph Building**:
+   - Creates graph nodes for each file with metadata (hash, size, last modified time)
+   - Tracks bidirectional relationships: `imports` (what a file imports) and `importedBy` (what imports a file)
+   - Resolves import paths using enhanced-resolve (supports path aliases like `@/` and `~/`)
+   - Builds complete dependency relationships between all files
+6. **Unused File Detection**: Identifies files with no incoming dependencies (`importedBy.size === 0`) as unused
+7. **Cache Persistence**: Saves the complete dependency graph to cache (`unused-check-cache.json`) for faster subsequent runs
+8. **Reporting**: Outputs the results in standard or table format based on your preferences
+9. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
 
 ### Image Scanning (qlean-image)
 
@@ -270,12 +280,14 @@ You can exclude directories and files from scanning using the command-line optio
 
 1. **Start with a small scope**: Begin by scanning a specific directory before scanning the entire project
 2. **Use dry run first**: Always run with `--dry-run` first to preview what would be deleted before actually deleting files
-3. **Clear cache after code changes**: If you've made changes to your codebase (added/removed files, changed imports), use `--clear-cache` to ensure accurate results. The cache automatically invalidates when files change, but clearing it manually ensures a fresh scan
-4. **Use exclusions**: Exclude test files and build outputs when scanning for unused files
-5. **Review before deleting**: Always review the unused files list before removing them - some files might be used dynamically (e.g., through dynamic imports, configuration files, or asset references)
-6. **Use table format**: The table format is easier to read for large results
-7. **Combine options**: Use multiple flags together for comprehensive analysis
-8. **Check dynamic imports**: Files imported using dynamic imports (`import()`) may appear as unused but are actually needed
+3. **Leverage incremental scanning**: The dependency graph and caching system means subsequent scans are much faster - only changed files are processed. The first scan builds the complete dependency graph, while later scans only update changed files
+4. **Clear cache after code changes**: If you've made changes to your codebase (added/removed files, changed imports), use `--clear-cache` to ensure accurate results. The cache automatically invalidates when files change, but clearing it manually ensures a fresh scan
+5. **Use exclusions**: Exclude test files and build outputs when scanning for unused files
+6. **Review before deleting**: Always review the unused files list before removing them - some files might be used dynamically (e.g., through dynamic imports, configuration files, or asset references)
+7. **Use table format**: The table format is easier to read for large results
+8. **Combine options**: Use multiple flags together for comprehensive analysis
+9. **Check dynamic imports**: Files imported using dynamic imports (`import()`) may appear as unused but are actually needed
+10. **Understand the dependency graph**: The tool builds a complete graph of file relationships. Files with no incoming dependencies (`importedBy` is empty) are marked as unused. This provides accurate detection even in complex codebases with deep import chains
 
 ## Important Notes
 
@@ -287,11 +299,22 @@ You can exclude directories and files from scanning using the command-line optio
 
 💡 **Tip**: Always use `--dry-run` first to preview what would be deleted. This is especially important in CI/CD pipelines or when scanning large codebases.
 
-💾 **Cache Management**: Qleaner uses intelligent caching to speed up scans. The cache automatically detects file changes via content hashing. However, if you've made significant changes to your codebase structure or want to ensure a completely fresh scan, use `--clear-cache` before scanning. This is particularly useful:
+💾 **Cache Management**: Qleaner uses intelligent caching with a dependency graph to speed up scans. The system:
+
+- **Content-based caching**: Uses MD5 hashing to detect file changes - only files with modified content are rescanned
+- **Dependency graph storage**: Maintains a complete graph of file relationships in `unused-check-cache.json`
+- **Incremental updates**: On subsequent scans, only changed files are processed, dramatically reducing scan time
+- **Automatic invalidation**: Files are automatically rescanned when their content hash changes
+- **Graph persistence**: The dependency graph (including imports and importedBy relationships) is saved and restored between runs
+
+The cache can be cleared using `--clear-cache` when you want a completely fresh scan. This is particularly useful:
 - After major refactoring
 - When files have been moved or renamed
 - When you want to ensure the most up-to-date results
 - In CI/CD pipelines where you want consistent, fresh scans
+- If you suspect the cache is corrupted or outdated
+
+**Cache file location**: The cache is stored as `unused-check-cache.json` in your project root directory.
 
 ## Requirements
 
