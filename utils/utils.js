@@ -1,6 +1,7 @@
 const prompts = require('prompts');
 const fs = require('fs');
 const path = require('path');
+const cliProgress = require('cli-progress');
 
 async function askDeleteFiles(files) {
     const response = await prompts({
@@ -61,8 +62,21 @@ function isExcludedFile(file, excludeFiles) {
     return filePath === importPath;
   }
 
+  function createStepBar(step, total, label, chalk) {
+    const bar = new cliProgress.SingleBar({
+      format: `${chalk.cyan(`[${step}]`)} ${label} |{bar}| {value}/{total}`,
+      barCompleteChar: "█",
+      barIncompleteChar: "░",
+      hideCursor: true
+    });
+  
+    bar.start(total, 0);
+    return bar;
+  }
+
 module.exports = {
     askDeleteFiles,
     isExcludedFile,
     compareFiles,
+    createStepBar,
 };

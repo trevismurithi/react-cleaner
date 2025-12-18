@@ -12,7 +12,7 @@ const {
   saveCache,
   clearCache,
 } = require("./utils/cache");
-const { isExcludedFile } = require("./utils/utils");
+const { isExcludedFile, createStepBar } = require("./utils/utils");
 
 async function getFiles(directory = "src", options, chalk) {
   const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
@@ -117,12 +117,12 @@ function initializeCache(spinner, options) {
   if (options.clearCache) {
     spinner.text = "🔍 Clearing cache...";
     clearCache(process.cwd());
-    spinner.succeed("✓ Cache cleared successfully");
+    spinner.succeed("Cache cleared successfully");
   }
   spinner.text = "🔍 Loading cache...";
   const cache = loadCache(process.cwd());
   const graph = hydrateGraph(cache.graph);
-  spinner.succeed("✓ Cache loaded successfully");
+  spinner.succeed("Cache loaded successfully");
   return { graph, imageGraph: cache.imageGraph };
 }
 
@@ -143,9 +143,13 @@ function buildContentPaths(directory, options) {
 }
 
 // Extracts import statements from files by parsing AST, only processes files that need rebuilding
-async function extractImportsFromFiles(files, graph, resolver) {
+async function extractImportsFromFiles(files, graph, resolver, chalk) {
+  const scanBar = createStepBar(`1/${files.length}`, files.length, "Scanning files", chalk);
+  let packingBar = null;
   const imports = []
   for (const file of files) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+    scanBar.increment();
     const filePath = path.resolve(file)
     const code = fs.readFileSync(filePath, "utf8");
     const isNeedsRebuild = needsRebuild(filePath, code, graph);
@@ -173,8 +177,16 @@ async function extractImportsFromFiles(files, graph, resolver) {
       });
     }
   }
+  scanBar.stop();
 
+  if(imports.length > 0){
+    packingBar = createStepBar(`1/${imports.length}`, imports.length, "Packing imports", chalk);
+  }
   for(const info of imports){
+    if(packingBar){
+      await new Promise(resolve => setTimeout(resolve, 20));
+      packingBar.increment();
+    }
     const importPath = await resolver(info.file, info.source)
     if(importPath !== null){
       graph.get(info.file).imports.add(importPath)
@@ -190,6 +202,9 @@ async function extractImportsFromFiles(files, graph, resolver) {
       }
       graph.get(importPath).importedBy.add(info.file)
     }
+  }
+  if(packingBar){
+    packingBar.stop();
   }
 }
 
@@ -214,11 +229,16 @@ async function checkUnusedFiles(
   files,
   graph,
   options,
+  chalk
 ) {
   let unusedFiles = new Set();
+    const checkBar = createStepBar(`1/${files.length}`, files.length, "Checking unused files", chalk);
     for (const file of files) {
+      await new Promise(resolve => setTimeout(resolve, 50));
       await checkFileUsage(path.resolve(file), graph, unusedFiles, options);
+      checkBar.increment();
   }
+  checkBar.stop();
   return unusedFiles;
 }
 
@@ -265,7 +285,7 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
 
   // STEP 2: Extract import statements from files
   spinner.text = "🔍 Checking files...";
-  await extractImportsFromFiles(files, graph, resolver);
+  await extractImportsFromFiles(files, graph, resolver, chalk);
   spinner.succeed(`Checked ${files.length} files`);
 
 
@@ -274,7 +294,8 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
   const unusedFiles = await checkUnusedFiles(
     files,
     graph,
-    options
+    options,
+    chalk
   );
 
   console.timeEnd(LOG_PREFIX);
