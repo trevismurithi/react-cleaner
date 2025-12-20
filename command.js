@@ -113,7 +113,7 @@ async function getFiles(directory = "src", options, chalk) {
 }
 
 // Initializes the cache by clearing it (if requested) and loading it from disk
-function initializeCache(spinner, options) {
+function initializeCache(spinner, options, code=true) {
   if (options.clearCache) {
     spinner.text = "🔍 Clearing cache...";
     clearCache(process.cwd());
@@ -121,9 +121,15 @@ function initializeCache(spinner, options) {
   }
   spinner.text = "🔍 Loading cache...";
   const cache = loadCache(process.cwd());
-  const graph = hydrateGraph(cache.graph);
+  let graph = null;
+  let imageGraph = null;
+  if(code){
+    graph = hydrateGraph(cache.graph);
+  }else{
+    imageGraph = hydrateGraph(cache.imageGraph);
+  }
   spinner.succeed("Cache loaded successfully");
-  return { graph, imageGraph: cache.imageGraph };
+  return { graph: graph || cache.graph, imageGraph: imageGraph || cache.imageGraph };
 }
 
 // Builds an array of glob patterns for file discovery, including exclusion patterns
@@ -207,7 +213,6 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     packingBar.stop();
   }
 }
-
 
 // Checks if a single file is imported/used by comparing it against all import statements
 // If not found in any imports and not excluded, adds it to the unused files set
@@ -310,4 +315,5 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
 module.exports = {
   getFiles,
   unUsedFiles,
+  initializeCache,
 };

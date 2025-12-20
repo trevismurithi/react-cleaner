@@ -39,6 +39,10 @@ async function moveToTrash(files) {
     }
 
     for(const file of files) {
+        if(!fs.existsSync(file)) {
+            console.error(`File ${file} does not exist, skipping...`);
+            continue;
+        }
        const fileName = path.basename(file);
        const destination = path.join(trashDir, fileName);
        fs.renameSync(file, destination);
@@ -49,7 +53,11 @@ async function moveToTrash(files) {
 
 async function deleteFiles(files) {
     for(const file of files) {
-        fs.unlinkSync(file);
+        try {
+            fs.unlinkSync(file);
+        } catch (error) {
+            console.error(`Error deleting file ${file}: ${error}`);
+        }
     }
     console.log(`Deleted ${files.length} files`);
 }

@@ -2,17 +2,29 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-function serializeGraph({graph, imageGraph}) {
-    const out = {};
-    for (const [file, node] of graph.entries()) {
-      out[file] = {
-        ...node,
-        imports: node.imports?Array.from(node.imports):[],
-        importedBy: node.importedBy?Array.from(node.importedBy):[],
-      };
+function serializeGraph({graph, imageGraph, isCode=true}) {
+    const graphData = {};
+    const imageGraphData = {};
+    if(isCode){
+        for (const [file, node] of graph.entries()) {
+            graphData[file] = {
+              ...node,
+              imports: node.imports?Array.from(node.imports):[],
+              importedBy: node.importedBy?Array.from(node.importedBy):[],
+            };
+          }
+
+    }else{
+        for (const [file, node] of imageGraph.entries()) {
+            imageGraphData[file] = {
+              ...node,
+              imports: node.imports?Array.from(node.imports):[],
+              importedBy: node.importedBy?Array.from(node.importedBy):[],
+            };
+          }
     }
-  
-    return {graph: out, imageGraph};
+    if(Object.keys(graphData).length > 0) return {graph: graphData, imageGraph};
+    if(Object.keys(imageGraphData).length > 0) return {graph, imageGraph: imageGraphData};
   }
 
 function loadCache(rootPath) {
@@ -37,9 +49,9 @@ function needsRebuild(file, content, cache) {
 }
 
 
-function saveCache(rootPath, cache) {
+function saveCache(rootPath, cache, isCode=true) {
     const file = path.join(rootPath, "unused-check-cache.json");
-    fs.writeFileSync(file, JSON.stringify(serializeGraph(cache), null, 2))
+    fs.writeFileSync(file, JSON.stringify(serializeGraph(cache, isCode), null, 2))
 }
 
 

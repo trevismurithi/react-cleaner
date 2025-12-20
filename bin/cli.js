@@ -61,10 +61,6 @@ async function loadOra(){
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
     .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
     .action(async (path, options) => {
-      if(options.clearCache) {
-        clearCache(process.cwd());
-        console.log(chalk.green('✓ Cache cleared successfully'));
-      }
       await scan(ora,chalk, path, options);
     });
 
@@ -75,22 +71,16 @@ async function loadOra(){
   .argument("<rootPath>", "The root path to the project code utilizing the images")
   .option("-e, --exclude-dir-assets <dir...>", "Exclude directories from the scan")
   .option("-f, --exclude-file-asset <file...>", "Exclude files from the scan")
-  .option(
-    "-F, --exclude-file-print-asset <files...>",
-    "Scan but don't print the excluded files"
-  )
   .option("-E, --exclude-dir-code <dir...>", "Exclude directories from the scan")
   .option("-S, --exclude-file-code <file...>", "Exclude files from the scan")
-  .option(
-    "-P, --exclude-file-print-code <files...>",
-    "Scan but don't print the excluded files"
-  )
   .option("-r, --is-root-folder-referenced", "Is the root folder referenced in the image path eg /img/a.png where img is the root folder")
   .option("-a, --alias", "Is the alias referenced in the image path eg @/assets/images/a.png")
   .option("-t, --table", "Print the results in a table")
+  .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
+  .option("-H, --hide-not-found-images", "Hide the images shown in code but not found in the image directory")
   .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
   .action(async (directory, rootPath, options) => {
-    await getUnusedImages(chalk, directory, rootPath, options);
+    await getUnusedImages(ora,chalk, directory, rootPath, options);
   });
   program.parse(process.argv);
 })();
