@@ -3,10 +3,6 @@ const path = require('path');
 
 async function init(chalk) {
     const configFile = path.join(process.cwd(), 'qleaner.config.json');
-    if(fs.existsSync(configFile)) {
-        console.log(chalk.red('Qleaner config file already exists'));
-        return;
-    }
     fs.writeFileSync(configFile, JSON.stringify({
         excludeDir: [
             "node_modules",
@@ -28,7 +24,8 @@ async function init(chalk) {
             "index.tsx",
         ], // Exclude files from the code scan
         isRootFolderReferenced: false, // Is the root folder referenced in the image path eg /img/a.png where img is the image root folder
-        alias: false, // Is the alias referenced in the image path eg @/assets/images/a.png
+        alias: true, // Is the alias referenced in the image path eg @/assets/images/a.png
+        table: true, // Print the results in a table
     }, null, 2));
     console.log(chalk.green('Qleaner config file created successfully'));
 }

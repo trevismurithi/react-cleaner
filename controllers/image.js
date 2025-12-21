@@ -389,9 +389,7 @@ async function scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDire
 /**
  * Find unused images by comparing image files with normalized used images
  */
-function findUnusedImages(imageGraph, imageFiles, options) {
-  const unusedImages = new Set();
-
+function findUnusedImages(imageGraph, imageFiles, options, unusedImages) {
   for (const imageFile of imageFiles) {
     const filePath = path.resolve(imageFile);
     const image = imageGraph.get(filePath);
@@ -463,6 +461,15 @@ function handleImageDeletion(unusedImages, options, chalk) {
  * MAIN FUNCTION
  */
 async function getUnusedImages(ora, chalk, imageDirectory, codeDirectory, options) {
+  // check if qleaner.config.json exists
+  if(fs.existsSync(path.join(process.cwd(), 'qleaner.config.json'))) {
+    const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'qleaner.config.json'), 'utf8'));
+    options = {
+      ...config,
+      ...options,
+    };
+  }
+  // read qleaner.config.json
   // Start spinner
   const spinner = ora("Start Qleaner scan...").start();
   // Build paths and collect files
@@ -472,29 +479,31 @@ async function getUnusedImages(ora, chalk, imageDirectory, codeDirectory, option
   const imageFiles = await fg(imagePaths);
   const codeFiles = await fg(codePaths);
   spinner.succeed(`Found ${imageFiles.length} image files and ${codeFiles.length} code files`);
-  const { graph, imageGraph } = initializeCache(spinner, options, false);
+  const { parentGraph, imageParentGraph } = initializeCache(spinner, options, false);
 
   const LOG_PREFIX = "Qleaner scan";
   console.time(LOG_PREFIX);
   // Scan code files for image references
   spinner.text = "🔍 Scanning code files for image references...";
-  await scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDirectory, imageGraph, options);
+  await scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDirectory, imageParentGraph.imageGraph, options);
   spinner.succeed(`Scanned ${codeFiles.length} code files`);
 
-  // Find unused images
-  const unusedImages = findUnusedImages(imageGraph, imageFiles, options);
-  spinner.succeed(`Found ${unusedImages.size} unused images`);
+  if(imageParentGraph.imageGraph.size === 0) {
+    // Find unused images
+    findUnusedImages(imageParentGraph.imageGraph, imageFiles, options, imageParentGraph.unusedImages);
+  }
+
+  spinner.succeed(`Found ${imageParentGraph.unusedImages.size} unused images`);
   // Display results
-  displayUnusedImages(unusedImages, options, chalk);
-  spinner.succeed(`Displayed ${unusedImages.size} unused images`);
+  displayUnusedImages(imageParentGraph.unusedImages, options, chalk);
+  spinner.succeed(`Displayed ${imageParentGraph.unusedImages.size} unused images`);
   console.timeEnd(LOG_PREFIX);
   // save cache
-  saveCache(process.cwd(), { graph, imageGraph, isCode: false });
+  saveCache(process.cwd(), { parentGraph, imageParentGraph, isCode: false });
   // Handle deletion
-  handleImageDeletion(unusedImages, options, chalk);
-  spinner.succeed(`Handled deletion of ${unusedImages.size} unused images`);
+  handleImageDeletion(imageParentGraph.unusedImages, options, chalk);
+  spinner.succeed(`Handled deletion of ${imageParentGraph.unusedImages.size} unused images`);
   spinner.succeed(`Completed Qleaner scan`);
-  return unusedImages;
 }
 
 module.exports = {

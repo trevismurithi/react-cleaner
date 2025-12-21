@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
 const { list, scan } = require("../controllers/list");
-const { clearCache } = require("../utils/cache");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
@@ -70,7 +69,7 @@ async function loadOra(){
   .argument("<directory>", "The path to the directory to scan for unused images")
   .argument("<rootPath>", "The root path to the project code utilizing the images")
   .option("-e, --exclude-dir-assets <dir...>", "Exclude directories from the scan")
-  .option("-f, --exclude-file-asset <file...>", "Exclude files from the scan")
+  .option("-f, --exclude-file-assets <file...>", "Exclude files from the scan")
   .option("-E, --exclude-dir-code <dir...>", "Exclude directories from the scan")
   .option("-S, --exclude-file-code <file...>", "Exclude files from the scan")
   .option("-r, --is-root-folder-referenced", "Is the root folder referenced in the image path eg /img/a.png where img is the root folder")
