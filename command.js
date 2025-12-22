@@ -330,17 +330,6 @@ function hydrateGraph(graphData) {
 // Main function that orchestrates the unused files detection process
 // Step 1: Discovers files, Step 2: Extracts imports, Step 3: Checks which files are unused
 async function unUsedFiles(ora, chalk, directory = "src", options) {
-  // check if qleaner.config.json exists
-  if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
-    const config = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "qleaner.config.json"), "utf8")
-    );
-    options = {
-      ...config,
-      ...options,
-    };
-  }
-  // read qleaner.config.json
   // Start spinner
   const spinner = ora("Start Qleaner scan...").start();
 

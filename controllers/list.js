@@ -1,7 +1,8 @@
 const { getFiles, unUsedFiles } = require("../command");
 const Table = require('cli-table3');
 const { askDeleteFiles } = require("../utils/utils");
-
+const fs = require('fs');
+const path = require('path');
 
 async function list(chalk, path, options) {
     const { tableImports, tableFiles } = await getFiles(path, options, chalk);
@@ -13,11 +14,21 @@ async function list(chalk, path, options) {
     }
 }
 
-async function scan(ora, chalk, path, options) {
-    const unusedFiles = await unUsedFiles(ora, chalk,path, options);
+async function scan(ora, chalk, filePath, options) {
+    // check if qleaner.config.json exists
+    if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
+      const config = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), "qleaner.config.json"), "utf8")
+      );
+      options = {
+        ...config,
+        ...options,
+      };
+    }
+    // read qleaner.config.json
+    const unusedFiles = await unUsedFiles(ora, chalk,filePath, options);
     // console.clear()
     let totalSize = 0;
-    
     if (options.dryRun) {
       console.log(chalk.cyan('\n[DRY RUN MODE] No files will be deleted\n'));
     }

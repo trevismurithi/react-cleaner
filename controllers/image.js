@@ -332,22 +332,49 @@ function createASTTraverser(file, imports) {
  */
 async function scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDirectory, imageGraph, options) {
   const imports = [];
+  const oldPaths = new Map();
   const scanBar = createStepBar(`1/${codeFiles.length}`, codeFiles.length, "Scanning code files", chalk);
   for (const file of codeFiles) {
     await new Promise(resolve => setTimeout(resolve, 50));
     scanBar.increment();
-    const code = fs.readFileSync(file, "utf8");
-    if (needsRebuild(file, code, imageGraph)) {
+    const filePath = path.resolve(file);
+    const code = fs.readFileSync(filePath, "utf8");
+    if (needsRebuild(filePath, code, imageGraph)) {
       const ast = parser.parse(code, {
         sourceType: "module",
         plugins: ["jsx", "typescript"],
       });
-      const traverser = createASTTraverser(file, imports);
+      if(imageGraph.has(filePath)) {
+        const oldFiles = imageGraph.get(filePath).imports;
+        if(oldFiles.size > 0) {
+          oldPaths.set(filePath, oldFiles);
+        }
+      }
+      imageGraph.set(filePath, {
+        file: filePath,
+        size: fs.statSync(filePath).size,
+        hash: getFileHash(fs.readFileSync(filePath, 'utf8')),
+        imports: new Set(),
+        importedBy: new Set(),
+        isImage: false,
+        lastModified: fs.statSync(filePath).mtime.getTime(),
+      });
+      const traverser = createASTTraverser(filePath, imports);
       traverse(ast, traverser);
     }
   }
+
+  let packingBar = null;
+  // check if imports is empty
+  if(imports.length > 0) {
+    packingBar = createStepBar(`1/${imports.length}`, imports.length, "Scanning imports", chalk);
+  }
   // Process all collected imports once after scanning all files
   for (const importInfo of imports) {
+    if(packingBar) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      packingBar.increment();
+    }
     const filePath = path.resolve(importInfo.file);
     const importPath = normalize(importInfo.source, imageDirectory, {
       alias: options.alias ? true : false,
@@ -363,6 +390,7 @@ async function scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDire
           imports: new Set(),
           importedBy: new Set(),
           lastModified: null,
+          isImage: true,
         });
       }
     }else {
@@ -374,48 +402,96 @@ async function scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDire
           imports: new Set(),
           importedBy: new Set(),
           lastModified: fs.statSync(importPath).mtime.getTime(),
+          isImage: true,
         });
       }
     }
     importPath &&imageGraph.get(importPath).importedBy.add(filePath);
+    importPath && imageGraph.get(filePath).imports.add(importPath);
   }
 
+  if(packingBar) {
+    packingBar.stop();
+  }
+
+  let compareBar = null;
+  if(oldPaths.size > 0) {
+    compareBar = createStepBar(`1/${oldPaths.size}`, oldPaths.size, "Comparing old paths with new paths", chalk);
+  }
+  // compare old paths with new paths
+  for (const [filePath, oldFiles] of oldPaths) {
+    if(compareBar) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      compareBar.increment();
+    }
+    if(imageGraph.has(filePath)) {
+      const removedFiles = new Set([...oldFiles].filter(x => !imageGraph.get(filePath).imports.has(x)));
+      if(removedFiles.size > 0) {
+        removedFiles.forEach(file => {
+          if(imageGraph.has(file)) {
+            imageGraph.get(file).importedBy.delete(filePath);
+          }
+        });
+      }
+    }
+  }
+  if(compareBar) {
+    compareBar.stop();
+  }
   // Add CSS images
-  await getCssImages(codeDirectory, createStepBar, imageDirectory, imageGraph, options, chalk);
+  const numberOfCssFiles = await getCssImages(codeDirectory, createStepBar, imageDirectory, imageGraph, options, chalk);
   scanBar.stop();
+  return imports.length;
 }
 
 
 /**
  * Find unused images by comparing image files with normalized used images
  */
-function findUnusedImages(imageGraph, imageFiles, options, unusedImages) {
+function findUnusedImages(imageParentGraph, imageFiles, options) {
   for (const imageFile of imageFiles) {
     const filePath = path.resolve(imageFile);
-    const image = imageGraph.get(filePath);
+    if(filePath.includes('404.png')) {
+      console.log('filePath--->', filePath);
+    }
+    const image = imageParentGraph.imageGraph.get(filePath);
+    console.log('image--->', image);
     // image not found in imageGraph, indicate it as unused
     if (!image) {
-      unusedImages.add({
+      console.log('image not found in imageGraph--->', filePath);
+      imageParentGraph.unusedImages.add({
         file: filePath,
         size: fs.statSync(imageFile).size,
         hash: getFileHash(fs.readFileSync(imageFile, 'utf8')),
+        isImage: true,
         imports: new Set(),
         importedBy: new Set(),
         lastModified: fs.statSync(imageFile).mtime.getTime(),
       });
+    }else if(image && image.importedBy.size === 0 && image.isImage) {
+      console.log('image found in imageGraph--->', filePath);
+      imageParentGraph.unusedImages.add({
+        ...image,
+        imports: new Set(image.imports),
+        importedBy: new Set(image.importedBy),
+      });
     }
   }
   if(options.hideNotFoundImages) {
-    return unusedImages;
+    return imageParentGraph.unusedImages;
   }
   // find unused images in imageGraph
-  for (const [filePath, image] of imageGraph) {
+  for (const [filePath, image] of imageParentGraph.imageGraph) {
     if (image.importedBy.size === 0 || image.size === 0) {
-      unusedImages.add(image);
+      imageParentGraph.unusedImages.add({
+        ...image,
+        imports: new Set(image.imports),
+        importedBy: new Set(image.importedBy),
+      });
     }
   }
 
-  return unusedImages;
+  return imageParentGraph.unusedImages;
 }
 
 /**
@@ -485,12 +561,14 @@ async function getUnusedImages(ora, chalk, imageDirectory, codeDirectory, option
   console.time(LOG_PREFIX);
   // Scan code files for image references
   spinner.text = "🔍 Scanning code files for image references...";
-  await scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDirectory, imageParentGraph.imageGraph, options);
+  const numberOfCodeFiles = await scanCodeFilesForImages(chalk, codeFiles, codeDirectory, imageDirectory, imageParentGraph.imageGraph, options);
+  console.log('numberOfCodeFiles', numberOfCodeFiles);
   spinner.succeed(`Scanned ${codeFiles.length} code files`);
 
-  if(imageParentGraph.imageGraph.size === 0) {
+  if(imageParentGraph.unusedImages.size === 0 || numberOfCodeFiles > 0) {
     // Find unused images
-    findUnusedImages(imageParentGraph.imageGraph, imageFiles, options, imageParentGraph.unusedImages);
+    imageParentGraph.unusedImages = new Set();
+    findUnusedImages(imageParentGraph, imageFiles, options);
   }
 
   spinner.succeed(`Found ${imageParentGraph.unusedImages.size} unused images`);
@@ -499,7 +577,7 @@ async function getUnusedImages(ora, chalk, imageDirectory, codeDirectory, option
   spinner.succeed(`Displayed ${imageParentGraph.unusedImages.size} unused images`);
   console.timeEnd(LOG_PREFIX);
   // save cache
-  saveCache(process.cwd(), { parentGraph, imageParentGraph, isCode: false });
+  saveCache(process.cwd(), { parentGraph, imageParentGraph}, false);
   // Handle deletion
   handleImageDeletion(imageParentGraph.unusedImages, options, chalk);
   spinner.succeed(`Handled deletion of ${imageParentGraph.unusedImages.size} unused images`);

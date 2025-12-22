@@ -25,7 +25,6 @@ async function init(chalk) {
         ], // Exclude files from the code scan
         isRootFolderReferenced: false, // Is the root folder referenced in the image path eg /img/a.png where img is the image root folder
         alias: true, // Is the alias referenced in the image path eg @/assets/images/a.png
-        table: true, // Print the results in a table
     }, null, 2));
     console.log(chalk.green('Qleaner config file created successfully'));
 }

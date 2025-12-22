@@ -6,17 +6,7 @@
   ],
   "excludeFile": [],
   "excludeFilePrint": [
-    "page.tsx",
-    "route.ts",
-    "layout.tsx",
-    "error.tsx",
-    "not-found.tsx",
-    "index.tsx",
-    "app.tsx",
-    "app.ts",
-    "app.js",
-    "app.jsx",
-    "app.tsx"
+    "page.tsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],
@@ -26,7 +16,7 @@
     "build"
   ],
   "excludeFileCode": [
-    "page.tsx"
+    "index.tsx"
   ],
   "isRootFolderReferenced": false,
   "alias": true
