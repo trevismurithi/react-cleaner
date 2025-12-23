@@ -6,7 +6,10 @@
   ],
   "excludeFile": [],
   "excludeFilePrint": [
-    "page.tsx"
+    "page.tsx",
+    "route.ts",
+    "layout.tsx",
+    "error.tsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],

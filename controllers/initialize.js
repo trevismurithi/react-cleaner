@@ -11,7 +11,10 @@ async function init(chalk) {
         ], // Exclude directories from the scan
         excludeFile: [], // Exclude files from the scan
         excludeFilePrint: [
-            "page.tsx"
+            "page.tsx",
+            "route.ts",
+            "layout.tsx",
+            "error.tsx",
         ], // Scan but don't print the excluded files
         excludeDirAssets: [], // Exclude directories from the asset scan
         excludeFileAssets: [], // Exclude files from the asset scan

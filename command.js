@@ -181,10 +181,8 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       });
       // check if file is already in graph
       if (graph.has(filePath)) {
-        const oldFiles = graph.get(filePath).imports;
-        if(oldFiles.size > 0) {
-          oldPaths.set(filePath, oldFiles);
-        }
+        const oldFiles = new Set(graph.get(filePath).imports);
+        oldPaths.set(filePath, new Set(oldFiles));
       }
       // create file graph node if it doesn't exist
       graph.set(filePath, {
@@ -249,6 +247,8 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       chalk
     );
   }
+  // count the number of removed files
+  let removedFilesCount = 0;
   // compare old paths with new paths
   // if some old paths are found missing in new paths, remove them from the graph
   for (const [filePath, oldFiles] of oldPaths) {
@@ -258,21 +258,25 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     }
     if (graph.has(filePath)) {
       // Find files that were in oldFiles but are no longer in current imports
-      const removedFiles = new Set([...oldFiles].filter(x => !graph.get(filePath).imports.has(x)));
+      const removedFiles = new Set(
+        [...oldFiles].filter((x) => !graph.get(filePath).imports.has(x))
+      );
       if (removedFiles.size > 0) {
         // remove the removed files from the graph
-        removedFiles.forEach(file => {
+        removedFiles.forEach((file) => {
           if (graph.has(file)) {
             graph.get(file).importedBy.delete(filePath);
           }
         });
+        removedFilesCount++;
       }
     }
   }
   if (compareBar) {
     compareBar.stop();
   }
-  return imports.length;
+  // return the number of imports or the number of removed files
+  return imports.length || removedFilesCount;
 }
 
 // Checks if a single file is imported/used by comparing it against all import statements
@@ -346,7 +350,12 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
 
   // STEP 2: Extract import statements from files
   spinner.text = "🔍 Checking files...";
-  const importsCount = await extractImportsFromFiles(files, parentGraph.graph, resolver, chalk);
+  const importsCount = await extractImportsFromFiles(
+    files,
+    parentGraph.graph,
+    resolver,
+    chalk
+  );
 
   spinner.succeed(`Checked ${files.length} files`);
 
