@@ -9,7 +9,9 @@
     "page.tsx",
     "route.ts",
     "layout.tsx",
-    "error.tsx"
+    "error.tsx",
+    "index.tsx",
+    "test.tsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],

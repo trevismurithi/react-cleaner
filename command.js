@@ -154,6 +154,11 @@ function buildContentPaths(directory, options) {
       contentPaths.push(`!${directory}/**/${file}`);
     });
   }
+  if (options.excludeExtensions && options.excludeExtensions.length > 0) {
+    options.excludeExtensions.forEach((extension) => {
+      contentPaths.push(`!${directory}/**/*.${extension}`);
+    });
+  }
   return contentPaths;
 }
 

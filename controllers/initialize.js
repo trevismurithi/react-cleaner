@@ -10,6 +10,10 @@ async function init(chalk) {
             "build",
         ], // Exclude directories from the scan
         excludeFile: [], // Exclude files from the scan
+        excludeExtensions: [
+            "test.tsx",
+            "test.ts",
+        ], // Exclude file extensions from the scan like .test.tsx, .test.ts, .test.js, .test.jsx
         excludeFilePrint: [
             "page.tsx",
             "route.ts",

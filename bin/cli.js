@@ -48,6 +48,7 @@ async function loadOra(){
       "-F, --exclude-file-print <files...>",
       "Scan but don't print the excluded files"
     )
+    .option("-x, --exclude-extensions <extensions...>", "Exclude file extensions from the scan like .test.tsx, .test.ts, .test.js, .test.jsx")
     .option("-t, --table", "Print the results in a table")
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
     .option("-C, --clear-cache", "Clear the cache recommended after making code changes")
