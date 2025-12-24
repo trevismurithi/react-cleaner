@@ -375,4 +375,5 @@ module.exports = {
   getFiles,
   unUsedFiles,
   initializeCache,
+  hydrateGraph,
 };

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
-const { list, scan } = require("../controllers/list");
+const { summary, scan } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
@@ -23,31 +23,23 @@ async function loadOra(){
     .description("A tool to clean up your React code")
     .version("1.0.34");
 
-  program.command("qlean-init")
+  program.command("init")
   .description("Initialize the project for Qleaner")
   .action(async () => {
     await init(chalk);
   });
 
   program
-    .command("qlean-list")
+    .command("summary")
     .description("List all the imports in the project")
-    .argument("<path>", "The path to the directory to scan for imports")
-    .option("-l, --list-files", "List all the files in the project")
-    .option("-i, --list-imports", "List all the imports in the project")
-    .option("-e, --exclude-dir <dir...>", "Exclude directories from the scan")
-    .option("-f, --exclude-file <file...>", "Exclude files from the scan")
-    .option(
-      "-F, --exclude-file-print <file...>",
-      "Do not Print the excluded files"
-    )
-    .option("-t, --table", "Print the results in a table")
-    .action(async (path, options) => {
-      await list(chalk, path, options);
+    .option("-l, --largest-files", "List the largest files in the project")
+    .option("-d, --dependencies", "List the dependencies in the project")
+    .action(async (options) => {
+      await summary(chalk, options);
     });
 
   program
-    .command("qlean-scan")
+    .command("scan")
     .description("Scan the project for unused files")
     .argument("<path>", "The path to the directory to scan for unused files")
     .option("-e, --exclude-dir <dir...>", "Exclude directories from the scan")
@@ -64,7 +56,7 @@ async function loadOra(){
     });
 
   program
-  .command('qlean-image')
+  .command('image')
   .description("Scan the project for unused images")
   .argument("<directory>", "The path to the directory to scan for unused images")
   .argument("<rootPath>", "The root path to the project code utilizing the images")

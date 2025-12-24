@@ -28,6 +28,7 @@ function extractCssImages(
   } else {
     imageGraph.get(filePath).imports.clear();
     imageGraph.get(filePath).hash = hash;
+    imageGraph.get(filePath).lastModified = fs.statSync(filePath).mtime.getTime();
     imageGraph.get(filePath).importedBy.clear();
   }
 
