@@ -1,0 +1,28 @@
+{
+  "excludeDir": [
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "excludeFile": [],
+  "excludeFilePrint": [
+    "page.tsx",
+    "route.ts",
+    "layout.tsx",
+    "error.tsx",
+    "index.tsx",
+    "test.tsx"
+  ],
+  "excludeDirAssets": [],
+  "excludeFileAssets": [],
+  "excludeDirCode": [
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "excludeFileCode": [
+    "index.tsx"
+  ],
+  "isRootFolderReferenced": false,
+  "alias": true
+}

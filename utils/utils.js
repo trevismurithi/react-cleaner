@@ -1,14 +1,15 @@
 const prompts = require('prompts');
 const fs = require('fs');
 const path = require('path');
+const cliProgress = require('cli-progress');
 
-async function askDeleteFiles(files) {
+async function askDeleteFiles(unusedFiles, isCode = true) {
     const response = await prompts({
         type: 'multiselect',
         name: 'toDelete',
         message: 'Select unused files to delete or move to .trash directory',
-        choices: files.map(file => ({
-            title: file,
+        choices: Array.from(unusedFiles).map(file => ({
+            title: file.file,
             value: file,
         })) 
     })
@@ -23,32 +24,59 @@ async function askDeleteFiles(files) {
             ]
         })
         if(method.method === 'moveToTrash') {
-            return await moveToTrash(response.toDelete);
+            return await moveToTrash(response.toDelete, unusedFiles, isCode);
         } else if(method.method === 'deleteFiles') {
-            return await deleteFiles(response.toDelete);
+            return await deleteFiles(response.toDelete, unusedFiles, isCode);
         }
     }
 }
 
-async function moveToTrash(files) {
+async function moveToTrash(files,unusedFiles, isCode = true) {
     const trashDir = path.join(process.cwd(), '.trash');
-
+    const cache = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'unused-check-cache.json'), 'utf8'));
     if(!fs.existsSync(trashDir)) {
         fs.mkdirSync(trashDir);
     }
 
     for(const file of files) {
-       const fileName = path.basename(file);
+        if(!fs.existsSync(file.file)) {
+            console.error(`File ${file.file} does not exist, skipping...`);
+            continue;
+        }
+       const fileName = path.basename(file.file);
        const destination = path.join(trashDir, fileName);
-       fs.renameSync(file, destination);
+       fs.renameSync(file.file, destination);
+       unusedFiles.delete(file);
+    }
+
+    if(isCode) {
+        cache.parentGraph.unusedFiles = Array.from(unusedFiles);
+        fs.writeFileSync(path.join(process.cwd(), 'unused-check-cache.json'), JSON.stringify(cache, null, 2));
+    }else{
+        cache.imageParentGraph.unusedImages = Array.from(unusedFiles);
+        fs.writeFileSync(path.join(process.cwd(), 'unused-check-cache.json'), JSON.stringify(cache, null, 2));
     }
 
     console.log(`Moved ${files.length} files to .trash directory`);
 }
 
-async function deleteFiles(files) {
+async function deleteFiles(files,unusedFiles,isCode = true) {
+    const cache = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'unused-check-cache.json'), 'utf8'));
     for(const file of files) {
-        fs.unlinkSync(file);
+        try {
+            fs.unlinkSync(file.file);
+    unusedFiles.delete(file);
+            // read the file and get the content
+        } catch (error) {
+            console.error(`Error deleting file ${file.file}: ${error}`);
+        }
+    }
+    if(isCode) {
+        cache.parentGraph.unusedFiles = Array.from(unusedFiles);
+        fs.writeFileSync(path.join(process.cwd(), 'unused-check-cache.json'), JSON.stringify(cache, null, 2));
+    }else{
+        cache.imageParentGraph.unusedImages = Array.from(unusedFiles);
+        fs.writeFileSync(path.join(process.cwd(), 'unused-check-cache.json'), JSON.stringify(cache, null, 2));
     }
     console.log(`Deleted ${files.length} files`);
 }
@@ -61,8 +89,21 @@ function isExcludedFile(file, excludeFiles) {
     return filePath === importPath;
   }
 
+  function createStepBar(step, total, label, chalk) {
+    const bar = new cliProgress.SingleBar({
+      format: `${chalk.cyan(`[${step}]`)} ${label} |{bar}| {value}/{total}`,
+      barCompleteChar: "█",
+      barIncompleteChar: "░",
+      hideCursor: true
+    });
+  
+    bar.start(total, 0);
+    return bar;
+  }
+
 module.exports = {
     askDeleteFiles,
     isExcludedFile,
     compareFiles,
+    createStepBar,
 };
