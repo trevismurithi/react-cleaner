@@ -5,13 +5,15 @@
     "build"
   ],
   "excludeFile": [],
+  "excludeExtensions": [
+    "test.tsx",
+    "test.ts"
+  ],
   "excludeFilePrint": [
     "page.tsx",
     "route.ts",
     "layout.tsx",
-    "error.tsx",
-    "index.tsx",
-    "test.tsx"
+    "error.tsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],

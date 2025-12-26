@@ -80,8 +80,8 @@ qleaner scan <path> [options]
 
 **Options:**
 - `-e, --exclude-dir <dir...>` - Exclude directories from the scan
-- `-f, --exclude-file <file...>` - Exclude files from the scan
-- `-F, --exclude-file-print <files...>` - Scan but don't print the excluded files
+- `-f, --exclude-file <file...>` - Exclude files from the scan (just use the file name, e.g., `test.js`, the tool will match it across all directories)
+- `-F, --exclude-file-print <files...>` - Scan but don't print the excluded files (just use the file name)
 - `-x, --exclude-extensions <extensions...>` - Exclude file extensions from the scan (e.g., test.tsx, test.ts, test.js, test.jsx)
 - `-t, --table` - Display results in a formatted table
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
@@ -99,17 +99,17 @@ qleaner scan src --table
 # Scan excluding test directories
 qleaner scan src -e __tests__ __mocks__ test
 
-# Scan excluding specific file patterns
-qleaner scan src -f "**/*.test.js" "**/*.stories.js"
+# Scan excluding specific files
+qleaner scan src -f test.js stories.js
 
 # Scan excluding file extensions
 qleaner scan src -x test.tsx test.ts test.js test.jsx
 
 # Scan with multiple exclusions
-qleaner scan src -e node_modules dist -f "**/*.config.js"
+qleaner scan src -e node_modules dist -f config.js
 
 # Scan with table output and exclusions
-qleaner scan src --table -e __tests__ dist -f "**/*.config.js"
+qleaner scan src --table -e __tests__ dist -f config.js
 
 # Dry run - preview what would be deleted without deleting
 qleaner scan src --dry-run
@@ -138,9 +138,9 @@ qleaner image <directory> <rootPath> [options]
 
 **Options:**
 - `-e, --exclude-dir-assets <dir...>` - Exclude directories from the asset scan
-- `-f, --exclude-file-assets <file...>` - Exclude files from the asset scan
+- `-f, --exclude-file-assets <file...>` - Exclude files from the asset scan (just use the file name)
 - `-E, --exclude-dir-code <dir...>` - Exclude directories from the code scan
-- `-S, --exclude-file-code <file...>` - Exclude files from the code scan
+- `-S, --exclude-file-code <file...>` - Exclude files from the code scan (just use the file name)
 - `-r, --is-root-folder-referenced` - Is the root folder referenced in the image path (e.g., `/img/a.png` where `img` is the root folder)
 - `-a, --alias` - Is the alias referenced in the image path (e.g., `@/assets/images/a.png`)
 - `-t, --table` - Display results in a formatted table
@@ -179,7 +179,7 @@ qleaner image public/images src --dry-run
 qleaner image public/images src --dry-run --table
 
 # Scan with multiple exclusions
-qleaner image public/images src -e public/images/icons -E __tests__ -S "**/*.test.*"
+qleaner image public/images src -e public/images/icons -E __tests__ -S test.js
 
 # Clear cache and scan
 qleaner image public/images src --clear-cache
@@ -247,7 +247,7 @@ Qleaner provides two output formats:
 - `.ts` - TypeScript files
 - `.tsx` - TypeScript React files
 
-**Image files (for qlean-image):**
+**Image files (for image command):**
 - `.png` - PNG images
 - `.jpg`, `.jpeg` - JPEG images
 - `.svg` - SVG images
@@ -278,22 +278,22 @@ The `qleaner.config.json` file allows you to set default options that will be me
 
 **Configuration options:**
 - `excludeDir` - Array of directories to exclude from scans
-- `excludeFile` - Array of file patterns to exclude from scans
+- `excludeFile` - Array of file names to exclude from scans (just use the file name, e.g., `["test.js", "config.js"]`)
 - `excludeExtensions` - Array of file extensions to exclude (e.g., `["test.tsx", "test.ts"]`)
-- `excludeFilePrint` - Array of files to scan but not print in results
+- `excludeFilePrint` - Array of file names to scan but not print in results (just use the file name)
 - `excludeDirAssets` - Array of directories to exclude from asset scans
-- `excludeFileAssets` - Array of file patterns to exclude from asset scans
+- `excludeFileAssets` - Array of file names to exclude from asset scans (just use the file name)
 - `excludeDirCode` - Array of directories to exclude from code scans
-- `excludeFileCode` - Array of file patterns to exclude from code scans
+- `excludeFileCode` - Array of file names to exclude from code scans (just use the file name)
 - `isRootFolderReferenced` - Boolean indicating if root folder is referenced in image paths
 - `alias` - Boolean indicating if aliases are used in image paths
 
 **Common exclusions:**
-- Test files: `-f "**/*.test.*" "**/*.spec.*"` or `excludeExtensions: ["test.tsx", "test.ts"]`
-- Storybook files: `-f "**/*.stories.*"`
+- Test files: `-f test.js spec.js` or `excludeExtensions: ["test.tsx", "test.ts"]`
+- Storybook files: `-f stories.js`
 - Test directories: `-e __tests__ __mocks__ test`
 - Build outputs: `-e dist build .next`
-- Configuration files: `-f "**/*.config.*"`
+- Configuration files: `-f config.js`
 - Third-party code: `-e node_modules vendor`
 
 **Example configuration file:**
