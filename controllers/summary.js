@@ -168,7 +168,7 @@ function getTop10LargestFiles(chalk) {
   const totalCodeSize = getTotalCodeSize(codeGraph.graph);
   const totalImageSize = getTotalImageSize(imageGraph.graph);
   const top10CodeFiles = getTop10LargestCodeFiles(codeGraph.graph);
-  const top10ImageFiles = getTop10LargestImages(imageGraph.graph);
+  const top10ImageFiles = getTop10LargestImages(imageGraph.graph, false);
   const codeFilesAbove100KB = findCodeFilesAbove100KB(codeGraph.graph);
 
   // Top 10 Largest Code Files
@@ -279,7 +279,7 @@ function dependenciesSummary(chalk) {
   // image graph
   const {deadLinks, aliveLinks} = getDeadLinks(imageGraph.graph);
   const top10FilesHotspotsDeadImage = getTop10FilesHotspots(deadLinks);
-  const top10FilesHotspotsAliveImage = getTop10FilesHotspots(aliveLinks);
+  const top10FilesHotspotsAliveImage = getTop10FilesHotspots(aliveLinks, false);
 
   console.log(chalk.green.bold("\n📊 Dependencies Summary"));
   console.log(chalk.green("════════════════════════════════════════════════"));
