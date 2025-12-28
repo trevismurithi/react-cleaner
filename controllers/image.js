@@ -515,7 +515,7 @@ function findUnusedImages(imageParentGraph, imageFiles, options) {
   }
   // find unused images in imageGraph
   for (const [filePath, image] of imageParentGraph.imageGraph) {
-    if (image.importedBy.size === 0 || image.size === 0) {
+    if ((image.importedBy.size === 0 || image.size === 0) && image.isImage) {
       imageParentGraph.unusedImages.add({
         ...image,
         imports: new Set(image.imports),
