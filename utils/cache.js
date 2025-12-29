@@ -46,7 +46,7 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
     };
 }
 
-function loadCache(rootPath) {
+function loadCache(rootPath, {clearCache, code}) {
   const file = path.join(rootPath, "unused-check-cache.json");
   if (!fs.existsSync(file))
     return {
@@ -61,6 +61,14 @@ function loadCache(rootPath) {
         parentGraph: { graph: {}, unusedFiles: [] },
         imageParentGraph: { imageGraph: {}, unusedImages: [] },
       };
+    }
+    if(clearCache) {
+      if(code) {
+        cache.parentGraph = { graph: {}, unusedFiles: [] };
+      } else {
+        cache.imageParentGraph = { imageGraph: {}, unusedImages: [] };
+      }
+      fs.writeFileSync(file, JSON.stringify(cache, null, 2));
     }
     return cache;
   } catch {

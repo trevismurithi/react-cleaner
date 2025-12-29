@@ -1,6 +1,19 @@
 # Qleaner
 
-A powerful CLI tool to analyze and clean up your React codebase by finding unused files and images, providing project insights, and analyzing dependencies.
+❌ Afraid to delete files in a React project?  
+❌ Unsure what's still used?  
+❌ Large repos slowing down devs?
+
+**Qleaner answers those questions safely.**
+
+Qleaner scans your entire codebase with precision, finding unused files, dead assets, and architectural rot—without the risk. It tells you exactly what's safe to delete, backed by comprehensive dependency analysis.
+
+**Developers star tools that:**
+
+- **Save them time** — No more manual hunting through imports and references
+- **Reduce fear** — Dry-run mode shows you exactly what would be deleted before you commit
+- **Prevent mistakes** — Smart caching and incremental scans catch everything
+- **Make them look smart at work** — Clean codebases speak volumes
 
 ## Features
 
@@ -17,6 +30,9 @@ A powerful CLI tool to analyze and clean up your React codebase by finding unuse
 - 💾 **Smart caching**: Caches scan results for faster subsequent runs (automatically invalidates on file changes)
 - 🎨 **CSS and styled-components support**: Detects images used in CSS files and styled-components
 - 🔧 **Configuration file**: Use `qleaner init` to create a `qleaner.config.json` file with default settings for your project
+- 🔗 **Dead link detection**: Identifies images referenced in code but not found in the file system
+- 🔥 **File hotspot analysis**: Discover the most imported files and image hotspots in your codebase
+- ⚠️ **Large file warnings**: Automatically flags code files exceeding 100KB for optimization
 
 ## Installation
 
@@ -45,28 +61,36 @@ This creates a configuration file with default settings for exclusions and image
 
 ### Project Summary
 
-Get a comprehensive summary of your project including file counts, unused files/images, and dependencies:
+Get a comprehensive summary of your project including file counts, unused files/images, dead links, dependencies, and file hotspots:
 
 ```bash
 qleaner summary [options]
 ```
 
 **Options:**
-- `-l, --largest-files` - List the largest files in the project
-- `-d, --dependencies` - List the dependencies in the project
+- `-l, --largest-files` - List the largest files in the project (top 10 code files, top 10 image files, files above 100KB, and total sizes)
+- `-d, --dependencies` - List dependency analysis (heavy/light dependencies, file hotspots, dead/alive image hotspots)
 
 **Examples:**
 
 ```bash
 # Get project summary (default)
+# Shows: total code files, total image files, unused files, unused images, dead image links
 qleaner summary
 
 # List the largest files
+# Shows: top 10 largest code files, top 10 largest image files, files above 100KB, total sizes
 qleaner summary --largest-files
 
 # List dependencies
+# Shows: files with heavy/light dependencies, file hotspots (most imported files), dead/alive image hotspots
 qleaner summary --dependencies
 ```
+
+**Summary includes:**
+- **Default summary**: Total code/image files, unused files/images count, dead image links count
+- **Largest files** (`--largest-files`): Top 10 largest code files, top 10 largest image files, code files exceeding 100KB, total code/image sizes
+- **Dependencies** (`--dependencies`): Top 10 files with heavy dependencies, top 10 files with light dependencies, top 10 file hotspots (most imported), top 10 dead/alive image hotspots
 
 **Important:** Before viewing the summary, make sure to run a fresh scan with `--clear-cache` to ensure accurate results. The summary reads from the cache, so outdated cache data will show outdated results.
 
@@ -186,13 +210,15 @@ qleaner image public/images src --clear-cache
 ```
 
 **What it detects:**
-- Images imported via `import` statements
+- Images imported via `import` statements (static and dynamic imports)
 - Images required via `require()` calls
-- Images used in JSX `src` attributes
+- Images used in JSX `src` attributes (string literals and expressions)
 - Images in CSS `url()` functions (CSS and SCSS files)
 - Images in styled-components and CSS-in-JS template literals
-- Images in inline styles (backgroundImage, etc.)
-- Images referenced in string literals and template literals
+- Images in inline styles (backgroundImage, background, mask, and other image-related properties)
+- Images referenced in string literals and template literals anywhere in code
+- Images in array expressions and spread elements
+- **Dead links**: Images referenced in code but not found in the file system
 
 ## Output Formats
 
@@ -207,7 +233,7 @@ Qleaner provides two output formats:
 2. **Table output**: Formatted tables with organized columns (use `--table` flag)
    - Unused files table shows: Unused file paths with sizes (or "Would Delete" in dry run mode)
    - Unused images table shows: Unused image paths with information about whether they exist and are referenced in code (or "Would Delete" in dry run mode)
-   - Summary tables show: Project statistics, largest files, dependencies, and more
+   - Summary tables show: Project statistics, largest files, dependencies, file hotspots, dead/alive image hotspots, and more
 
 ## How It Works
 
@@ -228,12 +254,15 @@ Qleaner provides two output formats:
 2. **Code Scanning**: Scans all code files (`.js`, `.jsx`, `.ts`, `.tsx`) for image references
 3. **Image Detection**: Detects images through multiple methods:
    - Import statements (`import img from './image.png'`)
+   - Dynamic imports (`import('./image.png')`)
    - Require calls (`require('./image.png')`)
-   - JSX src attributes (`<img src="./image.png" />`)
+   - JSX src attributes (`<img src="./image.png" />` and expressions)
    - CSS url() functions in CSS/SCSS files
    - Styled-components and CSS-in-JS template literals
-   - Inline styles (backgroundImage, etc.)
-   - String and template literals containing image paths
+   - Inline styles (backgroundImage, background, mask, etc.)
+   - String and template literals containing image paths (anywhere in code)
+   - Array expressions with image paths (`['/img/a.png', '/img/b.png']`)
+   - Spread elements in arrays with image references
 4. **Path Normalization**: Normalizes all detected image paths for consistent matching
 5. **Analysis**: Compares discovered image files with detected references to identify unused images
 6. **Reporting**: Outputs the results in standard or table format
@@ -265,7 +294,10 @@ Qleaner provides two output formats:
 - 📊 **Code analysis**: Understand import patterns and dependencies in your codebase through the summary command
 - 🔍 **Project audit**: Identify orphaned files and assets that may have been forgotten
 - 📦 **Bundle optimization**: Find files and images that can be removed to reduce bundle size
-- 📈 **Project insights**: Analyze largest files, dependency patterns, and project statistics
+- 📈 **Project insights**: Analyze largest files, dependency patterns, file hotspots, and project statistics
+- 🔗 **Dead link detection**: Find broken image references (images in code that don't exist on disk)
+- 🔥 **Architecture insights**: Discover which files are most imported (hotspots) and identify dependency-heavy files
+- ⚠️ **Performance warnings**: Get alerted about large files (100KB+) that may impact performance
 - 🎯 **Maintenance**: Keep your codebase clean and maintainable
 
 ## Configuration
@@ -365,4 +397,4 @@ MIT
 
 ## Version
 
-Current version: 1.0.34
+Current version: 1.1.3
