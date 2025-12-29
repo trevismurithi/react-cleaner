@@ -10,7 +10,6 @@ const {
   getFileHash,
   needsRebuild,
   saveCache,
-  clearCache,
 } = require("./utils/cache");
 const { isExcludedFile, createStepBar } = require("./utils/utils");
 
@@ -114,13 +113,8 @@ async function getFiles(directory = "src", options, chalk) {
 
 // Initializes the cache by clearing it (if requested) and loading it from disk
 function initializeCache(spinner, options, code = true) {
-  if (options.clearCache) {
-    spinner.text = "🔍 Clearing cache...";
-    clearCache(process.cwd());
-    spinner.succeed("Cache cleared successfully");
-  }
   spinner.text = "🔍 Loading cache...";
-  const cache = loadCache(process.cwd());
+  const cache = loadCache(process.cwd(), {code, clearCache: options.clearCache});
   let graph = null;
   let imageGraph = null;
   if (code) {
