@@ -13,6 +13,8 @@ async function init(chalk) {
         excludeExtensions: [
             "test.tsx",
             "test.ts",
+            "test.js",
+            "test.jsx",
         ], // Exclude file extensions from the scan like .test.tsx, .test.ts, .test.js, .test.jsx
         excludeFilePrint: [
             "page.tsx",
@@ -27,9 +29,7 @@ async function init(chalk) {
             "dist",
             "build",
         ], // Exclude directories from the code scan
-        excludeFileCode: [
-            "index.tsx",
-        ], // Exclude files from the code scan
+        excludeFileCode: [], // Exclude files from the code scan
         isRootFolderReferenced: false, // Is the root folder referenced in the image path eg /img/a.png where img is the image root folder
         alias: true, // Is the alias referenced in the image path eg @/assets/images/a.png
     }, null, 2));

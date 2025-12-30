@@ -176,7 +176,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     if (isNeedsRebuild) {
       const ast = parser.parse(code, {
         sourceType: "module",
-        plugins: ["jsx", "typescript"],
+        plugins: ["jsx", "typescript", "decorators-legacy"],
       });
       // check if file is already in graph
       if (graph.has(filePath)) {

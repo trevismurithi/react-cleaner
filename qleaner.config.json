@@ -7,7 +7,9 @@
   "excludeFile": [],
   "excludeExtensions": [
     "test.tsx",
-    "test.ts"
+    "test.ts",
+    "test.js",
+    "test.jsx"
   ],
   "excludeFilePrint": [
     "page.tsx",
@@ -22,9 +24,7 @@
     "dist",
     "build"
   ],
-  "excludeFileCode": [
-    "index.tsx"
-  ],
+  "excludeFileCode": [],
   "isRootFolderReferenced": false,
   "alias": true
 }
