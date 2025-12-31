@@ -361,7 +361,7 @@ async function scanCodeFilesForImages(
     if (needsRebuild(filePath, code, imageGraph)) {
       const ast = parser.parse(code, {
         sourceType: "module",
-        plugins: ["jsx", "typescript"],
+        plugins: ["jsx", "typescript", "decorators-legacy"],
       });
       if (imageGraph.has(filePath)) {
         const oldFiles = new Set(imageGraph.get(filePath).imports);

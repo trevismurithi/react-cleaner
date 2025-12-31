@@ -59,6 +59,48 @@ qleaner init
 
 This creates a configuration file with default settings for exclusions and image scanning options. You can then modify `qleaner.config.json` to customize your settings.
 
+## Configuration
+
+**Configuration is key!** A good setup saves a lot of time when typing commands. Instead of repeatedly typing long command-line options, configure your defaults once in `qleaner.config.json` and they'll be used automatically.
+
+Qleaner supports configuration through both command-line options and a configuration file (`qleaner.config.json`). Use `qleaner init` to create a default configuration file.
+
+### Configuration File
+
+The `qleaner.config.json` file allows you to set default options that will be merged with command-line options. Command-line options take precedence over configuration file options.
+
+**Configuration options:**
+- `excludeDir` - Array of directories to exclude from scans
+- `excludeFile` - Array of file names to exclude from scans (just use the file name, e.g., `["test.js", "config.js"]`)
+- `excludeExtensions` - Array of file extensions to exclude (e.g., `["test.tsx", "test.ts"]`)
+- `excludeFilePrint` - Array of file names to scan but not print in results (just use the file name). These are also known as **entrypoints** - files that are entry points to your application (like `page.tsx`, `route.ts`, `layout.tsx` in Next.js) that may not be directly imported but are still used by the framework
+- `excludeDirAssets` - Array of directories to exclude from asset scans
+- `excludeFileAssets` - Array of file names to exclude from asset scans (just use the file name)
+- `excludeDirCode` - Array of directories to exclude from code scans
+- `excludeFileCode` - Array of file names to exclude from code scans (just use the file name)
+- `isRootFolderReferenced` - Boolean indicating if images are referenced relative to the file path (e.g., `/img/a.png` where `img` is the root folder and the path is relative to the file location)
+- `alias` - Boolean indicating if aliases are used in image paths (e.g., `@/assets/images/a.png`)
+
+**Common exclusions:**
+- Test files: `-f test.js spec.js` or `excludeExtensions: ["test.tsx", "test.ts"]`
+- Storybook files: `-f stories.js`
+- Test directories: `-e __tests__ __mocks__ test`
+- Build outputs: `-e dist build .next`
+- Configuration files: `-f config.js`
+- Third-party code: `-e node_modules vendor`
+
+**Example configuration file:**
+```json
+{
+  "excludeDir": ["node_modules", "dist", "build"],
+  "excludeFile": [],
+  "excludeExtensions": ["test.tsx", "test.ts"],
+  "excludeFilePrint": ["page.tsx", "route.ts", "layout.tsx"],
+  "isRootFolderReferenced": false,
+  "alias": true
+}
+```
+
 ### Project Summary
 
 Get a comprehensive summary of your project including file counts, unused files/images, dead links, dependencies, and file hotspots:
@@ -299,46 +341,6 @@ Qleaner provides two output formats:
 - 🔥 **Architecture insights**: Discover which files are most imported (hotspots) and identify dependency-heavy files
 - ⚠️ **Performance warnings**: Get alerted about large files (100KB+) that may impact performance
 - 🎯 **Maintenance**: Keep your codebase clean and maintainable
-
-## Configuration
-
-Qleaner supports configuration through both command-line options and a configuration file (`qleaner.config.json`). Use `qleaner init` to create a default configuration file.
-
-### Configuration File
-
-The `qleaner.config.json` file allows you to set default options that will be merged with command-line options. Command-line options take precedence over configuration file options.
-
-**Configuration options:**
-- `excludeDir` - Array of directories to exclude from scans
-- `excludeFile` - Array of file names to exclude from scans (just use the file name, e.g., `["test.js", "config.js"]`)
-- `excludeExtensions` - Array of file extensions to exclude (e.g., `["test.tsx", "test.ts"]`)
-- `excludeFilePrint` - Array of file names to scan but not print in results (just use the file name)
-- `excludeDirAssets` - Array of directories to exclude from asset scans
-- `excludeFileAssets` - Array of file names to exclude from asset scans (just use the file name)
-- `excludeDirCode` - Array of directories to exclude from code scans
-- `excludeFileCode` - Array of file names to exclude from code scans (just use the file name)
-- `isRootFolderReferenced` - Boolean indicating if root folder is referenced in image paths
-- `alias` - Boolean indicating if aliases are used in image paths
-
-**Common exclusions:**
-- Test files: `-f test.js spec.js` or `excludeExtensions: ["test.tsx", "test.ts"]`
-- Storybook files: `-f stories.js`
-- Test directories: `-e __tests__ __mocks__ test`
-- Build outputs: `-e dist build .next`
-- Configuration files: `-f config.js`
-- Third-party code: `-e node_modules vendor`
-
-**Example configuration file:**
-```json
-{
-  "excludeDir": ["node_modules", "dist", "build"],
-  "excludeFile": [],
-  "excludeExtensions": ["test.tsx", "test.ts"],
-  "excludeFilePrint": ["page.tsx", "route.ts", "layout.tsx"],
-  "isRootFolderReferenced": false,
-  "alias": true
-}
-```
 
 ## Tips and Best Practices
 
