@@ -89,6 +89,16 @@ function getTop10FilesHotspots(graph, isCheck = true) {
   }
 }
 
+function getTotalImageFiles(graph) {
+  let totalFiles = 0;
+  for (const [filePath, node] of graph.entries()) {
+    if (node.isImage === true) {
+      totalFiles++;
+    }
+  }
+  return totalFiles;
+}
+
 module.exports = {
   getDeadLinks,
   getTotalImageSize,
@@ -99,4 +109,5 @@ module.exports = {
   getTop10FilesWithHeavyDependencies,
   getTop10FilesWithLightDependencies,
   getTop10FilesHotspots,
+  getTotalImageFiles,
 };

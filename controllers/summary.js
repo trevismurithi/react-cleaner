@@ -11,7 +11,8 @@ const {
   findCodeFilesAbove100KB,
   getTop10FilesWithHeavyDependencies,
   getTop10FilesWithLightDependencies,
-  getTop10FilesHotspots
+  getTop10FilesHotspots,
+  getTotalImageFiles
 } = require("../utils/summary");
 
 function formatFilePath(filePath, maxLength = 70) {
@@ -96,15 +97,15 @@ function summarizeAll(chalk) {
     console.log(chalk.yellow("   Use the scan command to generate project data.\n"));
     return;
   }
-
+  const totalImageFiles = getTotalImageFiles(imageGraph.graph);
   // summarize the graph
   const summary = {
     totalCodeFiles: codeGraph.graph.size,
-    totalImageFiles: imageGraph.graph.size,
+    totalImageFiles: totalImageFiles,
     totalUnusedFiles: codeGraph.unusedFiles.size,
     totalUnusedImages: imageGraph.unusedImages.size - deadImageLinks.size,
     totalDeadImageLinks: deadImageLinks.size,
-    totalFiles: codeGraph.graph.size + imageGraph.graph.size,
+    totalFiles: codeGraph.graph.size + totalImageFiles,
   };
 
   console.log(chalk.green.bold("\n📋 Project Summary"));
