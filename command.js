@@ -139,8 +139,8 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       packingBar.increment();
     }
-    const importPath = await resolver(info.file, info.source);
-    if (importPath !== null) {
+    const {importPath, isMightBeModule} = await resolver(info.file, info.source);
+    if (!isMightBeModule) {
       graph.get(info.file).imports.add(importPath);
       if (!graph.has(importPath)) {
         graph.set(importPath, {
@@ -153,6 +153,18 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
         });
       }
       graph.get(importPath).importedBy.add(info.file);
+    }else {
+      graph.get(info.file).imports.add(importPath);
+      if (!graph.has(importPath)) {
+        graph.set(importPath, {
+          file: importPath,
+          size: 0,
+          hash: null,
+          imports: new Set(),
+          importedBy: new Set(),
+          lastModified: null,
+        });
+      }
     }
   }
   if (packingBar) {
