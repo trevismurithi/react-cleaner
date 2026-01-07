@@ -12,7 +12,7 @@ const {
   getTop10FilesWithHeavyDependencies,
   getTop10FilesWithLightDependencies,
   getTop10FilesHotspots,
-  getTotalImageFiles
+  getTotalImageFiles,
 } = require("../utils/summary");
 
 function formatFilePath(filePath, maxLength = 70) {
@@ -39,7 +39,7 @@ function formatFilePath(filePath, maxLength = 70) {
   // Extract filename and directory
   const filename = path.basename(relativePath);
   const dirname = path.dirname(relativePath);
-  
+
   // If filename itself is too long, truncate it
   if (filename.length > maxLength - 4) {
     return "..." + filename.slice(-(maxLength - 4));
@@ -48,7 +48,8 @@ function formatFilePath(filePath, maxLength = 70) {
   // Calculate available space for directory path
   const ellipsisLength = 3; // "..."
   const separatorLength = 1; // "/"
-  const availableForDir = maxLength - filename.length - ellipsisLength - separatorLength;
+  const availableForDir =
+    maxLength - filename.length - ellipsisLength - separatorLength;
 
   if (availableForDir <= 0) {
     // Not enough space, just show filename
@@ -86,15 +87,19 @@ function summarizeAll(chalk) {
   const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
   // Get dead links from the graph
   const deadImageLinks = getDeadLinks(imageGraph.graph).deadLinks;
-  
+
   // Check if data is available
   const hasData = codeGraph.graph.size > 0 || imageGraph.graph.size > 0;
-  
+
   if (!hasData) {
     console.log(chalk.yellow.bold("\n⚠️  No Project Data Found"));
-    console.log(chalk.yellow("════════════════════════════════════════════════"));
+    console.log(
+      chalk.yellow("════════════════════════════════════════════════")
+    );
     console.log(chalk.yellow("   Run a scan to analyze your project first."));
-    console.log(chalk.yellow("   Use the scan command to generate project data.\n"));
+    console.log(
+      chalk.yellow("   Use the scan command to generate project data.\n")
+    );
     return;
   }
   const totalImageFiles = getTotalImageFiles(imageGraph.graph);
@@ -110,10 +115,10 @@ function summarizeAll(chalk) {
 
   console.log(chalk.green.bold("\n📋 Project Summary"));
   console.log(chalk.green("════════════════════════════════════════════════"));
-  
+
   const summaryTable = new Table({
     colWidths: [35, 20],
-    style: { head: [], border: [] }
+    style: { head: [], border: [] },
   });
 
   // Format values with appropriate colors
@@ -130,38 +135,40 @@ function summarizeAll(chalk) {
   summaryTable.push(
     [
       chalk.cyan("📄 Total Code Files:"),
-      formatValue(summary.totalCodeFiles, true)
+      formatValue(summary.totalCodeFiles, true),
     ],
     [
       chalk.cyan("🖼️  Total Image Files:"),
-      formatValue(summary.totalImageFiles, true)
+      formatValue(summary.totalImageFiles, true),
     ],
     [
       chalk.cyan("🗑️  Total Unused Files:"),
       summary.totalUnusedFiles > 0
         ? chalk.red(summary.totalUnusedFiles.toString())
-        : chalk.green("✓ 0")
+        : chalk.green("✓ 0"),
     ],
     [
       chalk.cyan("🗑️  Total Unused Images:"),
       summary.totalUnusedImages > 0
         ? chalk.red(summary.totalUnusedImages.toString())
-        : chalk.green("✓ 0")
+        : chalk.green("✓ 0"),
     ],
     [
       chalk.cyan("🔗 Total Dead Image Links:"),
       summary.totalDeadImageLinks > 0
         ? chalk.red(summary.totalDeadImageLinks.toString())
-        : chalk.green("✓ 0")
+        : chalk.green("✓ 0"),
     ],
     [
       chalk.cyan.bold("📦 Total Files:"),
-      chalk.magenta.bold(summary.totalFiles.toString())
+      chalk.magenta.bold(summary.totalFiles.toString()),
     ]
   );
 
   console.log(summaryTable.toString());
-  console.log(chalk.green("════════════════════════════════════════════════\n"));
+  console.log(
+    chalk.green("════════════════════════════════════════════════\n")
+  );
 }
 
 function getTop10LargestFiles(chalk) {
@@ -176,17 +183,21 @@ function getTop10LargestFiles(chalk) {
   console.log(chalk.green.bold("\n📊 Top 10 Largest Code Files"));
   console.log(chalk.green("════════════════════════════════════════════════"));
   if (!top10CodeFiles || top10CodeFiles.length === 0) {
-    console.log(chalk.yellow("   No code files found. Run a scan to analyze your project."));
+    console.log(
+      chalk.yellow(
+        "   No code files found. Run a scan to analyze your project."
+      )
+    );
   } else {
     const codeTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10CodeFiles.forEach((file, index) => {
       codeTable.push([
         chalk.white(formatFilePath(file[0], 85)),
-        chalk.magenta((file[1] / 1024).toFixed(2) + " KB")
+        chalk.magenta((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
     console.log(codeTable.toString());
@@ -197,17 +208,21 @@ function getTop10LargestFiles(chalk) {
   console.log(chalk.green.bold("\n🖼️  Top 10 Largest Image Files"));
   console.log(chalk.green("════════════════════════════════════════════════"));
   if (!top10ImageFiles || top10ImageFiles.length === 0) {
-    console.log(chalk.yellow("   No image files found. Run a scan to analyze your project."));
+    console.log(
+      chalk.yellow(
+        "   No image files found. Run a scan to analyze your project."
+      )
+    );
   } else {
     const imageTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10ImageFiles.forEach((file) => {
       imageTable.push([
         chalk.white(formatFilePath(file[0], 85)),
-        chalk.magenta((file[1] / (1024 * 1024)).toFixed(2) + " MB")
+        chalk.magenta((file[1] / (1024 * 1024)).toFixed(2) + " MB"),
       ]);
     });
     console.log(imageTable.toString());
@@ -219,20 +234,20 @@ function getTop10LargestFiles(chalk) {
   console.log(chalk.green("════════════════════════════════════════════════"));
   const sizeTable = new Table({
     colWidths: [30, 20],
-    style: { head: [], border: [] }
+    style: { head: [], border: [] },
   });
   sizeTable.push(
     [
       chalk.cyan("Total Code Size:"),
       totalCodeSize > 0
         ? chalk.yellow((totalCodeSize / 1024).toFixed(2) + " KB")
-        : chalk.gray("No data")
+        : chalk.gray("No data"),
     ],
     [
       chalk.cyan("Total Image Size:"),
       totalImageSize > 0
         ? chalk.yellow((totalImageSize / (1024 * 1024)).toFixed(2) + " MB")
-        : chalk.gray("No data")
+        : chalk.gray("No data"),
     ]
   );
   console.log(sizeTable.toString());
@@ -247,38 +262,48 @@ function getTop10LargestFiles(chalk) {
     const largeFilesTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     codeFilesAbove100KB.forEach((file) => {
       largeFilesTable.push([
         chalk.white(formatFilePath(file[0], 85)),
-        chalk.red((file[1] / 1024).toFixed(2) + " KB")
+        chalk.red((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
     console.log(largeFilesTable.toString());
   }
-  console.log(chalk.green("════════════════════════════════════════════════\n"));
+  console.log(
+    chalk.green("════════════════════════════════════════════════\n")
+  );
 }
 
 function dependenciesSummary(chalk) {
   const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
-  
+
   // Check if data is available
   const hasData = codeGraph.graph.size > 0 || imageGraph.graph.size > 0;
   if (!hasData) {
     console.log(chalk.yellow.bold("\n⚠️  No Project Data Found"));
-    console.log(chalk.yellow("════════════════════════════════════════════════"));
+    console.log(
+      chalk.yellow("════════════════════════════════════════════════")
+    );
     console.log(chalk.yellow("   Run a scan to analyze your project first."));
-    console.log(chalk.yellow("   Use the scan command to generate project data.\n"));
+    console.log(
+      chalk.yellow("   Use the scan command to generate project data.\n")
+    );
     return;
   }
 
-  const top10FilesWithHeavyDependencies = getTop10FilesWithHeavyDependencies(codeGraph.graph);
-  const top10FilesWithLightDependencies = getTop10FilesWithLightDependencies(codeGraph.graph);
+  const top10FilesWithHeavyDependencies = getTop10FilesWithHeavyDependencies(
+    codeGraph.graph
+  );
+  const top10FilesWithLightDependencies = getTop10FilesWithLightDependencies(
+    codeGraph.graph
+  );
   const top10FilesHotspots = getTop10FilesHotspots(codeGraph.graph);
-  
+
   // image graph
-  const {deadLinks, aliveLinks} = getDeadLinks(imageGraph.graph);
+  const { deadLinks, aliveLinks } = getDeadLinks(imageGraph.graph);
   const top10FilesHotspotsDeadImage = getTop10FilesHotspots(deadLinks);
   const top10FilesHotspotsAliveImage = getTop10FilesHotspots(aliveLinks, false);
 
@@ -288,18 +313,21 @@ function dependenciesSummary(chalk) {
   // Top 10 Files with Heavy Dependencies
   console.log(chalk.green.bold("\n🔴 Top 10 Files with Heavy Dependencies"));
   console.log(chalk.green("════════════════════════════════════════════════"));
-  if (!top10FilesWithHeavyDependencies || top10FilesWithHeavyDependencies.length === 0) {
+  if (
+    !top10FilesWithHeavyDependencies ||
+    top10FilesWithHeavyDependencies.length === 0
+  ) {
     console.log(chalk.yellow("   No files with heavy dependencies found."));
   } else {
     const heavyDepsTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Imports")],
       colWidths: [90, 12],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10FilesWithHeavyDependencies.forEach(([filePath, node]) => {
       heavyDepsTable.push([
         chalk.white(formatFilePath(filePath, 85)),
-        chalk.red((node.imports?.size || 0).toString())
+        chalk.red((node.imports?.size || 0).toString()),
       ]);
     });
     console.log(heavyDepsTable.toString());
@@ -309,18 +337,21 @@ function dependenciesSummary(chalk) {
   // Top 10 Files with Light Dependencies
   console.log(chalk.green.bold("\n🟢 Top 10 Files with Light Dependencies"));
   console.log(chalk.green("════════════════════════════════════════════════"));
-  if (!top10FilesWithLightDependencies || top10FilesWithLightDependencies.length === 0) {
+  if (
+    !top10FilesWithLightDependencies ||
+    top10FilesWithLightDependencies.length === 0
+  ) {
     console.log(chalk.yellow("   No files with light dependencies found."));
   } else {
     const lightDepsTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Imports")],
       colWidths: [90, 12],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10FilesWithLightDependencies.forEach(([filePath, node]) => {
       lightDepsTable.push([
         chalk.white(formatFilePath(filePath, 85)),
-        chalk.green((node.imports?.size || 0).toString())
+        chalk.green((node.imports?.size || 0).toString()),
       ]);
     });
     console.log(lightDepsTable.toString());
@@ -336,12 +367,12 @@ function dependenciesSummary(chalk) {
     const hotspotsTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Imported By")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10FilesHotspots.forEach(([filePath, node]) => {
       hotspotsTable.push([
         chalk.white(formatFilePath(filePath, 85)),
-        chalk.magenta((node.importedBy?.size || 0).toString())
+        chalk.magenta((node.importedBy?.size || 0).toString()),
       ]);
     });
     console.log(hotspotsTable.toString());
@@ -351,18 +382,21 @@ function dependenciesSummary(chalk) {
   // Image Hotspots - Dead Links
   console.log(chalk.green.bold("\n🖼️  Top 10 Dead Image Hotspots"));
   console.log(chalk.green("════════════════════════════════════════════════"));
-  if (!top10FilesHotspotsDeadImage || top10FilesHotspotsDeadImage.length === 0) {
+  if (
+    !top10FilesHotspotsDeadImage ||
+    top10FilesHotspotsDeadImage.length === 0
+  ) {
     console.log(chalk.green("   ✓ No dead image hotspots found."));
   } else {
     const deadImageHotspotsTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Referenced By")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10FilesHotspotsDeadImage.forEach(([filePath, node]) => {
       deadImageHotspotsTable.push([
         chalk.white(formatFilePath(filePath, 85)),
-        chalk.red((node.importedBy?.size || 0).toString())
+        chalk.red((node.importedBy?.size || 0).toString()),
       ]);
     });
     console.log(deadImageHotspotsTable.toString());
@@ -372,23 +406,28 @@ function dependenciesSummary(chalk) {
   // Image Hotspots - Alive Links
   console.log(chalk.green.bold("\n✅ Top 10 Alive Image Hotspots"));
   console.log(chalk.green("════════════════════════════════════════════════"));
-  if (!top10FilesHotspotsAliveImage || top10FilesHotspotsAliveImage.length === 0) {
+  if (
+    !top10FilesHotspotsAliveImage ||
+    top10FilesHotspotsAliveImage.length === 0
+  ) {
     console.log(chalk.yellow("   No alive image hotspots found."));
   } else {
     const aliveImageHotspotsTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Referenced By")],
       colWidths: [90, 15],
-      style: { head: [], border: [] }
+      style: { head: [], border: [] },
     });
     top10FilesHotspotsAliveImage.forEach(([filePath, node]) => {
       aliveImageHotspotsTable.push([
         chalk.white(formatFilePath(filePath, 85)),
-        chalk.green((node.importedBy?.size || 0).toString())
+        chalk.green((node.importedBy?.size || 0).toString()),
       ]);
     });
     console.log(aliveImageHotspotsTable.toString());
   }
-  console.log(chalk.green("════════════════════════════════════════════════\n"));
+  console.log(
+    chalk.green("════════════════════════════════════════════════\n")
+  );
 }
 module.exports = {
   summarizeAll,

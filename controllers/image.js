@@ -399,35 +399,25 @@ async function scanCodeFilesForImages(
       packingBar.increment();
     }
     const filePath = path.resolve(importInfo.file);
-    const importPath = normalize(importInfo.source, imageDirectory, {
+    let importPath = normalize(importInfo.source, imageDirectory, {
       alias: options.alias ? true : false,
       isRootFolderReferenced: options.isRootFolderReferenced ? true : false,
     });
     if (!fs.existsSync(importPath)) {
-      // referenced image not found, indicate it as unused
-      if (importPath && !imageGraph.has(importPath)) {
-        imageGraph.set(importPath, {
-          file: importPath,
-          size: 0,
-          hash: null,
-          imports: new Set(),
-          importedBy: new Set(),
-          lastModified: null,
-          isImage: true,
+      if(options.alias) {
+        importPath = normalize(importInfo.source, imageDirectory, {
+          alias: false,
+          isRootFolderReferenced: true,
+        });
+      }else {
+        importPath = normalize(importInfo.source, imageDirectory, {
+          alias: true,
+          isRootFolderReferenced: false,
         });
       }
+      addToImageGraph(importPath, imageGraph);
     } else {
-      if (importPath && !imageGraph.has(importPath)) {
-        imageGraph.set(importPath, {
-          file: importPath,
-          size: fs.statSync(importPath).size,
-          hash: getFileHash(fs.readFileSync(importPath, "utf8")),
-          imports: new Set(),
-          importedBy: new Set(),
-          lastModified: fs.statSync(importPath).mtime.getTime(),
-          isImage: true,
-        });
-      }
+      addToImageGraph(importPath, imageGraph);
     }
     importPath && imageGraph.get(importPath).importedBy.add(filePath);
     importPath && imageGraph.get(filePath).imports.add(importPath);
@@ -644,6 +634,28 @@ async function getUnusedImages(
       ...config,
       ...options,
     };
+    if(options.alias === options.isRootFolderReferenced) {
+      console.log(chalk.red("Error: alias and isRootFolderReferenced cannot be the same"));
+      console.log(chalk.red("Please set one of them to true"));
+      console.log(chalk.red("Example:"));
+      console.log(chalk.red("qleaner image public/images src -a"));
+      console.log(chalk.red("qleaner image public/images src -r"));
+      console.log(chalk.red("Or set one of them to false in the config file"));
+      console.log(chalk.red("Example:"));
+      console.log(chalk.red("qleaner.config.json:"));
+      console.log(chalk.red('{'));
+      console.log(chalk.red('  "alias": false,'));
+      console.log(chalk.red('  "isRootFolderReferenced": true,'));
+      console.log(chalk.red('}'));
+      console.log(chalk.red("Or set one of them to true in the config file"));
+      console.log(chalk.red("Example:"));
+      console.log(chalk.red("qleaner.config.json:"));
+      console.log(chalk.red('{'));
+      console.log(chalk.red('  "alias": true,'));
+      console.log(chalk.red('  "isRootFolderReferenced": false,'));
+      console.log(chalk.red('}'));
+      process.exit(1);
+    }
   }
   // read qleaner.config.json
   // Start spinner
@@ -699,6 +711,33 @@ async function getUnusedImages(
   );
   spinner.succeed(`Completed Qleaner scan`);
 }
+
+function addToImageGraph(importPath, imageGraph) {
+  if (importPath && !imageGraph.has(importPath)) {
+    let size = 0;
+    let hash = null;
+    let lastModified = null;
+    try {
+      size = fs.statSync(importPath).size;
+      hash = getFileHash(fs.readFileSync(importPath, "utf8"));
+      lastModified = fs.statSync(importPath).mtime.getTime();
+    } catch (error) {
+      size = 0;
+      hash = null;
+      lastModified = null;
+    }
+    imageGraph.set(importPath, {
+      file: importPath,
+      size: size,
+      hash: hash,
+      imports: new Set(),
+      importedBy: new Set(),
+      lastModified: lastModified,
+      isImage: true,
+    });
+  }
+}
+
 
 module.exports = {
   getUnusedImages,

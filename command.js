@@ -13,103 +13,6 @@ const {
 } = require("./utils/cache");
 const { isExcludedFile, createStepBar } = require("./utils/utils");
 
-async function getFiles(directory = "src", options, chalk) {
-  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
-  if (options.excludeDir && options.excludeDir.length > 0) {
-    options.excludeDir.forEach((dir) => {
-      contentPaths.push(`!${dir}/**`);
-    });
-  }
-  if (options.excludeFile && options.excludeFile.length > 0) {
-    options.excludeFile.forEach((file) => {
-      contentPaths.push(`!${directory}/**/${file}`);
-    });
-  }
-
-  const files = await fg(contentPaths);
-  const imports = [];
-
-  let index = 0;
-  for (const file of files) {
-    index++;
-    // console.clear();
-    // console.log("Scanning file...", index, "of", files.length);
-    const code = fs.readFileSync(file, "utf8");
-    const ast = parser.parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
-    });
-    traverse(ast, {
-      ImportDeclaration: ({ node }) => {
-        imports.push({
-          from: node.source.value,
-          file: file,
-          line: node.loc.start.line,
-          column: node.loc.start.column,
-        });
-      },
-    });
-    //   ExportNamedDeclaration: ({ node }) => {
-    //     if (node.declaration.declarations && node.declaration.declarations[0].id && node.declaration.declarations[0].id.name) {
-    //       exports.push(node.declaration.declarations[0].id.name);
-    //     }
-    //   },
-    //   FunctionDeclaration: ({ node }) => {
-    //     console.log('FunctionDeclaration', node.id);
-    //     if (node.id && node.id.name) {
-    //       exports.push(node.id.name);
-    //     }
-    //   },
-    // });
-  }
-
-  if (options.table) {
-    const tableImports = new Table({
-      head: ["File", "Line", "Column", "Import"],
-      colWidths: [20, 10, 10, 20],
-    });
-
-    const tableFiles = new Table({
-      head: ["File"],
-      colWidths: [20],
-    });
-
-    if (options.listFiles) {
-      files.forEach((file) => {
-        tableFiles.push([file]);
-      });
-    }
-    if (options.listImports) {
-      imports.forEach((importStatement) => {
-        tableImports.push([
-          importStatement.file,
-          importStatement.line,
-          importStatement.column,
-          importStatement.from,
-        ]);
-      });
-    }
-    return { tableImports, tableFiles };
-  } else {
-    if (options.listFiles) {
-      console.log(chalk.green("***************** Files *****************"));
-      files.forEach((file) => {
-        console.log(chalk.green(file));
-      });
-    }
-    if (options.listImports) {
-      console.log(chalk.yellow("***************** Imports *****************"));
-      imports.forEach((importStatement) => {
-        console.log(
-          chalk.yellow(
-            `${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`
-          )
-        );
-      });
-    }
-    return { tableImports: imports, tableFiles: files };
-  }
-}
 
 // Initializes the cache by clearing it (if requested) and loading it from disk
 function initializeCache(spinner, options, code = true) {
@@ -199,6 +102,25 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
             source: node.source.value,
           });
         },
+        CallExpression({ node }) {
+          if (node.callee.type === "Import") {
+            const arg = node.arguments[0]
+      
+            if (arg?.type === "StringLiteral") {
+              imports.push({
+                file: filePath,
+                source: arg.value,
+                type: "dynamic"
+              })
+            } else {
+              imports.push({
+                file: filePath,
+                source: null,
+                type: "dynamic-variable"
+              })
+            }
+          }
+        }
       });
     }
   }
@@ -371,7 +293,6 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
 }
 
 module.exports = {
-  getFiles,
   unUsedFiles,
   initializeCache,
   hydrateGraph,

@@ -50,7 +50,7 @@ function normalize(
   value = value.split("?")[0];
 
   // Convert leading "/" to relative project path
-  if (value.startsWith("/")) {
+  if (value.startsWith("/") && !isRootFolderReferenced) {
     return path.resolve(path.join(imageDirectory, value.slice(1)));
   }
 
