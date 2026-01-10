@@ -1,6 +1,5 @@
 const fg = require("fast-glob");
 const fs = require("fs");
-const Table = require("cli-table3");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
 const path = require("path");
@@ -13,108 +12,13 @@ const {
 } = require("./utils/cache");
 const { isExcludedFile, createStepBar } = require("./utils/utils");
 
-async function getFiles(directory = "src", options, chalk) {
-  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
-  if (options.excludeDir && options.excludeDir.length > 0) {
-    options.excludeDir.forEach((dir) => {
-      contentPaths.push(`!${dir}/**`);
-    });
-  }
-  if (options.excludeFile && options.excludeFile.length > 0) {
-    options.excludeFile.forEach((file) => {
-      contentPaths.push(`!${directory}/**/${file}`);
-    });
-  }
-
-  const files = await fg(contentPaths);
-  const imports = [];
-
-  let index = 0;
-  for (const file of files) {
-    index++;
-    // console.clear();
-    // console.log("Scanning file...", index, "of", files.length);
-    const code = fs.readFileSync(file, "utf8");
-    const ast = parser.parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
-    });
-    traverse(ast, {
-      ImportDeclaration: ({ node }) => {
-        imports.push({
-          from: node.source.value,
-          file: file,
-          line: node.loc.start.line,
-          column: node.loc.start.column,
-        });
-      },
-    });
-    //   ExportNamedDeclaration: ({ node }) => {
-    //     if (node.declaration.declarations && node.declaration.declarations[0].id && node.declaration.declarations[0].id.name) {
-    //       exports.push(node.declaration.declarations[0].id.name);
-    //     }
-    //   },
-    //   FunctionDeclaration: ({ node }) => {
-    //     console.log('FunctionDeclaration', node.id);
-    //     if (node.id && node.id.name) {
-    //       exports.push(node.id.name);
-    //     }
-    //   },
-    // });
-  }
-
-  if (options.table) {
-    const tableImports = new Table({
-      head: ["File", "Line", "Column", "Import"],
-      colWidths: [20, 10, 10, 20],
-    });
-
-    const tableFiles = new Table({
-      head: ["File"],
-      colWidths: [20],
-    });
-
-    if (options.listFiles) {
-      files.forEach((file) => {
-        tableFiles.push([file]);
-      });
-    }
-    if (options.listImports) {
-      imports.forEach((importStatement) => {
-        tableImports.push([
-          importStatement.file,
-          importStatement.line,
-          importStatement.column,
-          importStatement.from,
-        ]);
-      });
-    }
-    return { tableImports, tableFiles };
-  } else {
-    if (options.listFiles) {
-      console.log(chalk.green("***************** Files *****************"));
-      files.forEach((file) => {
-        console.log(chalk.green(file));
-      });
-    }
-    if (options.listImports) {
-      console.log(chalk.yellow("***************** Imports *****************"));
-      imports.forEach((importStatement) => {
-        console.log(
-          chalk.yellow(
-            `${importStatement.file}:${importStatement.line}:${importStatement.column}  ${importStatement.from}`
-          )
-        );
-      });
-    }
-    return { tableImports: imports, tableFiles: files };
-  }
-}
-
 // Initializes the cache by clearing it (if requested) and loading it from disk
 function initializeCache(spinner, options, code = true) {
   spinner.text = "🔍 Loading cache...";
-  const cache = loadCache(process.cwd(), {code, clearCache: options.clearCache});
+  const cache = loadCache(process.cwd(), {
+    code,
+    clearCache: options.clearCache,
+  });
   let graph = null;
   let imageGraph = null;
   if (code) {
@@ -162,7 +66,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     `1/${files.length}`,
     files.length,
     "Scanning files",
-    chalk
+    chalk,
   );
   let packingBar = null;
   const imports = [];
@@ -199,6 +103,25 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
             source: node.source.value,
           });
         },
+        CallExpression({ node }) {
+          if (node.callee.type === "Import") {
+            const arg = node.arguments[0];
+
+            if (arg?.type === "StringLiteral") {
+              imports.push({
+                file: filePath,
+                source: arg.value,
+                type: "dynamic",
+              });
+            } else {
+              imports.push({
+                file: filePath,
+                source: null,
+                type: "dynamic-variable",
+              });
+            }
+          }
+        },
       });
     }
   }
@@ -209,7 +132,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       `1/${imports.length}`,
       imports.length,
       "Packing imports",
-      chalk
+      chalk,
     );
   }
   for (const info of imports) {
@@ -217,8 +140,11 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       packingBar.increment();
     }
-    const importPath = await resolver(info.file, info.source);
-    if (importPath !== null) {
+    const { importPath, isMightBeModule } = await resolver(
+      info.file,
+      info.source,
+    );
+    if (!isMightBeModule) {
       graph.get(info.file).imports.add(importPath);
       if (!graph.has(importPath)) {
         graph.set(importPath, {
@@ -228,6 +154,19 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
           imports: new Set(),
           importedBy: new Set(),
           lastModified: fs.statSync(importPath).mtime.getTime(),
+        });
+      }
+      graph.get(importPath).importedBy.add(info.file);
+    } else {
+      graph.get(info.file).imports.add(importPath);
+      if (!graph.has(importPath)) {
+        graph.set(importPath, {
+          file: importPath,
+          size: 0,
+          hash: null,
+          imports: new Set(),
+          importedBy: new Set(),
+          lastModified: null,
         });
       }
       graph.get(importPath).importedBy.add(info.file);
@@ -243,7 +182,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       `1/${oldPaths.size}`,
       oldPaths.size,
       "Comparing old paths with new paths",
-      chalk
+      chalk,
     );
   }
   // count the number of removed files
@@ -258,7 +197,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     if (graph.has(filePath)) {
       // Find files that were in oldFiles but are no longer in current imports
       const removedFiles = new Set(
-        [...oldFiles].filter((x) => !graph.get(filePath).imports.has(x))
+        [...oldFiles].filter((x) => !graph.get(filePath).imports.has(x)),
       );
       if (removedFiles.size > 0) {
         // remove the removed files from the graph
@@ -302,7 +241,7 @@ async function checkUnusedFiles(files, parentGraph, options, chalk) {
     `1/${files.length}`,
     files.length,
     "Checking unused files",
-    chalk
+    chalk,
   );
   for (const file of files) {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -353,7 +292,7 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
     files,
     parentGraph.graph,
     resolver,
-    chalk
+    chalk,
   );
 
   spinner.succeed(`Checked ${files.length} files`);
@@ -371,7 +310,6 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
 }
 
 module.exports = {
-  getFiles,
   unUsedFiles,
   initializeCache,
   hydrateGraph,

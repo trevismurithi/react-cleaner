@@ -1,402 +1,559 @@
 # Qleaner
 
-❌ Afraid to delete files in a React project?  
-❌ Unsure what's still used?  
-❌ Large repos slowing down devs?
+**Qleaner** (v1.2.0) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
 
-**Qleaner answers those questions safely.**
+## ✨ Features
 
-Qleaner scans your entire codebase with precision, finding unused files, dead assets, and architectural rot—without the risk. It tells you exactly what's safe to delete, backed by comprehensive dependency analysis.
+- 🔍 **Find Unused Code Files** - Identify files that aren't imported or used anywhere
+- 🖼️ **Find Unused Images** - Detect image assets that are never referenced in your code
+- 📦 **Unused Dependencies** - Discover npm/yarn packages that are installed but not used
+- 🔗 **Dead Image Links** - Find image references in code that point to non-existent files
+- 📊 **Project Summary** - Get comprehensive statistics about your codebase
+- 📈 **File Size Analysis** - Identify the largest files and potential optimization targets
+- 🎯 **Dependency Analysis** - See which files have heavy dependencies and hotspots
+- 💾 **Smart Caching** - Fast incremental scans with intelligent cache invalidation
+- 🧪 **Dry-Run Mode** - Preview what would be deleted without actually deleting anything
+- 🗑️ **Interactive Deletion** - Choose to delete files permanently or move them to `.trash`
 
-**Developers star tools that:**
+## 🚀 Installation
 
-- **Save them time** — No more manual hunting through imports and references
-- **Reduce fear** — Dry-run mode shows you exactly what would be deleted before you commit
-- **Prevent mistakes** — Smart caching and incremental scans catch everything
-- **Make them look smart at work** — Clean codebases speak volumes
-
-## Features
-
-- 🔍 **Scan for unused files**: Identify files that are not imported anywhere in your project
-- 🖼️ **Scan for unused images**: Find image files that are not referenced in your codebase
-- 📊 **Project summary**: Get comprehensive project insights including file counts, unused files/images, largest files, dependencies, and more
-- 📋 **Dependency analysis**: Analyze import patterns and identify files with heavy or light dependencies
-- 📈 **File size analysis**: Identify largest files and potential optimization opportunities
-- 📊 **Table output**: Display results in formatted tables for better readability
-- ⚙️ **Flexible configuration**: Exclude directories and files from scanning via command-line options or configuration file (`qleaner.config.json`)
-- 🚀 **Fast performance**: Efficient file scanning across large codebases with intelligent caching
-- 💪 **TypeScript support**: Works with TypeScript, JavaScript, JSX, and TSX files
-- 🧪 **Dry run mode**: Preview what would be deleted without actually deleting files
-- 💾 **Smart caching**: Caches scan results for faster subsequent runs (automatically invalidates on file changes)
-- 🎨 **CSS and styled-components support**: Detects images used in CSS files and styled-components
-- 🔧 **Configuration file**: Use `qleaner init` to create a `qleaner.config.json` file with default settings for your project
-- 🔗 **Dead link detection**: Identifies images referenced in code but not found in the file system
-- 🔥 **File hotspot analysis**: Discover the most imported files and image hotspots in your codebase
-- ⚠️ **Large file warnings**: Automatically flags code files exceeding 100KB for optimization
-
-## Installation
+### Global Installation
 
 ```bash
-# Install globally
 npm install -g qleaner
-
-# Or use with npx
-npx qleaner
-
-# Or install locally
-yarn add qleaner
 ```
 
-## Usage
+### Use with npx (No Installation)
 
-### Initialize Configuration
+```bash
+npx qleaner <command>
+```
 
-Create a `qleaner.config.json` file in your project root to configure default settings:
+### Local Development Dependency
+
+```bash
+yarn add qleaner --dev
+# or
+npm install qleaner --save-dev
+```
+
+## 📖 Quick Start
+
+### 1. Initialize Configuration
+
+First, set up Qleaner for your project:
 
 ```bash
 qleaner init
 ```
 
-This creates a configuration file with default settings for exclusions and image scanning options. You can then modify `qleaner.config.json` to customize your settings.
+This interactive command will:
+- Ask about your package manager (npm/yarn/pnpm)
+- Configure image path resolution (aliases or root-referenced paths)
+- Detect your framework (React/Next.js) to set appropriate entry points
 
-## Configuration
+This creates a `qleaner.config.json` file in your project root with sensible defaults.
 
-**Configuration is key!** A good setup saves a lot of time when typing commands. Instead of repeatedly typing long command-line options, configure your defaults once in `qleaner.config.json` and they'll be used automatically.
+### 2. Scan for Unused Code Files
 
-Qleaner supports configuration through both command-line options and a configuration file (`qleaner.config.json`). Use `qleaner init` to create a default configuration file.
-
-### Configuration File
-
-The `qleaner.config.json` file allows you to set default options that will be merged with command-line options. Command-line options take precedence over configuration file options.
-
-**Configuration options:**
-- `excludeDir` - Array of directories to exclude from scans
-- `excludeFile` - Array of file names to exclude from scans (just use the file name, e.g., `["test.js", "config.js"]`)
-- `excludeExtensions` - Array of file extensions to exclude (e.g., `["test.tsx", "test.ts"]`)
-- `excludeFilePrint` - Array of file names to scan but not print in results (just use the file name). These are also known as **entrypoints** - files that are entry points to your application (like `page.tsx`, `route.ts`, `layout.tsx` in Next.js) that may not be directly imported but are still used by the framework
-- `excludeDirAssets` - Array of directories to exclude from asset scans
-- `excludeFileAssets` - Array of file names to exclude from asset scans (just use the file name)
-- `excludeDirCode` - Array of directories to exclude from code scans
-- `excludeFileCode` - Array of file names to exclude from code scans (just use the file name)
-- `isRootFolderReferenced` - Boolean indicating if images are referenced relative to the file path (e.g., `/img/a.png` where `img` is the root folder and the path is relative to the file location)
-- `alias` - Boolean indicating if aliases are used in image paths (e.g., `@/assets/images/a.png`)
-
-**Common exclusions:**
-- Test files: `-f test.js spec.js` or `excludeExtensions: ["test.tsx", "test.ts"]`
-- Storybook files: `-f stories.js`
-- Test directories: `-e __tests__ __mocks__ test`
-- Build outputs: `-e dist build .next`
-- Configuration files: `-f config.js`
-- Third-party code: `-e node_modules vendor`
-
-**Example configuration file:**
-```json
-{
-  "excludeDir": ["node_modules", "dist", "build"],
-  "excludeFile": [],
-  "excludeExtensions": ["test.tsx", "test.ts"],
-  "excludeFilePrint": ["page.tsx", "route.ts", "layout.tsx"],
-  "isRootFolderReferenced": false,
-  "alias": true
-}
-```
-
-### Project Summary
-
-Get a comprehensive summary of your project including file counts, unused files/images, dead links, dependencies, and file hotspots:
+Scan a directory for unused files:
 
 ```bash
-qleaner summary [options]
+# Dry run (recommended first time)
+qleaner scan src --dry-run
+
+# Actual scan (will prompt for deletion)
+qleaner scan src
 ```
 
-**Options:**
-- `-l, --largest-files` - List the largest files in the project (top 10 code files, top 10 image files, files above 100KB, and total sizes)
-- `-d, --dependencies` - List dependency analysis (heavy/light dependencies, file hotspots, dead/alive image hotspots)
+### 3. Scan for Unused Images
+
+Find images that aren't referenced in your code:
+
+```bash
+# Scan images in public/images against code in src
+qleaner image public/images src --dry-run
+
+# With alias paths (e.g., @/assets/images/logo.png)
+qleaner image public/images src -a --dry-run
+
+# With root-referenced paths (e.g., /images/logo.png)
+qleaner image public/images src -r --dry-run
+```
+
+## 📋 Commands
+
+### `qleaner init`
+
+Initialize Qleaner with an interactive configuration wizard. This command asks you a series of questions to set up Qleaner for your project and creates a `qleaner.config.json` file in your project root with sensible defaults.
+
+**Questions asked:**
+1. Package manager (npm, yarn, or pnpm)
+2. Whether you use path aliases for images (e.g., `@/assets/...`)
+3. Framework type (React or Next.js)
 
 **Examples:**
-
 ```bash
-# Get project summary (default)
-# Shows: total code files, total image files, unused files, unused images, dead image links
+# Initialize with interactive prompts
+qleaner init
+
+# After initialization, you can run scans
+qleaner scan src
+```
+
+**Note:** If you already have a `qleaner.config.json` file, this command will prompt you before overwriting it. You can manually edit the config file instead if needed.
+
+### `qleaner scan <path>`
+
+Scan a directory for unused code files.
+
+**Options:**
+- `-e, --exclude-dir <dir...>` - Exclude directories from scan (e.g., `-e node_modules dist`)
+- `-f, --exclude-file <file...>` - Exclude specific files by name (e.g., `-f config.js`)
+- `-F, --exclude-file-print <files...>` - Scan but don't report as unused (for entry points)
+- `-x, --exclude-extensions <extensions...>` - Exclude file extensions (e.g., `-x test.tsx test.ts`)
+- `-t, --table` - Display results in a formatted table
+- `-d, --dry-run` - Preview deletions without actually deleting
+- `-C, --clear-cache` - Clear cache before scanning (useful after major changes)
+
+**Examples:**
+```bash
+# Basic scan (will prompt for deletion if unused files found)
+qleaner scan src
+
+# Dry run with table output (recommended first time)
+qleaner scan src --dry-run --table
+
+# Exclude test files and multiple directories
+qleaner scan src -x test.tsx test.ts test.js test.jsx -e node_modules dist build
+
+# Exclude specific files from being reported as unused (entry points)
+qleaner scan src -F index.tsx main.tsx app.tsx
+
+# Clear cache and perform fresh scan
+qleaner scan src --clear-cache
+
+# Comprehensive scan with multiple exclusions
+qleaner scan src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
+```
+
+### `qleaner image <directory> <rootPath>`
+
+Scan for unused images by comparing image files against references in your code. Detects images (png, jpg, jpeg, svg, gif, webp) that exist in your assets directory but are never referenced in your source code.
+
+**Arguments:**
+- `<directory>` - Directory containing image files to scan (e.g., `public/images`, `src/assets`)
+- `<rootPath>` - Root directory of your source code that references images (e.g., `src`, `app`)
+
+**Options:**
+- `-e, --exclude-dir-assets <dir...>` - Exclude directories from image file scan (can specify multiple)
+- `-f, --exclude-file-assets <file...>` - Exclude specific image files by name pattern
+- `-E, --exclude-dir-code <dir...>` - Exclude directories when scanning code for image references (e.g., `-E node_modules dist`)
+- `-S, --exclude-file-code <file...>` - Exclude specific files when scanning code for image references
+- `-r, --is-root-folder-referenced` - Images use root-referenced paths (e.g., `/images/logo.png` where `/` is the root)
+- `-a, --alias` - Images use alias/import paths (e.g., `@/assets/images/logo.png` or `~/assets/logo.png`)
+- `-t, --table` - Display results in a formatted table with columns: Unused Images, In Code, Exists, Size
+- `-C, --clear-cache` - Clear cache before scanning (recommended after major code changes)
+- `-H, --hide-not-found-images` - Hide images referenced in code but not found on disk (dead links)
+- `-d, --dry-run` - Preview deletions without actually deleting (skips deletion prompt)
+
+**Important:** Either `-r` (root-referenced) or `-a` (alias) must be set, but not both. They cannot have the same value.
+
+**Examples:**
+```bash
+# Basic image scan with root-referenced paths (e.g., /images/logo.png)
+qleaner image public/images src -r
+
+# With alias paths (e.g., @/assets/images/logo.png)
+qleaner image src/assets/images src -a
+
+# Dry run with table format
+qleaner image public/images src -r --dry-run --table
+
+# Hide dead image links and use table format
+qleaner image public/images src -r -H -t
+
+# Exclude directories from code scan
+qleaner image public/images src -r -E node_modules dist test
+
+# Exclude specific directories from asset scan
+qleaner image src/assets src -a -e icons fonts
+
+# Clear cache and rescan
+qleaner image public/images src -r --clear-cache
+
+# Comprehensive scan with all options
+qleaner image src/assets src -a --exclude-dir-code node_modules dist --hide-not-found-images --table --dry-run
+```
+
+**Supported Image Reference Patterns:**
+
+Qleaner automatically detects images referenced through various patterns:
+
+- **ES6 Imports:** `import logo from './logo.png'`
+- **CommonJS Require:** `require('./logo.png')` or `require('./logo.png')`
+- **Dynamic Imports:** `import('./logo.png')` or `import('./assets/${name}.png')`
+- **JSX Attributes:** `<img src="./logo.png" />` or `<img src={imagePath} />`
+- **React Style Props:** `style={{ backgroundImage: "url('./logo.png')" }}`
+- **CSS Files:** `url('./logo.png')` or `url('/images/logo.png')`
+- **Styled-Components:** `` css`background-image: url('./logo.png')` `` or `` styled.div`background: url('./bg.png')` ``
+- **Arrays:** `const images = ['./logo.png', './icon.png']`
+- **Template Literals:** `` `./logo-${name}.png` `` or `` `/images/${type}.png` ``
+- **String Literals:** Any string containing an image path pattern
+
+### `qleaner list <dependency>`
+
+List the files by dependency. Searches through your dependency graph to find all files that import or use the specified dependency (module, package, or file path).
+
+**CLI Reference:** Lines 32-39 of `bin/cli.js`
+
+**Description:** List the files by dependency
+
+**Arguments:**
+- `<dependency>` - The dependency to list the files by (e.g., `react-router`, `lodash`, `./utils/helpers`)
+
+**Options:**
+- `-t, --table` - Display results in a table format
+
+**Examples:**
+```bash
+# List files using react-router
+qleaner list react-router
+
+# List files using a local module (partial path matching)
+qleaner list ./utils/helpers
+
+# List files using lodash with table format
+qleaner list lodash --table
+
+# Find files using a specific package
+qleaner list axios
+```
+
+**Note:** Requires a cache file. Run `qleaner scan <path>` first to generate the dependency graph.
+
+### `qleaner dep`
+
+List the unused dependencies. Analyzes your `package.json` dependencies and compares them against the dependency graph to identify packages that are installed but never imported or used in your codebase.
+
+**CLI Reference:** Lines 40-49 of `bin/cli.js`
+
+**Description:** List the unused dependencies
+
+**Options:**
+- `-d, --directory <directory>` - The directory to list the unused dependencies from (defaults to current directory)
+- `-t, --table` - Display results in a table format
+
+**Examples:**
+```bash
+# Find unused dependencies in current directory
+qleaner dep
+
+# Check dependencies in a specific package/monorepo directory
+qleaner dep -d ./packages/my-package
+
+# Display results in table format
+qleaner dep --table
+
+# Combined: specific directory with table
+qleaner dep -d ./src --table
+```
+
+**Note:** Requires a cache file. Run `qleaner scan <path>` first to generate the dependency graph. Only analyzes `dependencies` in package.json, not `devDependencies`.
+
+### `qleaner summary`
+
+Get comprehensive project statistics and insights. Provides overview of imports, files, and project structure.
+
+**Options:**
+- `-l, --largest-files` - Show top 10 largest code and image files
+- `-d, --dependencies` - Show dependency analysis and hotspots
+
+**Note:** When no options are provided, shows a general project summary with totals.
+
+**Examples:**
+```bash
+# Full project summary
 qleaner summary
 
-# List the largest files
-# Shows: top 10 largest code files, top 10 largest image files, files above 100KB, total sizes
+# Show largest files
 qleaner summary --largest-files
 
-# List dependencies
-# Shows: files with heavy/light dependencies, file hotspots (most imported files), dead/alive image hotspots
+# Show dependency analysis
 qleaner summary --dependencies
 ```
 
-**Summary includes:**
-- **Default summary**: Total code/image files, unused files/images count, dead image links count
-- **Largest files** (`--largest-files`): Top 10 largest code files, top 10 largest image files, code files exceeding 100KB, total code/image sizes
-- **Dependencies** (`--dependencies`): Top 10 files with heavy dependencies, top 10 files with light dependencies, top 10 file hotspots (most imported), top 10 dead/alive image hotspots
+**Summary Output Breakdown:**
 
-**Important:** Before viewing the summary, make sure to run a fresh scan with `--clear-cache` to ensure accurate results. The summary reads from the cache, so outdated cache data will show outdated results.
+**General Summary** (no flags):
+- Total code files count
+- Total image files count
+- Total unused files count
+- Total unused images count
+- Total dead image links count
+- Total files count
 
-### Scan for Unused Files
+**Largest Files** (`-l` or `--largest-files`):
+- Top 10 largest code files (sorted by size in KB)
+- Top 10 largest image files (sorted by size in MB)
+- Total code size and total image size
+- Code files exceeding 100 KB (warning list)
 
-Find files that are not imported anywhere in your project:
+**Dependencies** (`-d` or `--dependencies`):
+- Top 10 files with heavy dependencies (most imports)
+- Top 10 files with light dependencies (fewest imports)
+- Top 10 file hotspots (most imported files - files that many other files import)
+- Top 10 dependency hotspots (most used dependencies/packages)
+- Top 10 dead image hotspots (dead image links referenced by many files)
+- Top 10 alive image hotspots (images referenced by many files)
 
-```bash
-qleaner scan <path> [options]
+**Note:** Requires a cache file. Run `qleaner scan <path>` to generate code cache and/or `qleaner image <dir> <root>` to generate image cache first.
+
+## ⚙️ Configuration
+
+Qleaner can be configured via `qleaner.config.json` or CLI flags. CLI flags always override config file values.
+
+### Configuration File Structure
+
+```json
+{
+  "packageManager": "yarn",
+  "excludeDir": ["node_modules", "dist", "build", ".next"],
+  "excludeFile": ["payload-types.ts"],
+  "excludeExtensions": [".test.tsx", ".test.ts"],
+  "excludeFilePrint": ["index.js", "index.tsx", "main.js"],
+  "excludeDirAssets": [],
+  "excludeFileAssets": [],
+  "excludeDirCode": ["node_modules", "dist"],
+  "excludeFileCode": [],
+  "isRootFolderReferenced": true,
+  "alias": false
+}
 ```
 
-**Options:**
-- `-e, --exclude-dir <dir...>` - Exclude directories from the scan
-- `-f, --exclude-file <file...>` - Exclude files from the scan (just use the file name, e.g., `test.js`, the tool will match it across all directories)
-- `-F, --exclude-file-print <files...>` - Scan but don't print the excluded files (just use the file name)
-- `-x, --exclude-extensions <extensions...>` - Exclude file extensions from the scan (e.g., test.tsx, test.ts, test.js, test.jsx)
-- `-t, --table` - Display results in a formatted table
-- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
-- `-C, --clear-cache` - Clear the cache before scanning (recommended after making code changes)
+### Configuration Options
 
-**Examples:**
+| Option | Type | Description |
+|--------|------|-------------|
+| `packageManager` | string | Package manager used: `npm`, `yarn`, or `pnpm` |
+| `excludeDir` | string[] | Directories to exclude from code scans |
+| `excludeFile` | string[] | Files to exclude by name from code scans |
+| `excludeExtensions` | string[] | File extensions to exclude (e.g., `["test.tsx"]`) |
+| `excludeFilePrint` | string[] | Entry point files to scan but not report as unused |
+| `excludeDirAssets` | string[] | Directories to exclude from image scans |
+| `excludeFileAssets` | string[] | Image files to exclude by name |
+| `excludeDirCode` | string[] | Directories to exclude when scanning code for image references |
+| `excludeFileCode` | string[] | Files to exclude when scanning code for image references |
+| `isRootFolderReferenced` | boolean | `true` if image paths are root-referenced (e.g., `/images/logo.png`) |
+| `alias` | boolean | `true` if image paths use aliases (e.g., `@/assets/images/logo.png`) |
+
+**Important:** `isRootFolderReferenced` and `alias` should not both be `true` or both be `false`. Set one to `true` and the other to `false`.
+
+### Default Exclusions
+
+Qleaner automatically excludes common build and generated directories:
+- `node_modules`, `dist`, `build`, `.next`, `out`
+- `coverage`, `.turbo`, `.vite`, `.cache`
+- `.vercel`, `.netlify`, `storybook-static`
+- `generated`, `prisma`, `graphql`, `supabase`, `drizzle`, `__generated__`
+
+### Framework-Specific Entry Points
+
+**React:**
+- `index.js`, `index.jsx`, `index.ts`, `index.tsx`
+- `main.js`, `main.jsx`, `main.ts`, `main.tsx`
+
+**Next.js:**
+- `page.tsx`, `page.jsx`, `route.ts`, `route.jsx`
+- `layout.tsx`, `layout.jsx`
+- `middleware.ts`, `middleware.js`
+- `error.tsx`, `error.jsx`, `loading.tsx`, `loading.jsx`
+- `not-found.tsx`, `not-found.jsx`
+- `global-error.tsx`, `global-error.jsx`
+- `_app.tsx`, `_app.jsx`, `_document.tsx`, `_document.jsx`
+- `_error.tsx`, `_error.jsx`
+
+## 💾 Caching
+
+Qleaner uses intelligent caching to speed up subsequent scans:
+
+- **File Hashing** - Files are only re-analyzed if their content changed
+- **Incremental Updates** - Only changed files are re-processed
+- **Cache Location** - `unused-check-cache.json` in your project root
+
+**When to Clear Cache:**
+- After major refactoring
+- When dependencies change significantly
+- If you get unexpected results
 
 ```bash
-# Scan src directory for unused files
-qleaner scan src
+# Clear cache and rescan
+qleaner scan src --clear-cache
+```
 
-# Display unused files in a table format
-qleaner scan src --table
+## 🗑️ File Deletion
 
-# Scan excluding test directories
-qleaner scan src -e __tests__ __mocks__ test
+When you run a scan without `--dry-run`, Qleaner will prompt you to:
 
-# Scan excluding specific files
-qleaner scan src -f test.js stories.js
+1. **Select files to delete** - Choose from a list of unused files
+2. **Choose deletion method:**
+   - **Move to `.trash`** - Safely moves files to a `.trash` directory (recommended)
+   - **Delete permanently** - Permanently removes files
 
-# Scan excluding file extensions
-qleaner scan src -x test.tsx test.ts test.js test.jsx
+**Recommended Workflow:**
+1. Run with `--dry-run` first to see what would be deleted
+2. Review the results carefully
+3. Run without `--dry-run` and select files to delete
+4. Choose "Move to `.trash`" to keep a backup
+5. Test your application
+6. Empty `.trash` when confident
 
-# Scan with multiple exclusions
-qleaner scan src -e node_modules dist -f config.js
+## 🔧 How It Works
 
-# Scan with table output and exclusions
-qleaner scan src --table -e __tests__ dist -f config.js
+### Code Analysis
+1. **File Discovery** - Uses `fast-glob` to find all code files matching patterns
+2. **AST Parsing** - Parses JavaScript/TypeScript with Babel to extract imports
+3. **Module Resolution** - Uses `enhanced-resolve` to resolve import paths (supports aliases)
+4. **Dependency Graph** - Builds a graph of file dependencies
+5. **Unused Detection** - Identifies files with no incoming imports (except entry points)
 
-# Dry run - preview what would be deleted without deleting
-qleaner scan src --dry-run
+### Image Analysis
+1. **Image Discovery** - Finds all image files (png, jpg, jpeg, svg, gif, webp)
+2. **Code Scanning** - Extracts image references from:
+   - Import statements
+   - Require calls
+   - JSX attributes (`<img src>`)
+   - CSS files (`url()`)
+   - Styled-components
+   - Template literals
+   - Arrays
+   - String literals
+3. **Path Normalization** - Normalizes paths based on alias/root configuration
+4. **Unused Detection** - Compares image files against references
 
-# Dry run with table output
+## 📊 Example Workflow
+
+```bash
+# 1. Initialize configuration
+qleaner init
+
+# 2. Scan for unused code files (dry run)
 qleaner scan src --dry-run --table
 
-# Clear cache and scan (recommended after making code changes)
-qleaner scan src --clear-cache
+# 3. Scan for unused images (dry run)
+qleaner image public/images src -r --dry-run --table
 
-# Clear cache with dry run
-qleaner scan src --clear-cache --dry-run
-```
+# 4. Check for unused dependencies
+qleaner dep --table
 
-### Scan for Unused Images
+# 5. Get project summary
+qleaner summary
 
-Find image files that are not referenced anywhere in your codebase:
+# 6. Get largest files report
+qleaner summary --largest-files
 
-```bash
-qleaner image <directory> <rootPath> [options]
-```
+# 7. Get dependency analysis
+qleaner summary --dependencies
 
-**Arguments:**
-- `<directory>` - The path to the directory containing image files to scan
-- `<rootPath>` - The root path to the project code that utilizes the images
-
-**Options:**
-- `-e, --exclude-dir-assets <dir...>` - Exclude directories from the asset scan
-- `-f, --exclude-file-assets <file...>` - Exclude files from the asset scan (just use the file name)
-- `-E, --exclude-dir-code <dir...>` - Exclude directories from the code scan
-- `-S, --exclude-file-code <file...>` - Exclude files from the code scan (just use the file name)
-- `-r, --is-root-folder-referenced` - Is the root folder referenced in the image path (e.g., `/img/a.png` where `img` is the root folder)
-- `-a, --alias` - Is the alias referenced in the image path (e.g., `@/assets/images/a.png`)
-- `-t, --table` - Display results in a formatted table
-- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
-- `-C, --clear-cache` - Clear the cache before scanning (recommended after making code changes)
-- `-H, --hide-not-found-images` - Hide images shown in code but not found in the image directory
-
-**Examples:**
-
-```bash
-# Scan for unused images in public/images directory
-qleaner image public/images src
-
-# Display unused images in a table format
-qleaner image public/images src --table
-
-# Scan with exclusions for assets
-qleaner image public/images src -e public/images/icons
-
-# Scan with exclusions for code files
-qleaner image public/images src -E __tests__ node_modules
-
-# Scan with root folder reference pattern
+# 8. Once confident, run actual scans and delete files
+qleaner scan src
 qleaner image public/images src -r
-
-# Scan with alias pattern
-qleaner image public/images src -a
-
-# Hide not-found images from results
-qleaner image public/images src --hide-not-found-images
-
-# Dry run - preview what would be deleted
-qleaner image public/images src --dry-run
-
-# Dry run with table output
-qleaner image public/images src --dry-run --table
-
-# Scan with multiple exclusions
-qleaner image public/images src -e public/images/icons -E __tests__ -S test.js
-
-# Clear cache and scan
-qleaner image public/images src --clear-cache
 ```
 
-**What it detects:**
-- Images imported via `import` statements (static and dynamic imports)
-- Images required via `require()` calls
-- Images used in JSX `src` attributes (string literals and expressions)
-- Images in CSS `url()` functions (CSS and SCSS files)
-- Images in styled-components and CSS-in-JS template literals
-- Images in inline styles (backgroundImage, background, mask, and other image-related properties)
-- Images referenced in string literals and template literals anywhere in code
-- Images in array expressions and spread elements
-- **Dead links**: Images referenced in code but not found in the file system
+## 🎯 Use Cases
 
-## Output Formats
+- **Before Deployment** - Clean up unused files to reduce bundle size
+- **Code Review** - Verify no unused files are being added
+- **Refactoring** - Find files that can be safely removed
+- **Optimization** - Identify large files and dependency hotspots
+- **Maintenance** - Regular cleanup to keep codebase healthy
 
-Qleaner provides two output formats:
+## 📝 Requirements
 
-1. **Standard output**: Color-coded text output
-   - Green for files
-   - Yellow for imports
-   - Red for unused files
-   - Cyan for dry run mode messages
+- Node.js 14+ (LTS recommended)
+- npm or yarn
 
-2. **Table output**: Formatted tables with organized columns (use `--table` flag)
-   - Unused files table shows: Unused file paths with sizes (or "Would Delete" in dry run mode)
-   - Unused images table shows: Unused image paths with information about whether they exist and are referenced in code (or "Would Delete" in dry run mode)
-   - Summary tables show: Project statistics, largest files, dependencies, file hotspots, dead/alive image hotspots, and more
-
-## How It Works
-
-### File Scanning (scan)
-
-1. **File Discovery**: Recursively finds all `.tsx`, `.ts`, `.js`, and `.jsx` files in the specified directory
-2. **Caching**: Checks cache for previously scanned files. Files that haven't changed are skipped for faster performance
-3. **Import Extraction**: Parses files using Babel AST and extracts all import statements (only for changed files or cache misses)
-4. **Module Resolution**: Uses enhanced-resolve to properly resolve import paths (supports path aliases like `@/` and `~/`)
-5. **Analysis**: Compares file paths with resolved import paths to identify unused files
-6. **Cache Update**: Saves scan results to cache for faster subsequent runs
-7. **Reporting**: Outputs the results in standard or table format based on your preferences
-8. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
-
-### Image Scanning (image)
-
-1. **Image Discovery**: Recursively finds all image files (`.png`, `.jpg`, `.jpeg`, `.svg`, `.gif`, `.webp`) in the specified directory
-2. **Code Scanning**: Scans all code files (`.js`, `.jsx`, `.ts`, `.tsx`) for image references
-3. **Image Detection**: Detects images through multiple methods:
-   - Import statements (`import img from './image.png'`)
-   - Dynamic imports (`import('./image.png')`)
-   - Require calls (`require('./image.png')`)
-   - JSX src attributes (`<img src="./image.png" />` and expressions)
-   - CSS url() functions in CSS/SCSS files
-   - Styled-components and CSS-in-JS template literals
-   - Inline styles (backgroundImage, background, mask, etc.)
-   - String and template literals containing image paths (anywhere in code)
-   - Array expressions with image paths (`['/img/a.png', '/img/b.png']`)
-   - Spread elements in arrays with image references
-4. **Path Normalization**: Normalizes all detected image paths for consistent matching
-5. **Analysis**: Compares discovered image files with detected references to identify unused images
-6. **Reporting**: Outputs the results in standard or table format
-7. **Safe Deletion**: In dry run mode, shows what would be deleted without making changes. In normal mode, prompts for confirmation before deletion
-
-## Supported File Types
-
-**Code files:**
-- `.js` - JavaScript files
-- `.jsx` - JavaScript React files
-- `.ts` - TypeScript files
-- `.tsx` - TypeScript React files
-
-**Image files (for image command):**
-- `.png` - PNG images
-- `.jpg`, `.jpeg` - JPEG images
-- `.svg` - SVG images
-- `.gif` - GIF images
-- `.webp` - WebP images
-
-**CSS files (for image detection):**
-- `.css` - CSS files
-- `.scss` - SCSS files
-
-## Use Cases
-
-- 🧹 **Code cleanup**: Remove dead code and unused files from your React projects
-- 🖼️ **Image cleanup**: Find and remove unused image assets to reduce project size
-- 📊 **Code analysis**: Understand import patterns and dependencies in your codebase through the summary command
-- 🔍 **Project audit**: Identify orphaned files and assets that may have been forgotten
-- 📦 **Bundle optimization**: Find files and images that can be removed to reduce bundle size
-- 📈 **Project insights**: Analyze largest files, dependency patterns, file hotspots, and project statistics
-- 🔗 **Dead link detection**: Find broken image references (images in code that don't exist on disk)
-- 🔥 **Architecture insights**: Discover which files are most imported (hotspots) and identify dependency-heavy files
-- ⚠️ **Performance warnings**: Get alerted about large files (100KB+) that may impact performance
-- 🎯 **Maintenance**: Keep your codebase clean and maintainable
-
-## Tips and Best Practices
-
-1. **Start with a small scope**: Begin by scanning a specific directory before scanning the entire project
-2. **Use dry run first**: Always run with `--dry-run` first to preview what would be deleted before actually deleting files
-3. **Clear cache before summary**: Before running `qleaner summary`, always run a fresh scan with `--clear-cache` to ensure accurate results. The summary reads from the cache, so outdated cache data will show outdated results
-4. **Clear cache after code changes**: If you've made changes to your codebase (added/removed files, changed imports), use `--clear-cache` to ensure accurate results. The cache automatically invalidates when files change, but clearing it manually ensures a fresh scan
-5. **Use exclusions**: Exclude test files and build outputs when scanning for unused files
-6. **Review before deleting**: Always review the unused files list before removing them - some files might be used dynamically (e.g., through dynamic imports, configuration files, or asset references)
-7. **Use table format**: The table format is easier to read for large results
-8. **Combine options**: Use multiple flags together for comprehensive analysis
-9. **Check dynamic imports**: Files imported using dynamic imports (`import()`) may appear as unused but are actually needed
-10. **Image scanning setup**: For best results when scanning images, ensure images are located in one central location and use a uniform reference pattern (either aliases or root folder references consistently)
-11. **Index file references**: Files or images referenced through index files (e.g., `/folderA/folderB` where `folderB` contains index files with exports) may be difficult to scan accurately. For proper scanning, ensure the full path to the actual file is used in references
-
-## Important Notes
-
-⚠️ **Warning**: Always review files before deletion. Some files might be:
-- Used dynamically (dynamic imports)
-- Referenced in configuration files
-- Required for build processes
-- Used as entry points that aren't directly imported
-
-⚠️ **Generated/Compiled Code**: Scans do **not** work on generated or compiled code (e.g., `build`, `dist`, `.next` directories). Always scan your source code, not the compiled output. Exclude build directories from scans.
-
-⚠️ **Image Scanning Requirements**: For accurate image scanning results:
-- Images should be located in **one central location** (single directory structure)
-- Use a **uniform reference pattern** throughout your codebase - either consistently use aliases (e.g., `@/assets/images/`) or root folder references (e.g., `/img/`), but not both mixed
-- The tool supports both patterns, but mixing them may lead to incomplete detection
-
-⚠️ **Index File Limitations**: Files or images referenced via index files (e.g., `/folderA/folderB` where `folderB` contains index files with exports) might be difficult to scan accurately. The tool may not always detect references when the path points to a folder containing an index file rather than the full path to the actual file. For proper scanning, ensure the full path to where the file is located is used in references (e.g., `/folderA/folderB/Component.tsx` instead of `/folderA/folderB`).
-
-💡 **Tip**: Always use `--dry-run` first to preview what would be deleted. This is especially important in CI/CD pipelines or when scanning large codebases.
-
-💡 **Summary Command**: Before running `qleaner summary`, always run a fresh scan with `--clear-cache` to ensure the summary shows accurate, up-to-date results. The summary reads from the cache, so outdated cache data will produce outdated summaries.
-
-💾 **Cache Management**: Qleaner uses intelligent caching to speed up scans. The cache automatically detects file changes via content hashing. However, if you've made significant changes to your codebase structure or want to ensure a completely fresh scan, use `--clear-cache` before scanning. This is particularly useful:
-- After major refactoring
-- When files have been moved or renamed
-- When you want to ensure the most up-to-date results
-- Before running the summary command
-- In CI/CD pipelines where you want consistent, fresh scans
-
-## Requirements
-
-- Node.js 14+ 
-- Yarn or npm
-
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
 
 MIT
 
-## Version
+## 🔗 Links
 
-Current version: 1.1.3
+- **Repository:** [https://github.com/trevismurithi/react-cleaner](https://github.com/trevismurithi/react-cleaner)
+- **Issues:** [https://github.com/trevismurithi/react-cleaner/issues](https://github.com/trevismurithi/react-cleaner/issues)
+- **NPM Package:** [https://www.npmjs.com/package/qleaner](https://www.npmjs.com/package/qleaner)
+
+## 📚 Additional Resources
+
+### Tips for Best Results
+
+1. **Run scans regularly** - Set up a cron job or CI check to catch unused files early
+2. **Use dry-run first** - Always preview with `--dry-run` before deleting anything
+3. **Review entry points** - Make sure `excludeFilePrint` in config includes all entry point files (index.tsx, main.js, etc.)
+4. **Clear cache when needed** - After major refactoring or dependency changes, use `--clear-cache` for accurate results
+5. **Test after deletion** - Always test your application thoroughly after removing files
+6. **Use table format for large outputs** - The `-t` flag makes results easier to read
+7. **Check summary regularly** - Use `qleaner summary` to monitor project health
+
+### Command Dependencies
+
+Some commands require cache files from other commands:
+
+| Command | Requires Cache From |
+|---------|-------------------|
+| `qleaner list <dependency>` | `qleaner scan <path>` |
+| `qleaner dep` | `qleaner scan <path>` |
+| `qleaner summary` | `qleaner scan <path>` and/or `qleaner image <dir> <root>` |
+
+**Best Practice:** Run `qleaner scan src` first, then run other commands that depend on the cache.
+
+### Common Issues
+
+**Q: Qleaner reports files as unused that are actually used.**
+A: These are likely entry points. Add them to `excludeFilePrint` in your config or use `-F` flag. Also verify the file is actually imported somewhere - check with `qleaner list <file-path>`.
+
+**Q: Images aren't being detected.**
+A: 
+1. Verify your `-a` (alias) or `-r` (root-referenced) flag matches how images are referenced in code
+2. Check if the image path patterns match what's in your code
+3. Try `--clear-cache` to rebuild the image graph
+4. Ensure the `<rootPath>` argument includes all directories that reference images
+
+**Q: Scan is slow on large projects.**
+A: 
+- First scan is always slower - it builds the complete dependency graph
+- Subsequent scans use caching and are much faster (only changed files are re-analyzed)
+- Exclude more directories with `-e` flag to speed up scans
+- Consider scanning smaller subdirectories separately
+
+**Q: How do I undo deletions?**
+A: 
+- If you used "Move to `.trash`", files are safely stored in `.trash` directory in your project root
+- Permanently deleted files can be restored from git if you're using version control
+- Always test after deletions before emptying `.trash`
+
+**Q: `list` command shows no results but I know the dependency is used.**
+A: 
+- Make sure you ran `qleaner scan <path>` first to generate the cache
+- The dependency path might need to match exactly - try partial paths (e.g., `react` instead of `react/dist/react.production.min.js`)
+- Check if the dependency is in `node_modules` or a local file path
+
+**Q: `dep` command shows dependencies I know are used.**
+A: 
+- Some dependencies might be used only in config files (webpack.config.js, etc.) which aren't scanned
+- Dynamic requires/imports might not be detected
+- Check if they're actually used with `qleaner list <dependency-name>`
+
+---
+
+**Made with ❤️ for clean codebases**

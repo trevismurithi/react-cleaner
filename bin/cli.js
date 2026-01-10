@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
-const { summary, scan } = require("../controllers/list");
+const { summary, scan, list, unusedDependencies } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
@@ -28,6 +28,26 @@ async function loadOra(){
   .action(async () => {
     await init(chalk);
   });
+
+  program.command("list")
+  .description("List the files by dependency")
+  .argument("<dependency>", "The dependency to list the files by")
+  .option("-t, --table", "Display results in a table format")
+  .action(async (dependency, options) => {
+    list(ora, chalk, dependency, options);
+  });
+
+  program.command("dep")
+  .description("List the unused dependencies")
+  .option("-d, --directory <directory>", "The directory to list the unused dependencies from")
+  .option("-t, --table", "Display results in a table format")
+  .action(async (options) => {
+    await unusedDependencies(chalk, 
+      options.directory || process.cwd(),
+      options
+    );
+  });
+
 
   program
     .command("summary")

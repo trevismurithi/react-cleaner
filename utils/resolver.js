@@ -18,8 +18,8 @@ function createResolver(directory) {
     // console.log(chalk.yellow('sourceFile--resolver'), sourceFile, chalk.yellow('importPath--resolver'), importPath);
     return new Promise((resolve, _) => {
       resolver(path.dirname(sourceFile), importPath, (err, result) => {
-        if (err) return resolve(null);
-        resolve(path.resolve(result));
+        if (err) return resolve({importPath, isMightBeModule: true});
+        resolve({importPath: path.resolve(result), isMightBeModule: false});
       });
     });
   };
@@ -50,7 +50,7 @@ function normalize(
   value = value.split("?")[0];
 
   // Convert leading "/" to relative project path
-  if (value.startsWith("/")) {
+  if (value.startsWith("/") && !isRootFolderReferenced) {
     return path.resolve(path.join(imageDirectory, value.slice(1)));
   }
 

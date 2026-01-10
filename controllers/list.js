@@ -1,9 +1,147 @@
-const { unUsedFiles } = require("../command");
+const { unUsedFiles, hydrateGraph } = require("../command");
 const Table = require('cli-table3');
 const { askDeleteFiles } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
+const { query, unusedDependencies: findUnusedDeps } = require("./query");
+
+ async function list(ora, chalk, dependency, options = {}) {
+  // Load graph from cache
+  const cachePath = path.join(process.cwd(), "unused-check-cache.json");
+  if (!fs.existsSync(cachePath)) {
+    console.log(chalk.red('⚠️  Cache file not found. Please run "qleaner scan" first to generate the cache.'));
+    return;
+  }
+  
+  let cache;
+  try {
+    cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
+  } catch (error) {
+    console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
+    return;
+  }
+  
+  if (!cache.parentGraph || !cache.parentGraph.graph) {
+    console.log(chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'));
+    return;
+  }
+  const spinner  = ora('🔍 Loading graph from cache...').start();
+  const graph = hydrateGraph(cache.parentGraph.graph);
+  await new Promise(resolve => setTimeout(resolve, 500)); // simulate loading time
+  spinner.text = '🔍 Querying files by dependency...';
+  const filesSet = query(graph, dependency);
+  await new Promise(resolve => setTimeout(resolve, 500)); // simulate querying time
+  spinner.succeed('Query completed');
+  if (!filesSet || filesSet.size === 0) {
+    console.log(chalk.yellow(`No files found using ${dependency}`));
+    return;
+  }
+  
+  const files = Array.from(filesSet);
+  
+  console.log(chalk.yellow(`Files using ${dependency}:`));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  
+  if (options.table) {
+    const table = new Table({
+      head: [chalk.cyan('File Path')],
+      colWidths: [100],
+      style: { head: [], border: [] }
+    });
+    
+    files.forEach(file => {
+      table.push([chalk.white(formatFilePath(file, 95))]);
+    });
+    
+    console.log(table.toString());
+  } else {
+    files.forEach(file => {
+      console.log(chalk.yellow(file));
+    });
+  }
+  
+   console.log(chalk.yellow('════════════════════════════════════════════════'));
+   // write the total number of files using the dependency
+   console.log(chalk.yellow(`Total files using ${dependency}: ${files.length}`));
+}
+
+async function unusedDependencies(chalk, directoryPath = process.cwd(), options = {}) {
+  // Load package.json
+  const packageJsonPath = path.join(directoryPath, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    console.log(chalk.red('⚠️  Package.json not found.'));
+    return;
+  }
+  
+  let packageJson;
+  try {
+    packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  } catch (error) {
+    console.log(chalk.red('⚠️  Error reading package.json file.'));
+    return;
+  }
+  
+  if (!packageJson.dependencies || Object.keys(packageJson.dependencies).length === 0) {
+    console.log(chalk.yellow('No dependencies found in package.json.'));
+    return;
+  }
+  
+  const dependencies = Object.keys(packageJson.dependencies);
+  
+  // Load cache and graph
+  const cachePath = path.join(process.cwd(), "unused-check-cache.json");
+  if (!fs.existsSync(cachePath)) {
+    console.log(chalk.red('⚠️  Cache file not found. Please run "qleaner scan" first to generate the cache.'));
+    return;
+  }
+  
+  let cache;
+  try {
+    cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
+  } catch (error) {
+    console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
+    return;
+  }
+  
+  if (!cache.parentGraph || !cache.parentGraph.graph) {
+    console.log(chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'));
+    return;
+  }
+  
+  const graph = hydrateGraph(cache.parentGraph.graph);
+  const unusedDeps = findUnusedDeps(graph, dependencies);
+  
+  if (unusedDeps.length === 0) {
+    console.log(chalk.green('✓ No unused dependencies found. All dependencies are in use.'));
+    return;
+  }
+  
+  console.log(chalk.yellow(`Unused Dependencies (${unusedDeps.size}):`)); 
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  
+  if (options.table) {
+    const table = new Table({
+      head: [chalk.cyan('Dependency Name')],
+      colWidths: [100],
+      style: { head: [], border: [] }
+    });
+    
+    unusedDeps.forEach(dependency => {
+      table.push([chalk.white(dependency)]);
+    });
+    
+    console.log(table.toString());
+  } else {
+    unusedDeps.forEach(dependency => {
+      console.log(chalk.yellow(dependency));
+    });
+  }
+  
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  // write the total number of unused dependencies
+  console.log(chalk.yellow(`Total unused dependencies: ${unusedDeps.size}`));
+}
 
 async function summary(chalk, options) {
     console.log(chalk.yellow('⚠️  Note: Make sure to run a new scan before viewing the summary for accurate results.'));
@@ -104,5 +242,7 @@ async function scan(ora, chalk, filePath, options) {
 
 module.exports = {
   summary,
-  scan
+  scan,
+  list,
+  unusedDependencies,
 };

@@ -4,7 +4,120 @@ const URL_EXTRACT_REGEX = /url\((['"]?)([^"')]+)\1\)/gi;
 // Normal image file regex
 const IMAGE_REGEX = /\.(png|jpe?g|svg|gif|webp)$/i;
 
+const REACT_ENTRY_FILES = [
+  "index.js",
+  "index.jsx",
+  "index.ts",
+  "index.tsx",
+  "main.js",
+  "main.jsx",
+  "main.ts",
+  "main.tsx",
+];
+
+const NEXT_ENTRY_FILES = [
+  "page.tsx",
+  "page.jsx",
+  "route.ts",
+  "route.jsx",
+  "layout.tsx",
+  "layout.jsx",
+  "middleware.ts",
+  "middleware.js",
+  "error.tsx",
+  "error.jsx",
+  "loading.tsx",
+  "loading.jsx",
+  "not-found.tsx",
+  "not-found.jsx",
+  "global-error.tsx",
+  "global-error.jsx",
+  "_app.tsx",
+  "_app.jsx",
+  "_document.tsx",
+  "_document.jsx",
+  "_error.tsx",
+  "_error.jsx",
+];
+
+const EXTENSIONS_TO_EXCLUDE = [
+  "test.tsx",
+  "test.ts",
+  "test.js",
+  "test.jsx",
+  "spec.tsx",
+  "spec.ts",
+  "spec.js",
+  "spec.jsx",
+  "d.ts",
+  "config.js",
+  "config.cjs",
+  "config.mjs",
+  "config.ts",
+  "setupTests.ts",
+  "setupTests.js",
+  "setup.ts",
+  "setup.js",
+];
+
+const DIRECTORIES_TO_EXCLUDE = [
+  "node_modules",
+  "dist",
+  "build",
+  "dist",
+  ".next",
+  "out",
+  "coverage",
+  ".turbo",
+  ".vite",
+  ".cache",
+  ".vercel",
+  ".netlify",
+  "storybook-static",
+  "generated",
+  "prisma",
+  "graphql",
+  "supabase",
+  "drizzle",
+  "__generated__",
+];
+
+const QUESTIONS = [
+  {
+    type: "select",
+    name: "packageManager",
+    message: "Select your package manager",
+    choices: [
+      { title: "npm", value: "npm" },
+      { title: "yarn", value: "yarn" },
+      { title: "pnpm", value: "pnpm" },
+    ],
+    initial: 0,
+  },
+  {
+    type: "confirm",
+    name: "alias",
+    message: "Do you use path aliases in your project when loading images?",
+    initial: true,
+  },
+  {
+    type: "select",
+    name: "framework",
+    message: "Select your project framework",
+    choices: [
+      { title: "React", value: "react" },
+      { title: "Next.js", value: "nextjs" },
+    ],
+    initial: 0,
+  },
+];
+
 module.exports = {
   URL_EXTRACT_REGEX,
   IMAGE_REGEX,
+  REACT_ENTRY_FILES,
+  NEXT_ENTRY_FILES,
+  EXTENSIONS_TO_EXCLUDE,
+  DIRECTORIES_TO_EXCLUDE,
+  QUESTIONS,
 };
