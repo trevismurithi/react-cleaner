@@ -32,14 +32,28 @@
     "test.jsx"
   ],
   "excludeFilePrint": [
-    "index.js",
-    "index.jsx",
-    "index.ts",
-    "index.tsx",
-    "main.js",
-    "main.jsx",
-    "main.ts",
-    "main.tsx"
+    "page.tsx",
+    "page.jsx",
+    "route.ts",
+    "route.jsx",
+    "layout.tsx",
+    "layout.jsx",
+    "middleware.ts",
+    "middleware.js",
+    "error.tsx",
+    "error.jsx",
+    "loading.tsx",
+    "loading.jsx",
+    "not-found.tsx",
+    "not-found.jsx",
+    "global-error.tsx",
+    "global-error.jsx",
+    "_app.tsx",
+    "_app.jsx",
+    "_document.tsx",
+    "_document.jsx",
+    "_error.tsx",
+    "_error.jsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],
@@ -65,6 +79,6 @@
     "__generated__"
   ],
   "excludeFileCode": [],
-  "isRootFolderReferenced": true,
-  "alias": false
+  "isRootFolderReferenced": false,
+  "alias": true
 }

@@ -40,7 +40,25 @@ const NEXT_ENTRY_FILES = [
   "_error.jsx",
 ];
 
-const EXTENSIONS_TO_EXCLUDE = ["test.tsx", "test.ts", "test.js", "test.jsx"];
+const EXTENSIONS_TO_EXCLUDE = [
+  "test.tsx",
+  "test.ts",
+  "test.js",
+  "test.jsx",
+  "spec.tsx",
+  "spec.ts",
+  "spec.js",
+  "spec.jsx",
+  "d.ts",
+  "config.js",
+  "config.cjs",
+  "config.mjs",
+  "config.ts",
+  "setupTests.ts",
+  "setupTests.js",
+  "setup.ts",
+  "setup.js",
+];
 
 const DIRECTORIES_TO_EXCLUDE = [
   "node_modules",
