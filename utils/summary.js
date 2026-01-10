@@ -73,6 +73,7 @@ function getTop10FilesWithHeavyDependencies(graph) {
 function getTop10FilesWithLightDependencies(graph) {
   return Array.from(graph.entries())
     .sort((a, b) => a[1].imports.size - b[1].imports.size)
+    .filter(([filePath, node]) => node.hash !== null)
     .slice(0, 10);
 }
 
@@ -88,6 +89,21 @@ function getTop10FilesHotspots(graph, isCheck = true) {
       .slice(0, 10);
   }
 }
+
+function getTop10FilesDependenciesHotspots(graph, isDependency = true) {
+  if (isDependency) {
+    return Array.from(graph.entries())
+      .sort((a, b) => b[1].importedBy.size - a[1].importedBy.size)
+      .filter(([filePath, node]) => node.hash === null)
+      .slice(0, 10);
+  } else {
+    return Array.from(graph.entries())
+      .sort((a, b) => b[1].importedBy.size - a[1].importedBy.size)
+      .filter(([filePath, node]) => node.hash !== null)
+      .slice(0, 10);
+  }
+}
+
 
 function getTotalImageFiles(graph) {
   let totalFiles = 0;
@@ -110,4 +126,5 @@ module.exports = {
   getTop10FilesWithLightDependencies,
   getTop10FilesHotspots,
   getTotalImageFiles,
+  getTop10FilesDependenciesHotspots,
 };

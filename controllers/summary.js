@@ -13,6 +13,8 @@ const {
   getTop10FilesWithLightDependencies,
   getTop10FilesHotspots,
   getTotalImageFiles,
+  getTop10FilesCodeDependencies,
+  getTop10FilesDependenciesHotspots,
 } = require("../utils/summary");
 
 function formatFilePath(filePath, maxLength = 70) {
@@ -300,8 +302,8 @@ function dependenciesSummary(chalk) {
   const top10FilesWithLightDependencies = getTop10FilesWithLightDependencies(
     codeGraph.graph
   );
-  const top10FilesHotspots = getTop10FilesHotspots(codeGraph.graph);
-
+  const top10FilesHotspots = getTop10FilesDependenciesHotspots(codeGraph.graph, false);
+  const top10FilesDependenciesHotspots = getTop10FilesDependenciesHotspots(codeGraph.graph);
   // image graph
   const { deadLinks, aliveLinks } = getDeadLinks(imageGraph.graph);
   const top10FilesHotspotsDeadImage = getTop10FilesHotspots(deadLinks);
@@ -376,6 +378,30 @@ function dependenciesSummary(chalk) {
       ]);
     });
     console.log(hotspotsTable.toString());
+  }
+  console.log(chalk.green("════════════════════════════════════════════════"));
+
+  // Top 10 Files Dependencies Hotspots
+  console.log(chalk.green.bold("\n📦 Top 10 Files Dependencies Hotspots"));
+  console.log(chalk.green("════════════════════════════════════════════════"));
+  if (
+    !top10FilesDependenciesHotspots ||
+    top10FilesDependenciesHotspots.length === 0
+  ) {
+    console.log(chalk.yellow("   No dependency hotspots found."));
+  } else {
+    const dependenciesHotspotsTable = new Table({
+      head: [chalk.cyan("File Path"), chalk.cyan("Dependencies")],
+      colWidths: [90, 15],
+      style: { head: [], border: [] },
+    });
+    top10FilesDependenciesHotspots.forEach(([filePath, node]) => {
+      dependenciesHotspotsTable.push([
+        chalk.white(formatFilePath(filePath, 85)),
+        chalk.yellow((node.importedBy?.size || 0).toString()),
+      ]);
+    });
+    console.log(dependenciesHotspotsTable.toString());
   }
   console.log(chalk.green("════════════════════════════════════════════════"));
 

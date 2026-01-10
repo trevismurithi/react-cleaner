@@ -165,6 +165,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
           lastModified: null,
         });
       }
+      graph.get(importPath).importedBy.add(info.file);
     }
   }
   if (packingBar) {
