@@ -11,7 +11,7 @@ Qleaner is a safe, fast CLI that finds unused code files and image assets in Jav
 ## Project metadata
 
 - **Package name:** qleaner
-- **Version:** 1.1.5
+- **Version:** 1.2.0
 - **Executable:** bin/cli.js
 - **Repository:** https://github.com/trevismurithi/react-cleaner
 
