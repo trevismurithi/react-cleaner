@@ -403,7 +403,7 @@ async function scanCodeFilesForImages(
       alias: options.alias ? true : false,
       isRootFolderReferenced: options.isRootFolderReferenced ? true : false,
     });
-    if (!fs.existsSync(importPath)) {
+    if (importPath && !fs.existsSync(importPath)) {
       if(options.alias) {
         importPath = normalize(importInfo.source, imageDirectory, {
           alias: false,
