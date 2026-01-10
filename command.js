@@ -1,6 +1,5 @@
 const fg = require("fast-glob");
 const fs = require("fs");
-const Table = require("cli-table3");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
 const path = require("path");
@@ -13,11 +12,13 @@ const {
 } = require("./utils/cache");
 const { isExcludedFile, createStepBar } = require("./utils/utils");
 
-
 // Initializes the cache by clearing it (if requested) and loading it from disk
 function initializeCache(spinner, options, code = true) {
   spinner.text = "🔍 Loading cache...";
-  const cache = loadCache(process.cwd(), {code, clearCache: options.clearCache});
+  const cache = loadCache(process.cwd(), {
+    code,
+    clearCache: options.clearCache,
+  });
   let graph = null;
   let imageGraph = null;
   if (code) {
@@ -65,7 +66,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     `1/${files.length}`,
     files.length,
     "Scanning files",
-    chalk
+    chalk,
   );
   let packingBar = null;
   const imports = [];
@@ -104,23 +105,23 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
         },
         CallExpression({ node }) {
           if (node.callee.type === "Import") {
-            const arg = node.arguments[0]
-      
+            const arg = node.arguments[0];
+
             if (arg?.type === "StringLiteral") {
               imports.push({
                 file: filePath,
                 source: arg.value,
-                type: "dynamic"
-              })
+                type: "dynamic",
+              });
             } else {
               imports.push({
                 file: filePath,
                 source: null,
-                type: "dynamic-variable"
-              })
+                type: "dynamic-variable",
+              });
             }
           }
-        }
+        },
       });
     }
   }
@@ -131,7 +132,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       `1/${imports.length}`,
       imports.length,
       "Packing imports",
-      chalk
+      chalk,
     );
   }
   for (const info of imports) {
@@ -139,7 +140,10 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       packingBar.increment();
     }
-    const {importPath, isMightBeModule} = await resolver(info.file, info.source);
+    const { importPath, isMightBeModule } = await resolver(
+      info.file,
+      info.source,
+    );
     if (!isMightBeModule) {
       graph.get(info.file).imports.add(importPath);
       if (!graph.has(importPath)) {
@@ -153,7 +157,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
         });
       }
       graph.get(importPath).importedBy.add(info.file);
-    }else {
+    } else {
       graph.get(info.file).imports.add(importPath);
       if (!graph.has(importPath)) {
         graph.set(importPath, {
@@ -178,7 +182,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
       `1/${oldPaths.size}`,
       oldPaths.size,
       "Comparing old paths with new paths",
-      chalk
+      chalk,
     );
   }
   // count the number of removed files
@@ -193,7 +197,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     if (graph.has(filePath)) {
       // Find files that were in oldFiles but are no longer in current imports
       const removedFiles = new Set(
-        [...oldFiles].filter((x) => !graph.get(filePath).imports.has(x))
+        [...oldFiles].filter((x) => !graph.get(filePath).imports.has(x)),
       );
       if (removedFiles.size > 0) {
         // remove the removed files from the graph
@@ -237,7 +241,7 @@ async function checkUnusedFiles(files, parentGraph, options, chalk) {
     `1/${files.length}`,
     files.length,
     "Checking unused files",
-    chalk
+    chalk,
   );
   for (const file of files) {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -288,7 +292,7 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
     files,
     parentGraph.graph,
     resolver,
-    chalk
+    chalk,
   );
 
   spinner.succeed(`Checked ${files.length} files`);

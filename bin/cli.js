@@ -34,10 +34,10 @@ async function loadOra(){
   .argument("<dependency>", "The dependency to list the files by")
   .option("-t, --table", "Display results in a table format")
   .action(async (dependency, options) => {
-    await list(chalk, dependency, options);
+    list(ora, chalk, dependency, options);
   });
 
-  program.command("dependencies")
+  program.command("dep")
   .description("List the unused dependencies")
   .option("-d, --directory <directory>", "The directory to list the unused dependencies from")
   .option("-t, --table", "Display results in a table format")

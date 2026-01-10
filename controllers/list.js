@@ -6,7 +6,7 @@ const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
 const { query, unusedDependencies: findUnusedDeps } = require("./query");
 
- function list(chalk, dependency, options = {}) {
+ async function list(ora, chalk, dependency, options = {}) {
   // Load graph from cache
   const cachePath = path.join(process.cwd(), "unused-check-cache.json");
   if (!fs.existsSync(cachePath)) {
@@ -26,10 +26,13 @@ const { query, unusedDependencies: findUnusedDeps } = require("./query");
     console.log(chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'));
     return;
   }
-  
+  const spinner  = ora('🔍 Loading graph from cache...').start();
   const graph = hydrateGraph(cache.parentGraph.graph);
-  
+  await new Promise(resolve => setTimeout(resolve, 500)); // simulate loading time
+  spinner.text = '🔍 Querying files by dependency...';
   const filesSet = query(graph, dependency);
+  await new Promise(resolve => setTimeout(resolve, 500)); // simulate querying time
+  spinner.succeed('Query completed');
   if (!filesSet || filesSet.size === 0) {
     console.log(chalk.yellow(`No files found using ${dependency}`));
     return;
@@ -58,7 +61,9 @@ const { query, unusedDependencies: findUnusedDeps } = require("./query");
     });
   }
   
-  console.log(chalk.yellow('════════════════════════════════════════════════'));
+   console.log(chalk.yellow('════════════════════════════════════════════════'));
+   // write the total number of files using the dependency
+   console.log(chalk.yellow(`Total files using ${dependency}: ${files.length}`));
 }
 
 async function unusedDependencies(chalk, directoryPath = process.cwd(), options = {}) {
@@ -112,7 +117,7 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
     return;
   }
   
-  console.log(chalk.yellow(`Unused Dependencies (${unusedDeps.length}):`)); 
+  console.log(chalk.yellow(`Unused Dependencies (${unusedDeps.size}):`)); 
   console.log(chalk.yellow('════════════════════════════════════════════════'));
   
   if (options.table) {
@@ -134,6 +139,8 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   }
   
   console.log(chalk.yellow('════════════════════════════════════════════════'));
+  // write the total number of unused dependencies
+  console.log(chalk.yellow(`Total unused dependencies: ${unusedDeps.size}`));
 }
 
 async function summary(chalk, options) {
