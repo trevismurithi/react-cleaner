@@ -50,6 +50,18 @@ Scan for unused images:
 qleaner image <images-directory> <source-root> --dry-run
 ```
 
+List files by dependency (e.g., list files that depend on a package):
+
+```bash
+qleaner list <dependency> [--table]
+```
+
+List unused dependencies in a directory:
+
+```bash
+qleaner dep --directory <directory> [--table]
+```
+
 Show a project summary (run a fresh scan with `--clear-cache` first for accurate numbers):
 
 ```bash
@@ -88,16 +100,33 @@ Example snippet:
 ## Commands & Options (high level)
 
 - `qleaner init` — write a default `qleaner.config.json`
-- `qleaner scan <path>` — find unused code files
-- `qleaner image <images-dir> <code-root>` — find unused images
+- `qleaner list <dependency>` — list files that depend on a given dependency
+  - Options: `-t, --table` — display results in a table
+- `qleaner dep` — list unused dependencies
+  - Options: `-d, --directory <directory>` — directory to check (defaults to `process.cwd()`), `-t, --table`
 - `qleaner summary` — project statistics, largest files, dependency hotspots
-
-Common flags:
-
-- `--dry-run` — preview deletions without changing files
-- `--table` — show results in table format
-- `--clear-cache` — ignore cache and perform a fresh scan
-- `-e/--exclude-dir` `-f/--exclude-file` `-x/--exclude-extensions` — exclusion flags
+  - Options: `-l, --largest-files`, `-d, --dependencies`
+- `qleaner scan <path>` — find unused code files
+  - Options:
+    - `-e, --exclude-dir <dir...>` — exclude directories from the scan
+    - `-f, --exclude-file <file...>` — exclude files from the scan (file name match)
+    - `-F, --exclude-file-print <files...>` — scan but don't print these files (entrypoints/index files)
+    - `-x, --exclude-extensions <extensions...>` — exclude file extensions (e.g., `test.tsx`)
+    - `-t, --table` — print results in a table
+    - `-d, --dry-run` — preview deletions without actually deleting
+    - `-C, --clear-cache` — clear cache before scanning
+- `qleaner image <images-dir> <code-root>` — find unused images
+  - Options:
+    - `-e, --exclude-dir-assets <dir...>` — exclude directories from the asset scan
+    - `-f, --exclude-file-assets <file...>` — exclude files from the asset scan
+    - `-E, --exclude-dir-code <dir...>` — exclude directories from the code scan
+    - `-S, --exclude-file-code <file...>` — exclude files from the code scan
+    - `-r, --is-root-folder-referenced` — treat paths as root-referenced (e.g., `/img/a.png`)
+    - `-a, --alias` — treat alias patterns (e.g., `@/assets/...`) as used
+    - `-t, --table` — print results in a table
+    - `-C, --clear-cache` — clear cache before scanning
+    - `-H, --hide-not-found-images` — hide images referenced in code but not found on disk
+    - `-d, --dry-run` — preview deletions without actually deleting
 
 Refer to the CLI help for full flag lists: `qleaner --help` or `qleaner <command> --help`.
 
