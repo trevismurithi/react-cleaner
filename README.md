@@ -124,6 +124,6 @@ MIT
 
 ## Version
 
-1.1.5
+1.2.0
 
-Current version: 1.1.3
+Current version: 1.2.0
