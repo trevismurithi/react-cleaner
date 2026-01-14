@@ -11,6 +11,9 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         ...node,
         imports: node.imports ? Array.from(node.imports) : [],
         importedBy: node.importedBy ? Array.from(node.importedBy) : [],
+        exports: node.exports ? Array.from(node.exports) : [],
+        reExported: node.reExported ? Array.from(node.reExported) : [],
+        reExportedBy: node.reExportedBy ? Array.from(node.reExportedBy) : [],
       };
     }
   } else {
@@ -19,6 +22,9 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         ...node,
         imports: node.imports ? Array.from(node.imports) : [],
         importedBy: node.importedBy ? Array.from(node.importedBy) : [],
+        exports: node.exports ? Array.from(node.exports) : [],
+        reExported: node.reExported ? Array.from(node.reExported) : [],
+        reExportedBy: node.reExportedBy ? Array.from(node.reExportedBy) : [],
       };
     }
   }
