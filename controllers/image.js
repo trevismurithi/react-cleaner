@@ -504,7 +504,7 @@ function findUnusedImages(imageParentGraph, imageFiles, options) {
     return imageParentGraph.unusedImages;
   }
   // find unused images in imageGraph
-  for (const [filePath, image] of imageParentGraph.imageGraph) {
+  for (const [, image] of imageParentGraph.imageGraph) {
     if ((image.importedBy.size === 0 || image.size === 0) && image.isImage) {
       imageParentGraph.unusedImages.add({
         ...image,
@@ -721,7 +721,7 @@ function addToImageGraph(importPath, imageGraph) {
       size = fs.statSync(importPath).size;
       hash = getFileHash(fs.readFileSync(importPath, "utf8"));
       lastModified = fs.statSync(importPath).mtime.getTime();
-    } catch (error) {
+    } catch {
       size = 0;
       hash = null;
       lastModified = null;
