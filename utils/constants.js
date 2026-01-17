@@ -110,6 +110,23 @@ const QUESTIONS = [
     ],
     initial: 0,
   },
+  {
+    type: "select",
+    name: "codeAlias",
+    message: "What is the name of the code alias for your project?",
+    choices: [
+      { title: "tsconfig.json", value: "tsconfig.json" },
+      { title: "jsconfig.json", value: "jsconfig.json" },
+      { title: "tsconfig.app.json", value: "tsconfig.app.json" },
+      { title: "tsconfig.base.json", value: "tsconfig.base.json" },
+      { title: "vite.config.ts", value: "vite.config.ts" },
+      { title: "vite.config.js", value: "vite.config.js" },
+      { title: "vite.config.cjs", value: "vite.config.cjs" },
+      { title: "vite.config.mjs", value: "vite.config.mjs" },
+      { title: "none", value: null },
+    ],
+    initial: 0,
+  },
 ];
 
 module.exports = {

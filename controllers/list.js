@@ -17,7 +17,7 @@ const { query, unusedDependencies: findUnusedDeps } = require("./query");
   let cache;
   try {
     cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
     return;
   }
@@ -77,7 +77,7 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   let packageJson;
   try {
     packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading package.json file.'));
     return;
   }
@@ -99,7 +99,7 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   let cache;
   try {
     cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
     return;
   }
@@ -155,7 +155,15 @@ async function summary(chalk, options) {
     }
 }
 
-async function scan(ora, chalk, filePath, options) {
+function readJsonFile(filePath){
+  if(fs.existsSync(filePath)){
+    const config = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return config.paths;
+  }
+  return null;
+}
+
+async function scan(ora, chalk, pathToScan, options) {
     // check if qleaner.config.json exists
     if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
       const config = JSON.parse(
@@ -165,9 +173,15 @@ async function scan(ora, chalk, filePath, options) {
         ...config,
         ...options,
       };
+      if(config.codeAlias){
+        // read the code alias file
+        const codeAliasPath = path.join(pathToScan, config.codeAlias);
+        const codeAlias = readJsonFile(codeAliasPath);
+        console.log(codeAlias);
+      }
     }
     // read qleaner.config.json
-    const unusedFiles = await unUsedFiles(ora, chalk,filePath, options);
+    const unusedFiles = await unUsedFiles(ora, chalk,pathToScan, options);
     
     let totalSize = 0;
     const fileArray = Array.from(unusedFiles.values());

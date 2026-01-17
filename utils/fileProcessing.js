@@ -101,7 +101,14 @@ async function processImports(imports, graph, resolver, chalk) {
       info.source
     );
 
+
     graph.get(info.file).imports.add(importPath);
+    // add components being imported to the imported map
+    if(graph.get(info.file).imported.has(importPath)) {
+      graph.get(info.file).imported.get(importPath).add([info.imported, info.local]);
+    } else if(info.imported || info.local) {
+      graph.get(info.file).imported.set(importPath, new Set([[info.imported, info.local]]));
+    }
 
     if (!isMightBeModule) {
       ensureGraphNode(graph, importPath, createImportNode);

@@ -18,6 +18,7 @@ async function init(chalk) {
     configFile,
     JSON.stringify(
       {
+        codeAlias: responses.codeAlias,
         packageManager: responses.packageManager || "npm",
         excludeDir: DIRECTORIES_TO_EXCLUDE, // Exclude directories from the scan
         excludeFile: ["payload-types.ts", "payload-types.js"], // Exclude files from the scan

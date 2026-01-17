@@ -16,7 +16,7 @@ function createResolver(directory) {
 
   return function resolveImport(sourceFile, importPath) {
     // console.log(chalk.yellow('sourceFile--resolver'), sourceFile, chalk.yellow('importPath--resolver'), importPath);
-    return new Promise((resolve, _) => {
+    return new Promise((resolve, ) => {
       resolver(path.dirname(sourceFile), importPath, (err, result) => {
         if (err) return resolve({importPath, isMightBeModule: true});
         resolve({importPath: path.resolve(result), isMightBeModule: false});

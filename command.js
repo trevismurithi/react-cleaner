@@ -58,7 +58,7 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
     await scanFilesForImportsAndExports(files, graph, chalk);
   // Step 2: Process imports and add them to the graph
   await processImports(imports, graph, resolver, chalk);
-
+  //  console.dir(imports, { depth: null });
   // Step 3: Process exports and add them to the graph
   await processExports(exports, graph, resolver, chalk);
   // console.dir(exports, { depth: null });
@@ -84,21 +84,91 @@ async function extractImportsFromFiles(files, graph, resolver, chalk) {
 // Checks if a single file is imported/used by comparing it against all import statements
 // If not found in any imports and not excluded, adds it to the unused files set
 async function checkFileUsage(file, parentGraph, options) {
-  if (
-    parentGraph.graph.has(file) &&
-    parentGraph.graph.get(file).importedBy.size === 0
-  ) {
-    if (options.excludeFilePrint && options.excludeFilePrint.length > 0) {
-      if (!isExcludedFile(file, options.excludeFilePrint)) {
-        // but if the file has a component name imported from the 
-        // shared file, it should not be considered unused
+  // Cache the file node to avoid repeated graph lookups
+  const fileNode = parentGraph.graph.get(file);
+  if (!fileNode || fileNode.importedBy.size > 0) {
+    return;
+  }
 
-        parentGraph.unusedFiles.add(parentGraph.graph.get(file));
-      }
-    } else {
-      parentGraph.unusedFiles.add(parentGraph.graph.get(file));
+  // Check if file should be excluded
+  if (options.excludeFilePrint && options.excludeFilePrint.length > 0) {
+    if (isExcludedFile(file, options.excludeFilePrint)) {
+      return;
     }
   }
+
+  // Check if the file has a component name imported from the shared file
+  // It should not be considered unused if components are used via re-exports
+  const isUsed = checkImportedComponentsUsage(file, parentGraph);
+  if (!isUsed) {
+    parentGraph.unusedFiles.add(fileNode);
+  }
+}
+
+function checkImportedComponentsUsage(file, parentGraph) {
+  // Cache the file node to avoid repeated graph lookups
+  const fileNode = parentGraph.graph.get(file);
+  if (!fileNode) {
+    return false;
+  }
+
+  // Early exit if file is not re-exported
+  const reExportedBy = fileNode.reExportedBy;
+  if (reExportedBy.size === 0) {
+    return false;
+  }
+
+  // Cache exported components and check once upfront
+  const exportedComponents = fileNode.exports;
+  if (exportedComponents.size === 0) {
+    return false;
+  }
+
+  // Loop through the re-exported files, check if there is a file that imports any of the components or *
+  for (const reExportingFile of reExportedBy) {
+    // Cache the re-exporting file node
+    const reExportingNode = parentGraph.graph.get(reExportingFile);
+    if (!reExportingNode) {
+      continue;
+    }
+
+    const importedBy = reExportingNode.importedBy; // A.ts -> B.ts
+    if (importedBy.size === 0) {
+      continue;
+    }
+
+    // Loop through the importing files, check if they import any of the components or *
+    for (const importingFile of importedBy) {
+      // Cache the importing file node
+      const importingNode = parentGraph.graph.get(importingFile);
+      if (!importingNode) {
+        continue;
+      }
+
+      const imported = importingNode.imported; // B.ts -> A.ts -> B.ts
+      if (!imported || !imported.has(reExportingFile)) {
+        continue;
+      }
+
+      const components = imported.get(reExportingFile); // B.ts -> A.ts -> B.ts [['ComponentD', 'D2'], ['ComponentC', 'ComponentC']]
+      if (!components || components.size === 0) {
+        continue;
+      }
+
+      // Check if any imported component matches exported components or is a wildcard
+      for (const component of components) {
+        if (
+          exportedComponents.has(component[0]) ||
+          exportedComponents.has(component[1]) ||
+          component[0] === "*" ||
+          component[1] === "*"
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 // Checks all files to determine which ones are unused by comparing against import statements
@@ -108,7 +178,7 @@ async function checkUnusedFiles(files, parentGraph, options, chalk) {
     `1/${files.length}`,
     files.length,
     "Checking unused files",
-    chalk,
+    chalk
   );
   for (const file of files) {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -148,7 +218,7 @@ async function unUsedFiles(ora, chalk, directory = "src", options) {
     files,
     parentGraph.graph,
     resolver,
-    chalk,
+    chalk
   );
 
   spinner.succeed(`Checked ${files.length} files`);

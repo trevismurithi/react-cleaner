@@ -30,7 +30,7 @@ function extractImportsAndExports(ast, filePath) {
           file: filePath,
           source: node.source.value,
           names: node.specifiers.map(
-            (specifier) => [specifier.exported.name, specifier.local.name]
+            (specifier) => (specifier.exported.name, specifier.local.name)
           ),
           type: "re-export",
         });
@@ -72,7 +72,7 @@ function extractImportsAndExports(ast, filePath) {
           file: filePath,
           source: null,
           names: node.specifiers.map(
-            (specifier) => [specifier.exported.name]
+            (specifier) => specifier.exported.name
           ),
           type: "local",
         });
@@ -107,7 +107,9 @@ function extractImportsAndExports(ast, filePath) {
       imports.push({
         file: filePath,
         source: node.source.value,
-        type: "side-effect"
+        type: "side-effect",
+        imported: null,
+        local: null,
       })
       return
     }
@@ -163,14 +165,18 @@ function extractImportsAndExports(ast, filePath) {
         imports.push({
           file: filePath,
           source: arg.value,
-          type: "dynamic"
+          type: "dynamic",
+          imported: null,
+          local: null,
         })
       } else {
         // import(someVariable)
         imports.push({
           file: filePath,
           source: null,
-          type: "dynamic-variable"
+          type: "dynamic-variable",
+          imported: null,
+          local: null,
         })
       }
     }
@@ -184,7 +190,9 @@ function extractImportsAndExports(ast, filePath) {
       imports.push({
         file: filePath,
         source: node.arguments[0].value,
-        type: "cjs"
+        type: "cjs",
+        imported: null,
+        local: null,
       })
     }
   },
@@ -199,11 +207,13 @@ function extractImportsAndExports(ast, filePath) {
       imports.push({
         file: filePath,
         source: node.moduleReference.expression.value,
-        type: "ts-require"
-      })
+        type: "ts-require",
+        imported: null,
+        local: null,
+      });
     }
-  }
-  });
+  },
+});
 
   return { imports, exports };
 }
