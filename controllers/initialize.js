@@ -11,14 +11,15 @@ const {
 
 async function init(chalk) {
   const responses = await prompts(QUESTIONS);
-  const ISROOT = responses.alias ? false : true;
-  const ALIAS = responses.alias ? true : false;
+  const ISROOT = responses.alias === "relative" ? true : false;
+  const ALIAS = responses.alias === "public" ? true : false;
   const configFile = path.join(process.cwd(), "qleaner.config.json");
   fs.writeFileSync(
     configFile,
     JSON.stringify(
       {
         codeAlias: responses.codeAlias,
+        paths: {},
         packageManager: responses.packageManager || "npm",
         excludeDir: DIRECTORIES_TO_EXCLUDE, // Exclude directories from the scan
         excludeFile: ["payload-types.ts", "payload-types.js"], // Exclude files from the scan

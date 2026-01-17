@@ -2,13 +2,19 @@ const path = require("path");
 const { create } = require("enhanced-resolve");
 const { URL_EXTRACT_REGEX } = require("./constants");
 
-function createResolver(directory) {
-  const resolver = create({
-    extensions: [".js", ".jsx", ".ts", ".tsx"],
-    alias: {
+function createResolver(directory, pathConfig = {}) {
+  let alias = {}
+  if(Object.entries(pathConfig).length > 0){
+    alias = pathConfig;
+  }else{
+    alias = {
       "@": path.resolve(directory),
       "~": path.resolve(directory),
-    },
+    }
+  }
+  const resolver = create({
+    extensions: [".js", ".jsx", ".ts", ".tsx"],
+    alias: alias,
     mainFiles: ["index"],
     // Where resolution begins
     modules: [path.resolve(directory)],

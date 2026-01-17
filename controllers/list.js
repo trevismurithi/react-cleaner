@@ -1,6 +1,6 @@
 const { unUsedFiles, hydrateGraph } = require("../command");
 const Table = require('cli-table3');
-const { askDeleteFiles } = require("../utils/utils");
+const { askDeleteFiles, loadTSConfig } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
@@ -155,15 +155,9 @@ async function summary(chalk, options) {
     }
 }
 
-function readJsonFile(filePath){
-  if(fs.existsSync(filePath)){
-    const config = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    return config.paths;
-  }
-  return null;
-}
 
 async function scan(ora, chalk, pathToScan, options) {
+    let pathConfig = {};
     // check if qleaner.config.json exists
     if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
       const config = JSON.parse(
@@ -173,15 +167,19 @@ async function scan(ora, chalk, pathToScan, options) {
         ...config,
         ...options,
       };
-      if(config.codeAlias){
-        // read the code alias file
-        const codeAliasPath = path.join(pathToScan, config.codeAlias);
-        const codeAlias = readJsonFile(codeAliasPath);
-        console.log(codeAlias);
+      // config file will take precedence over the tsconfig.json file
+      if(config.paths && Object.entries(config.paths).length > 0){
+        pathConfig = config.paths;
+      }else if(config.codeAlias){
+        pathConfig = loadTSConfig(pathToScan, config.codeAlias).paths;
+        if(!pathConfig){
+          console.log(chalk.red('⚠️  Error reading config file. Please run "qleaner scan" again.'));
+          pathConfig = {}
+        }
       }
     }
     // read qleaner.config.json
-    const unusedFiles = await unUsedFiles(ora, chalk,pathToScan, options);
+    const unusedFiles = await unUsedFiles(ora, chalk,pathToScan, pathConfig, options);
     
     let totalSize = 0;
     const fileArray = Array.from(unusedFiles.values());

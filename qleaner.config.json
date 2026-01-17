@@ -1,5 +1,6 @@
 {
   "codeAlias": "tsconfig.json",
+  "paths": {},
   "packageManager": "yarn",
   "excludeDir": [
     "node_modules",
@@ -79,6 +80,6 @@
     "__generated__"
   ],
   "excludeFileCode": [],
-  "isRootFolderReferenced": false,
-  "alias": true
+  "isRootFolderReferenced": true,
+  "alias": false
 }

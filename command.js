@@ -197,11 +197,11 @@ function finalizeCacheAndReturn(parentGraph, spinner, imageParentGraph) {
 
 // Main function that orchestrates the unused files detection process
 // Step 1: Discovers files, Step 2: Extracts imports, Step 3: Checks which files are unused
-async function unUsedFiles(ora, chalk, directory = "src", options) {
+async function unUsedFiles(ora, chalk, directory = "src", pathConfig = null, options) {
   // Start spinner
   const spinner = ora("Start Qleaner scan...").start();
 
-  const resolver = createResolver(directory);
+  const resolver = createResolver(directory, pathConfig);
   const { parentGraph, imageParentGraph } = initializeCache(spinner, options);
   const contentPaths = buildContentPaths(directory, options);
 

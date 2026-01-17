@@ -95,10 +95,14 @@ const QUESTIONS = [
     initial: 0,
   },
   {
-    type: "confirm",
+    type: "select",
     name: "alias",
-    message: "Do you use path aliases in your project when loading images?",
-    initial: true,
+    message: "How do you reference images in your project?",
+    initial: 0,
+    choices: [
+      { title: "Relative paths (./assets/logo.png)", value: "relative" },
+      { title: "Absolute paths from public/ (/images/logo.png)", value: "public" },
+    ],
   },
   {
     type: "select",
@@ -113,16 +117,12 @@ const QUESTIONS = [
   {
     type: "select",
     name: "codeAlias",
-    message: "What is the name of the code alias for your project?",
+    message: "Which project configuration file should Qleaner use to resolve import aliases?",
     choices: [
       { title: "tsconfig.json", value: "tsconfig.json" },
       { title: "jsconfig.json", value: "jsconfig.json" },
       { title: "tsconfig.app.json", value: "tsconfig.app.json" },
       { title: "tsconfig.base.json", value: "tsconfig.base.json" },
-      { title: "vite.config.ts", value: "vite.config.ts" },
-      { title: "vite.config.js", value: "vite.config.js" },
-      { title: "vite.config.cjs", value: "vite.config.cjs" },
-      { title: "vite.config.mjs", value: "vite.config.mjs" },
       { title: "none", value: null },
     ],
     initial: 0,
