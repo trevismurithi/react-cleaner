@@ -41,7 +41,7 @@ function extractImportsAndExports(ast, filePath) {
             exports.push({
               file: filePath,
               source: null,
-              names: [node.declaration.id.name, node.declaration.id.local.name],
+              names: [node.declaration.id.name],
               type: "function",
             });
           }

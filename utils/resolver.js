@@ -1,30 +1,76 @@
 const path = require("path");
 const { create } = require("enhanced-resolve");
 const { URL_EXTRACT_REGEX } = require("./constants");
+const fs = require("fs");
+
+
+function resolveImportPath(basePath) {
+  const extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
+
+  // 1. Exact file
+  for (const ext of extensions) {
+    if (fs.existsSync(basePath + ext)) {
+      return basePath + ext
+    }
+  }
+
+  // 2. Directory index
+  if (fs.existsSync(basePath) && fs.statSync(basePath).isDirectory()) {
+    for (const ext of extensions) {
+      const indexFile = path.join(basePath, `index${ext}`)
+      if (fs.existsSync(indexFile)) {
+        return indexFile
+      }
+    }
+  }
+
+  return null
+}
 
 function createResolver(directory, pathConfig = {}) {
   let alias = {}
   if(Object.entries(pathConfig).length > 0){
-    alias = pathConfig;
+    for(const [key, value] of Object.entries(pathConfig)){
+      for(const pathItem of value){
+        const cleanKey = key.replace(/\/\*$/, "");
+        const cleanPathItem = pathItem.replace(/\/\*$/, "");
+        alias[cleanKey] = path.resolve(directory, cleanPathItem);
+      }
+    }
   }else{
     alias = {
       "@": path.resolve(directory),
       "~": path.resolve(directory),
     }
   }
+
+  const sortedAlias = Object.fromEntries(
+    Object.entries(alias).sort(
+      ([a], [b]) => b.length - a.length
+    )
+  )
+
+  console.log(sortedAlias);
+
   const resolver = create({
     extensions: [".js", ".jsx", ".ts", ".tsx"],
-    alias: alias,
+    alias: sortedAlias,
     mainFiles: ["index"],
     // Where resolution begins
     modules: [path.resolve(directory)],
   });
 
   return function resolveImport(sourceFile, importPath) {
-    // console.log(chalk.yellow('sourceFile--resolver'), sourceFile, chalk.yellow('importPath--resolver'), importPath);
     return new Promise((resolve, ) => {
       resolver(path.dirname(sourceFile), importPath, (err, result) => {
         if (err) return resolve({importPath, isMightBeModule: true});
+        const pathToResolve = path.resolve(result);
+        if(fs.existsSync(pathToResolve) && fs.statSync(pathToResolve).isDirectory()){
+          const indexFile = resolveImportPath(pathToResolve);
+          if(indexFile){
+            return resolve({importPath: indexFile, isMightBeModule: false});
+          }
+        }
         resolve({importPath: path.resolve(result), isMightBeModule: false});
       });
     });

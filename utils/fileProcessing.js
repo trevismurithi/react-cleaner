@@ -110,13 +110,16 @@ async function processImports(imports, graph, resolver, chalk) {
       graph.get(info.file).imported.set(importPath, new Set([[info.imported, info.local]]));
     }
 
-    if (!isMightBeModule) {
+    const isFile = fs.existsSync(importPath)
+    if (!isMightBeModule && isFile) {
       ensureGraphNode(graph, importPath, createImportNode);
-    } else {
+    } else if(isFile){
       ensureGraphNode(graph, importPath, createModuleNode);
     }
 
-    graph.get(importPath).importedBy.add(info.file);
+    if(isFile){
+      graph.get(importPath).importedBy.add(info.file);
+    }
   }
 
   packingBar.stop();

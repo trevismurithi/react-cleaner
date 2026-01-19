@@ -178,6 +178,7 @@ async function scan(ora, chalk, pathToScan, options) {
         }
       }
     }
+
     // read qleaner.config.json
     const unusedFiles = await unUsedFiles(ora, chalk,pathToScan, pathConfig, options);
     

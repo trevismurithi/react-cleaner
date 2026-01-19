@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const Table = require("cli-table3");
-const { hydrateGraph } = require("../command");
+const { hydrateGraph } = require("../utils/graphUtils");
 const {
   getDeadLinks,
   getTotalImageSize,
@@ -13,7 +13,6 @@ const {
   getTop10FilesWithLightDependencies,
   getTop10FilesHotspots,
   getTotalImageFiles,
-  getTop10FilesCodeDependencies,
   getTop10FilesDependenciesHotspots,
 } = require("../utils/summary");
 
@@ -29,7 +28,7 @@ function formatFilePath(filePath, maxLength = 70) {
         relativePath = filePath; // Use absolute if outside project
       }
     }
-  } catch (e) {
+  } catch {
     // If conversion fails, use original path
   }
 
@@ -196,7 +195,7 @@ function getTop10LargestFiles(chalk) {
       colWidths: [90, 15],
       style: { head: [], border: [] },
     });
-    top10CodeFiles.forEach((file, index) => {
+    top10CodeFiles.forEach((file) => {
       codeTable.push([
         chalk.white(formatFilePath(file[0], 85)),
         chalk.magenta((file[1] / 1024).toFixed(2) + " KB"),

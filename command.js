@@ -123,52 +123,62 @@ function checkImportedComponentsUsage(file, parentGraph) {
   if (exportedComponents.size === 0) {
     return false;
   }
+  return trackExportedComponents(reExportedBy, exportedComponents, parentGraph);
+}
 
-  // Loop through the re-exported files, check if there is a file that imports any of the components or *
-  for (const reExportingFile of reExportedBy) {
-    // Cache the re-exporting file node
-    const reExportingNode = parentGraph.graph.get(reExportingFile);
-    if (!reExportingNode) {
-      continue;
-    }
-
-    const importedBy = reExportingNode.importedBy; // A.ts -> B.ts
-    if (importedBy.size === 0) {
-      continue;
-    }
-
-    // Loop through the importing files, check if they import any of the components or *
-    for (const importingFile of importedBy) {
-      // Cache the importing file node
-      const importingNode = parentGraph.graph.get(importingFile);
-      if (!importingNode) {
+function trackExportedComponents(reExportedBy, exportedComponents, parentGraph) {
+    let isUsed = false;
+    const notUsed = false
+    // Loop through the re-exported files, check if there is a file that imports any of the components or *
+    for (const reExportingFile of reExportedBy) {
+      // Cache the re-exporting file node
+      const reExportingNode = parentGraph.graph.get(reExportingFile);
+      if (!reExportingNode) {
         continue;
       }
+  
+      const importedBy = reExportingNode.importedBy; // A.ts -> B.ts
+      // if (importedBy.size === 0) {
+      //   continue;
+      // }
 
-      const imported = importingNode.imported; // B.ts -> A.ts -> B.ts
-      if (!imported || !imported.has(reExportingFile)) {
-        continue;
+      // check reExportedBy if available
+      const reExportedByFiles = reExportingNode.reExportedBy;
+      if (reExportedByFiles.size > 0) {
+        isUsed = trackExportedComponents(reExportedByFiles, exportedComponents, parentGraph);
       }
-
-      const components = imported.get(reExportingFile); // B.ts -> A.ts -> B.ts [['ComponentD', 'D2'], ['ComponentC', 'ComponentC']]
-      if (!components || components.size === 0) {
-        continue;
-      }
-
-      // Check if any imported component matches exported components or is a wildcard
-      for (const component of components) {
-        if (
-          exportedComponents.has(component[0]) ||
-          exportedComponents.has(component[1]) ||
-          component[0] === "*" ||
-          component[1] === "*"
-        ) {
-          return true;
+      // Loop through the importing files, check if they import any of the components or *
+      for (const importingFile of importedBy) {
+        // Cache the importing file node
+        const importingNode = parentGraph.graph.get(importingFile);
+        if (!importingNode) {
+          continue;
+        }
+  
+        const imported = importingNode.imported; // B.ts -> A.ts -> B.ts
+        if (!imported || !imported.has(reExportingFile)) {
+          continue;
+        }
+  
+        const components = imported.get(reExportingFile); // B.ts -> A.ts -> B.ts [['ComponentD', 'D2'], ['ComponentC', 'ComponentC']]
+        if (!components || components.size === 0) {
+          continue;
+        }
+  
+        // Check if any imported component matches exported components or is a wildcard
+        for (const component of components) {
+          if (
+            exportedComponents.has(component[0]) ||
+            exportedComponents.has(component[1]) ||
+            component[0] === "*" ||
+            component[1] === "*"
+          ) {
+            return true;
+          }
         }
       }
     }
-  }
-  return false;
+    return notUsed || isUsed;
 }
 
 // Checks all files to determine which ones are unused by comparing against import statements
