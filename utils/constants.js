@@ -38,6 +38,12 @@ const NEXT_ENTRY_FILES = [
   "_document.jsx",
   "_error.tsx",
   "_error.jsx",
+  "robots.ts",
+  "robots.js",
+  "sitemap.ts",
+  "sitemap.js",
+  "manifest.ts",
+  "manifest.js",
 ];
 
 const EXTENSIONS_TO_EXCLUDE = [

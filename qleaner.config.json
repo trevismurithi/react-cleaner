@@ -21,7 +21,10 @@
     "graphql",
     "supabase",
     "drizzle",
-    "__generated__"
+    "__generated__",
+    "src/dub-main/apps/web/scripts",
+    "src/dub-main/apps/web/guides",
+    "src/dub-main/apps/web/tests"
   ],
   "excludeFile": [
     "payload-types.ts",

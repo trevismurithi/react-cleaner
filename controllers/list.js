@@ -1,4 +1,5 @@
-const { unUsedFiles, hydrateGraph } = require("../command");
+const { unUsedFiles } = require("../command");
+const { hydrateGraph } = require("../utils/graphUtils");
 const Table = require('cli-table3');
 const { askDeleteFiles, loadTSConfig } = require("../utils/utils");
 const fs = require('fs');
