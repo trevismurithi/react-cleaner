@@ -43,13 +43,25 @@ function extractCssImages(
       });
       importPath && imageGraph.get(filePath).imports.add(importPath);
       if (importPath && !imageGraph.has(importPath)) {
+        let size = 0;
+        let hash = null;
+        let lastModified = null;
+        try {
+          size = fs.statSync(importPath).size;
+          hash = getFileHash(fs.readFileSync(importPath, "utf8"));
+          lastModified = fs.statSync(importPath).mtime.getTime();
+        } catch {
+          size = 0;
+          hash = null;
+          lastModified = null;
+        }
         imageGraph.set(importPath, {
           file: importPath,
-          size: fs.statSync(importPath).size,
-          hash: getFileHash(fs.readFileSync(importPath, "utf8")),
+          size: size,
+          hash: hash,
           imports: new Set(),
           importedBy: new Set(),
-          lastModified: fs.statSync(importPath).mtime.getTime(),
+          lastModified: lastModified,
           isImage: true,
         });
       }

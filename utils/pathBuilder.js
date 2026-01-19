@@ -9,7 +9,7 @@ function buildContentPaths(directory, options) {
   
   if (options.excludeDir && options.excludeDir.length > 0) {
     options.excludeDir.forEach((dir) => {
-      contentPaths.push(`!${dir}/**`);
+      contentPaths.push(`!${directory}/**/${dir}/**`);
     });
   }
   

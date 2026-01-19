@@ -21,10 +21,7 @@
     "graphql",
     "supabase",
     "drizzle",
-    "__generated__",
-    "src/dub-main/apps/web/scripts",
-    "src/dub-main/apps/web/guides",
-    "src/dub-main/apps/web/tests"
+    "__generated__"
   ],
   "excludeFile": [
     "payload-types.ts",
@@ -71,7 +68,13 @@
     "_document.tsx",
     "_document.jsx",
     "_error.tsx",
-    "_error.jsx"
+    "_error.jsx",
+    "robots.ts",
+    "robots.js",
+    "sitemap.ts",
+    "sitemap.js",
+    "manifest.ts",
+    "manifest.js"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],
