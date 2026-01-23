@@ -14,7 +14,7 @@ function getDeadLinks(graph) {
 
 function getTotalImageSize(graph) {
   let totalSize = 0;
-  for (const [filePath, node] of graph.entries()) {
+  for (const [, node] of graph.entries()) {
     if (node.hash !== null && node.isImage === true) {
       totalSize += node.size;
     }
@@ -24,7 +24,7 @@ function getTotalImageSize(graph) {
 
 function getTotalCodeSize(graph) {
   let totalSize = 0;
-  for (const [filePath, node] of graph.entries()) {
+  for (const [, node] of graph.entries()) {
     totalSize += node.size;
   }
   return totalSize;
@@ -73,7 +73,7 @@ function getTop10FilesWithHeavyDependencies(graph) {
 function getTop10FilesWithLightDependencies(graph) {
   return Array.from(graph.entries())
     .sort((a, b) => a[1].imports.size - b[1].imports.size)
-    .filter(([filePath, node]) => node.hash !== null)
+    .filter(([, node]) => node.hash !== null)
     .slice(0, 10);
 }
 
@@ -85,7 +85,7 @@ function getTop10FilesHotspots(graph, isCheck = true) {
   } else {
     return Array.from(graph.entries())
       .sort((a, b) => b[1].importedBy.size - a[1].importedBy.size)
-      .filter(([filePath, node]) => node.isImage === true)
+      .filter(([, node]) => node.isImage === true)
       .slice(0, 10);
   }
 }
@@ -94,12 +94,12 @@ function getTop10FilesDependenciesHotspots(graph, isDependency = true) {
   if (isDependency) {
     return Array.from(graph.entries())
       .sort((a, b) => b[1].importedBy.size - a[1].importedBy.size)
-      .filter(([filePath, node]) => node.hash === null)
+      .filter(([, node]) => node.hash === null)
       .slice(0, 10);
   } else {
     return Array.from(graph.entries())
       .sort((a, b) => b[1].importedBy.size - a[1].importedBy.size)
-      .filter(([filePath, node]) => node.hash !== null)
+      .filter(([, node]) => node.hash !== null)
       .slice(0, 10);
   }
 }
@@ -107,13 +107,36 @@ function getTop10FilesDependenciesHotspots(graph, isDependency = true) {
 
 function getTotalImageFiles(graph) {
   let totalFiles = 0;
-  for (const [filePath, node] of graph.entries()) {
+  for (const [, node] of graph.entries()) {
     if (node.isImage === true) {
       totalFiles++;
     }
   }
   return totalFiles;
 }
+
+/**
+ * Returns the top 10 files that export the most files (re-export the most items)
+ * @param {Map} graph - The code graph
+ * @returns {Array} Array of [filePath, node] tuples sorted by reExported.size
+ */
+function getTop10FilesWithMostReexports(graph) {
+  return Array.from(graph.entries())
+    .sort((a, b) => b[1].reExported.size - a[1].reExported.size)
+    .slice(0, 10);
+}
+
+/**
+ * Returns the top 10 files that have been exported most (re-exported by the most files)
+ * @param {Map} graph - The code graph
+ * @returns {Array} Array of [filePath, node] tuples sorted by reExportedBy.size
+ */
+function getTop10FilesWithMostReexportedBy(graph) {
+  return Array.from(graph.entries())
+    .sort((a, b) => b[1].reExportedBy.size - a[1].reExportedBy.size)
+    .slice(0, 10);
+}
+
 
 module.exports = {
   getDeadLinks,
@@ -127,4 +150,6 @@ module.exports = {
   getTop10FilesHotspots,
   getTotalImageFiles,
   getTop10FilesDependenciesHotspots,
+  getTop10FilesWithMostReexports,
+  getTop10FilesWithMostReexportedBy,
 };

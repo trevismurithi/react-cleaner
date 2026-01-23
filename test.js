@@ -1,4 +1,2 @@
-const { loadTSConfig } = require("./utils/utils");
-
-const config = loadTSConfig('src/plane-preview/apps/web');
-console.log(config);
+const fs = require('fs');
+console.log(fs.existsSync('src/afxm-iatf-frontent'));

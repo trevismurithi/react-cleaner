@@ -1,5 +1,5 @@
 {
-  "codeAlias": "tsconfig.json",
+  "codeAlias": null,
   "paths": {},
   "packageManager": "yarn",
   "excludeDir": [
@@ -74,7 +74,10 @@
     "sitemap.ts",
     "sitemap.js",
     "manifest.ts",
-    "manifest.js"
+    "manifest.js",
+    "robots.txt",
+    "not-found.tsx",
+    "not-found.jsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],

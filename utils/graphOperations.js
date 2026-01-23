@@ -49,6 +49,16 @@ function createModuleNode(modulePath) {
  * @returns {Object} Graph node object
  */
 function createImportNode(importPath) {
+  if (!fs.existsSync(importPath)) {
+    return {
+      file: importPath,
+      size: 0,
+      hash: null,
+      imports: new Set(),
+      imported: new Map(),
+      importedBy: new Set(),
+    };
+  } 
   const stats = fs.statSync(importPath);
   const code = fs.readFileSync(importPath, "utf8");
   return {

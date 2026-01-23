@@ -44,6 +44,9 @@ const NEXT_ENTRY_FILES = [
   "sitemap.js",
   "manifest.ts",
   "manifest.js",
+  "robots.txt",
+  "not-found.tsx",
+  "not-found.jsx",
 ];
 
 const EXTENSIONS_TO_EXCLUDE = [

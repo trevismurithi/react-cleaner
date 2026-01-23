@@ -50,8 +50,6 @@ function createResolver(directory, pathConfig = {}) {
     )
   )
 
-  console.log(sortedAlias);
-
   const resolver = create({
     extensions: [".js", ".jsx", ".ts", ".tsx"],
     alias: sortedAlias,
@@ -86,6 +84,7 @@ function normalize(
   { alias = true, isRootFolderReferenced = false }
 ) {
   if (!value) return null;
+
 
   // Return null if value is a URL (http:// or https://)
   if (value.startsWith("http://") || value.startsWith("https://")) {

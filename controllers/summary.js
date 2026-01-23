@@ -14,6 +14,8 @@ const {
   getTop10FilesHotspots,
   getTotalImageFiles,
   getTop10FilesDependenciesHotspots,
+  getTop10FilesWithMostReexports,
+  getTop10FilesWithMostReexportedBy,
 } = require("../utils/summary");
 
 function formatFilePath(filePath, maxLength = 70) {
@@ -278,10 +280,146 @@ function getTop10LargestFiles(chalk) {
   );
 }
 
-function dependenciesSummary(chalk) {
-  const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
+function printSectionHeader(chalk, title) {
+  console.log(chalk.green.bold(`\n${title}`));
+  console.log(chalk.green("════════════════════════════════════════════════"));
+}
 
-  // Check if data is available
+function printSectionFooter(chalk) {
+  console.log(chalk.green("════════════════════════════════════════════════"));
+}
+
+function displayTableSection(chalk, data, config) {
+  const { title, emptyMessage, headers, colWidths, getRowData, emptyMessageColor } = config;
+  
+  printSectionHeader(chalk, title);
+  
+  if (!data || data.length === 0) {
+    const colorFn = emptyMessageColor || chalk.yellow;
+    console.log(colorFn(`   ${emptyMessage}`));
+  } else {
+    const table = new Table({
+      head: headers.map(h => chalk.cyan(h)),
+      colWidths,
+      style: { head: [], border: [] },
+    });
+    
+    data.forEach((item) => {
+      table.push(getRowData(item));
+    });
+    
+    console.log(table.toString());
+  }
+  
+  printSectionFooter(chalk);
+}
+
+function displayHeavyDependencies(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "🔴 Top 10 Files with Heavy Dependencies",
+    emptyMessage: "No files with heavy dependencies found.",
+    headers: ["File Path", "Imports"],
+    colWidths: [90, 12],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.red((node.imports?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayLightDependencies(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "🟢 Top 10 Files with Light Dependencies",
+    emptyMessage: "No files with light dependencies found.",
+    headers: ["File Path", "Imports"],
+    colWidths: [90, 12],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.green((node.imports?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayFileHotspots(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "🔥 Top 10 File Hotspots (Most Imported)",
+    emptyMessage: "No file hotspots found.",
+    headers: ["File Path", "Imported By"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.magenta((node.importedBy?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayDependencyHotspots(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "📦 Top 10 Files Dependencies Hotspots",
+    emptyMessage: "No dependency hotspots found.",
+    headers: ["File Path", "Dependencies"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.yellow((node.importedBy?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayReexports(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "📤 Top 10 Files that Export the Most Files",
+    emptyMessage: "No files with re-exports found.",
+    headers: ["File Path", "Re-exports"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.blue((node.reExported?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayReexportedBy(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "📥 Top 10 Files that Have Been Exported Most",
+    emptyMessage: "No files re-exported by others found.",
+    headers: ["File Path", "Re-exported By"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.cyan((node.reExportedBy?.size || 0).toString()),
+    ],
+  });
+}
+
+function displayDeadImageHotspots(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "🖼️  Top 10 Dead Image Hotspots",
+    emptyMessage: "✓ No dead image hotspots found.",
+    headers: ["File Path", "Referenced By"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.red((node.importedBy?.size || 0).toString()),
+    ],
+    emptyMessageColor: chalk.green,
+  });
+}
+
+function displayAliveImageHotspots(chalk, data) {
+  displayTableSection(chalk, data, {
+    title: "✅ Top 10 Alive Image Hotspots",
+    emptyMessage: "No alive image hotspots found.",
+    headers: ["File Path", "Referenced By"],
+    colWidths: [90, 15],
+    getRowData: ([filePath, node]) => [
+      chalk.white(formatFilePath(filePath, 85)),
+      chalk.green((node.importedBy?.size || 0).toString()),
+    ],
+  });
+}
+
+function checkDataAvailability(chalk, codeGraph, imageGraph) {
   const hasData = codeGraph.graph.size > 0 || imageGraph.graph.size > 0;
   if (!hasData) {
     console.log(chalk.yellow.bold("\n⚠️  No Project Data Found"));
@@ -292,9 +430,12 @@ function dependenciesSummary(chalk) {
     console.log(
       chalk.yellow("   Use the scan command to generate project data.\n")
     );
-    return;
+    return false;
   }
+  return true;
+}
 
+function collectDependencyData(codeGraph, imageGraph) {
   const top10FilesWithHeavyDependencies = getTop10FilesWithHeavyDependencies(
     codeGraph.graph
   );
@@ -303,153 +444,46 @@ function dependenciesSummary(chalk) {
   );
   const top10FilesHotspots = getTop10FilesDependenciesHotspots(codeGraph.graph, false);
   const top10FilesDependenciesHotspots = getTop10FilesDependenciesHotspots(codeGraph.graph);
-  // image graph
+  const top10FilesWithMostReexports = getTop10FilesWithMostReexports(codeGraph.graph);
+  const top10FilesWithMostReexportedBy = getTop10FilesWithMostReexportedBy(codeGraph.graph);
+  
   const { deadLinks, aliveLinks } = getDeadLinks(imageGraph.graph);
   const top10FilesHotspotsDeadImage = getTop10FilesHotspots(deadLinks);
   const top10FilesHotspotsAliveImage = getTop10FilesHotspots(aliveLinks, false);
 
+  return {
+    top10FilesWithHeavyDependencies,
+    top10FilesWithLightDependencies,
+    top10FilesHotspots,
+    top10FilesDependenciesHotspots,
+    top10FilesWithMostReexports,
+    top10FilesWithMostReexportedBy,
+    top10FilesHotspotsDeadImage,
+    top10FilesHotspotsAliveImage,
+  };
+}
+
+function dependenciesSummary(chalk) {
+  const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
+
+  if (!checkDataAvailability(chalk, codeGraph, imageGraph)) {
+    return;
+  }
+
+  const data = collectDependencyData(codeGraph, imageGraph);
+
   console.log(chalk.green.bold("\n📊 Dependencies Summary"));
   console.log(chalk.green("════════════════════════════════════════════════"));
 
-  // Top 10 Files with Heavy Dependencies
-  console.log(chalk.green.bold("\n🔴 Top 10 Files with Heavy Dependencies"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (
-    !top10FilesWithHeavyDependencies ||
-    top10FilesWithHeavyDependencies.length === 0
-  ) {
-    console.log(chalk.yellow("   No files with heavy dependencies found."));
-  } else {
-    const heavyDepsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Imports")],
-      colWidths: [90, 12],
-      style: { head: [], border: [] },
-    });
-    top10FilesWithHeavyDependencies.forEach(([filePath, node]) => {
-      heavyDepsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.red((node.imports?.size || 0).toString()),
-      ]);
-    });
-    console.log(heavyDepsTable.toString());
-  }
-  console.log(chalk.green("════════════════════════════════════════════════"));
+  displayHeavyDependencies(chalk, data.top10FilesWithHeavyDependencies);
+  displayLightDependencies(chalk, data.top10FilesWithLightDependencies);
+  displayFileHotspots(chalk, data.top10FilesHotspots);
+  displayDependencyHotspots(chalk, data.top10FilesDependenciesHotspots);
+  displayReexports(chalk, data.top10FilesWithMostReexports);
+  displayReexportedBy(chalk, data.top10FilesWithMostReexportedBy);
+  displayDeadImageHotspots(chalk, data.top10FilesHotspotsDeadImage);
+  displayAliveImageHotspots(chalk, data.top10FilesHotspotsAliveImage);
 
-  // Top 10 Files with Light Dependencies
-  console.log(chalk.green.bold("\n🟢 Top 10 Files with Light Dependencies"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (
-    !top10FilesWithLightDependencies ||
-    top10FilesWithLightDependencies.length === 0
-  ) {
-    console.log(chalk.yellow("   No files with light dependencies found."));
-  } else {
-    const lightDepsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Imports")],
-      colWidths: [90, 12],
-      style: { head: [], border: [] },
-    });
-    top10FilesWithLightDependencies.forEach(([filePath, node]) => {
-      lightDepsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.green((node.imports?.size || 0).toString()),
-      ]);
-    });
-    console.log(lightDepsTable.toString());
-  }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
-  // Top 10 Files Hotspots (Most Imported Files)
-  console.log(chalk.green.bold("\n🔥 Top 10 File Hotspots (Most Imported)"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (!top10FilesHotspots || top10FilesHotspots.length === 0) {
-    console.log(chalk.yellow("   No file hotspots found."));
-  } else {
-    const hotspotsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Imported By")],
-      colWidths: [90, 15],
-      style: { head: [], border: [] },
-    });
-    top10FilesHotspots.forEach(([filePath, node]) => {
-      hotspotsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.magenta((node.importedBy?.size || 0).toString()),
-      ]);
-    });
-    console.log(hotspotsTable.toString());
-  }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
-  // Top 10 Files Dependencies Hotspots
-  console.log(chalk.green.bold("\n📦 Top 10 Files Dependencies Hotspots"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (
-    !top10FilesDependenciesHotspots ||
-    top10FilesDependenciesHotspots.length === 0
-  ) {
-    console.log(chalk.yellow("   No dependency hotspots found."));
-  } else {
-    const dependenciesHotspotsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Dependencies")],
-      colWidths: [90, 15],
-      style: { head: [], border: [] },
-    });
-    top10FilesDependenciesHotspots.forEach(([filePath, node]) => {
-      dependenciesHotspotsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.yellow((node.importedBy?.size || 0).toString()),
-      ]);
-    });
-    console.log(dependenciesHotspotsTable.toString());
-  }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
-  // Image Hotspots - Dead Links
-  console.log(chalk.green.bold("\n🖼️  Top 10 Dead Image Hotspots"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (
-    !top10FilesHotspotsDeadImage ||
-    top10FilesHotspotsDeadImage.length === 0
-  ) {
-    console.log(chalk.green("   ✓ No dead image hotspots found."));
-  } else {
-    const deadImageHotspotsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Referenced By")],
-      colWidths: [90, 15],
-      style: { head: [], border: [] },
-    });
-    top10FilesHotspotsDeadImage.forEach(([filePath, node]) => {
-      deadImageHotspotsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.red((node.importedBy?.size || 0).toString()),
-      ]);
-    });
-    console.log(deadImageHotspotsTable.toString());
-  }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
-  // Image Hotspots - Alive Links
-  console.log(chalk.green.bold("\n✅ Top 10 Alive Image Hotspots"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-  if (
-    !top10FilesHotspotsAliveImage ||
-    top10FilesHotspotsAliveImage.length === 0
-  ) {
-    console.log(chalk.yellow("   No alive image hotspots found."));
-  } else {
-    const aliveImageHotspotsTable = new Table({
-      head: [chalk.cyan("File Path"), chalk.cyan("Referenced By")],
-      colWidths: [90, 15],
-      style: { head: [], border: [] },
-    });
-    top10FilesHotspotsAliveImage.forEach(([filePath, node]) => {
-      aliveImageHotspotsTable.push([
-        chalk.white(formatFilePath(filePath, 85)),
-        chalk.green((node.importedBy?.size || 0).toString()),
-      ]);
-    });
-    console.log(aliveImageHotspotsTable.toString());
-  }
   console.log(
     chalk.green("════════════════════════════════════════════════\n")
   );
