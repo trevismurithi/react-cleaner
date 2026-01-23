@@ -38,6 +38,15 @@ const NEXT_ENTRY_FILES = [
   "_document.jsx",
   "_error.tsx",
   "_error.jsx",
+  "robots.ts",
+  "robots.js",
+  "sitemap.ts",
+  "sitemap.js",
+  "manifest.ts",
+  "manifest.js",
+  "robots.txt",
+  "not-found.tsx",
+  "not-found.jsx",
 ];
 
 const EXTENSIONS_TO_EXCLUDE = [
@@ -95,10 +104,14 @@ const QUESTIONS = [
     initial: 0,
   },
   {
-    type: "confirm",
+    type: "select",
     name: "alias",
-    message: "Do you use path aliases in your project when loading images?",
-    initial: true,
+    message: "How do you reference images in your project?",
+    initial: 0,
+    choices: [
+      { title: "Relative paths (./assets/logo.png)", value: "relative" },
+      { title: "Absolute paths from public/ (/images/logo.png)", value: "public" },
+    ],
   },
   {
     type: "select",
@@ -107,6 +120,19 @@ const QUESTIONS = [
     choices: [
       { title: "React", value: "react" },
       { title: "Next.js", value: "nextjs" },
+    ],
+    initial: 0,
+  },
+  {
+    type: "select",
+    name: "codeAlias",
+    message: "Which project configuration file should Qleaner use to resolve import aliases?",
+    choices: [
+      { title: "tsconfig.json", value: "tsconfig.json" },
+      { title: "jsconfig.json", value: "jsconfig.json" },
+      { title: "tsconfig.app.json", value: "tsconfig.app.json" },
+      { title: "tsconfig.base.json", value: "tsconfig.base.json" },
+      { title: "none", value: null },
     ],
     initial: 0,
   },

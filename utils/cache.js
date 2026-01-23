@@ -2,6 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+function serializeImported(importedMap) {
+  const serializedImported = {};
+  for (const [filePath, data] of importedMap) {
+    serializedImported[filePath] = Array.from(data);
+  }
+  return serializedImported;
+}
+
 function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
   const graphData = {};
   const imageGraphData = {};
@@ -11,6 +19,10 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         ...node,
         imports: node.imports ? Array.from(node.imports) : [],
         importedBy: node.importedBy ? Array.from(node.importedBy) : [],
+        exports: node.exports ? Array.from(node.exports) : [],
+        reExported: node.reExported ? Array.from(node.reExported) : [],
+        reExportedBy: node.reExportedBy ? Array.from(node.reExportedBy) : [],
+        imported: serializeImported(node.imported),
       };
     }
   } else {
@@ -19,6 +31,9 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         ...node,
         imports: node.imports ? Array.from(node.imports) : [],
         importedBy: node.importedBy ? Array.from(node.importedBy) : [],
+        exports: node.exports ? Array.from(node.exports) : [],
+        reExported: node.reExported ? Array.from(node.reExported) : [],
+        reExportedBy: node.reExportedBy ? Array.from(node.reExportedBy) : [],
       };
     }
   }

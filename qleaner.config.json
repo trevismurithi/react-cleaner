@@ -1,4 +1,6 @@
 {
+  "codeAlias": null,
+  "paths": {},
   "packageManager": "yarn",
   "excludeDir": [
     "node_modules",
@@ -29,7 +31,20 @@
     "test.tsx",
     "test.ts",
     "test.js",
-    "test.jsx"
+    "test.jsx",
+    "spec.tsx",
+    "spec.ts",
+    "spec.js",
+    "spec.jsx",
+    "d.ts",
+    "config.js",
+    "config.cjs",
+    "config.mjs",
+    "config.ts",
+    "setupTests.ts",
+    "setupTests.js",
+    "setup.ts",
+    "setup.js"
   ],
   "excludeFilePrint": [
     "page.tsx",
@@ -53,7 +68,16 @@
     "_document.tsx",
     "_document.jsx",
     "_error.tsx",
-    "_error.jsx"
+    "_error.jsx",
+    "robots.ts",
+    "robots.js",
+    "sitemap.ts",
+    "sitemap.js",
+    "manifest.ts",
+    "manifest.js",
+    "robots.txt",
+    "not-found.tsx",
+    "not-found.jsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],

@@ -1,6 +1,7 @@
-const { unUsedFiles, hydrateGraph } = require("../command");
+const { unUsedFiles } = require("../command");
+const { hydrateGraph } = require("../utils/graphUtils");
 const Table = require('cli-table3');
-const { askDeleteFiles } = require("../utils/utils");
+const { askDeleteFiles, loadTSConfig } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
@@ -17,7 +18,7 @@ const { query, unusedDependencies: findUnusedDeps } = require("./query");
   let cache;
   try {
     cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
     return;
   }
@@ -77,7 +78,7 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   let packageJson;
   try {
     packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading package.json file.'));
     return;
   }
@@ -99,7 +100,7 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   let cache;
   try {
     cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch (error) {
+  } catch {
     console.log(chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'));
     return;
   }
@@ -155,7 +156,9 @@ async function summary(chalk, options) {
     }
 }
 
-async function scan(ora, chalk, filePath, options) {
+
+async function scan(ora, chalk, pathToScan, options) {
+    let pathConfig = {};
     // check if qleaner.config.json exists
     if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
       const config = JSON.parse(
@@ -165,9 +168,20 @@ async function scan(ora, chalk, filePath, options) {
         ...config,
         ...options,
       };
+      // config file will take precedence over the tsconfig.json file
+      if(config.paths && Object.entries(config.paths).length > 0){
+        pathConfig = config.paths;
+      }else if(config.codeAlias){
+        pathConfig = loadTSConfig(pathToScan, config.codeAlias).paths;
+        if(!pathConfig){
+          console.log(chalk.red('⚠️  Error reading config file. Please run "qleaner scan" again.'));
+          pathConfig = {}
+        }
+      }
     }
+
     // read qleaner.config.json
-    const unusedFiles = await unUsedFiles(ora, chalk,filePath, options);
+    const unusedFiles = await unUsedFiles(ora, chalk,pathToScan, pathConfig, options);
     
     let totalSize = 0;
     const fileArray = Array.from(unusedFiles.values());
