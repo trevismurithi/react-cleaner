@@ -1,6 +1,6 @@
 # Qleaner
 
-**Qleaner** (v1.3.1) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
+**Qleaner** (v1.3.2) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
 
 ## Features
 

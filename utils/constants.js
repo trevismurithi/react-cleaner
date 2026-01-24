@@ -109,7 +109,7 @@ const QUESTIONS = [
     message: "How do you reference images in your project?",
     initial: 0,
     choices: [
-      { title: "Relative paths (./assets/logo.png)", value: "relative" },
+      { title: "Relative paths (./assets/logo.png) or alias (@/assets/logo.png)", value: "relative" },
       { title: "Absolute paths from public/ (/images/logo.png)", value: "public" },
     ],
   },
