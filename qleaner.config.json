@@ -1,7 +1,6 @@
 {
-  "codeAlias": null,
   "paths": {},
-  "packageManager": "yarn",
+  "packageManager": "npm",
   "excludeDir": [
     "node_modules",
     "dist",
@@ -46,38 +45,16 @@
     "setup.ts",
     "setup.js"
   ],
+  "excludeDirPrint": [],
   "excludeFilePrint": [
-    "page.tsx",
-    "page.jsx",
-    "route.ts",
-    "route.jsx",
-    "layout.tsx",
-    "layout.jsx",
-    "middleware.ts",
-    "middleware.js",
-    "error.tsx",
-    "error.jsx",
-    "loading.tsx",
-    "loading.jsx",
-    "not-found.tsx",
-    "not-found.jsx",
-    "global-error.tsx",
-    "global-error.jsx",
-    "_app.tsx",
-    "_app.jsx",
-    "_document.tsx",
-    "_document.jsx",
-    "_error.tsx",
-    "_error.jsx",
-    "robots.ts",
-    "robots.js",
-    "sitemap.ts",
-    "sitemap.js",
-    "manifest.ts",
-    "manifest.js",
-    "robots.txt",
-    "not-found.tsx",
-    "not-found.jsx"
+    "index.js",
+    "index.jsx",
+    "index.ts",
+    "index.tsx",
+    "main.js",
+    "main.jsx",
+    "main.ts",
+    "main.tsx"
   ],
   "excludeDirAssets": [],
   "excludeFileAssets": [],
@@ -104,5 +81,5 @@
   ],
   "excludeFileCode": [],
   "isRootFolderReferenced": false,
-  "alias": true
+  "alias": false
 }
