@@ -12,6 +12,7 @@ const { buildImagePaths, buildCodePaths } = require("../utils/imagePathBuilder")
 const { createASTTraverser } = require("../utils/imageAstParser");
 const { addToImageGraph } = require("../utils/imageGraphUtils");
 const { displayUnusedImages, handleImageDeletion } = require("../utils/imageDisplay");
+const { parse } = require("@vue/compiler-sfc");
 
 /**
  * Creates a file node in the image graph for a code file
@@ -188,7 +189,16 @@ async function scanCodeFilesForImages(
     const code = fs.readFileSync(filePath, "utf8");
 
     if (needsRebuild(filePath, code, imageGraph)) {
-      const ast = parseCode(code);
+      const extension = path.extname(filePath);
+      let ast = null;
+      if(extension === '.vue') {
+        const {descriptor} = parse(code);
+        if(descriptor.scriptSetup || descriptor.script) {
+          ast = parseCode(descriptor.scriptSetup?.content || descriptor.script?.content||'');
+        }
+      }else {
+        ast = parseCode(code);
+      }
       if (imageGraph.has(filePath)) {
         const oldFiles = new Set(imageGraph.get(filePath).imports);
         // Create a copy of the Set to avoid it being cleared/modified when imageGraph is updated

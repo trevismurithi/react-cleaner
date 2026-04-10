@@ -1,4 +1,6 @@
 {
+  "framework": "vue",
+  "codeAlias": null,
   "paths": {},
   "packageManager": "npm",
   "excludeDir": [
@@ -45,7 +47,10 @@
     "setup.ts",
     "setup.js"
   ],
-  "excludeDirPrint": [],
+  "excludeDirPrint": [
+    "layouts",
+    "pages"
+  ],
   "excludeFilePrint": [
     "index.js",
     "index.jsx",
@@ -80,6 +85,6 @@
     "__generated__"
   ],
   "excludeFileCode": [],
-  "isRootFolderReferenced": false,
+  "isRootFolderReferenced": true,
   "alias": false
 }

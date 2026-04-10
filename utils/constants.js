@@ -120,6 +120,7 @@ const QUESTIONS = [
     choices: [
       { title: "React", value: "react" },
       { title: "Next.js", value: "nextjs" },
+      { title: "Vue", value: "vue" },
     ],
     initial: 0,
   },

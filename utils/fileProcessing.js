@@ -11,6 +11,7 @@ const {
   storeOldGraphState,
 } = require("./graphOperations");
 const { createStepBar } = require("./utils");
+const {parse} = require("@vue/compiler-sfc");
 
 /**
  * Scans files and extracts imports/exports from AST
@@ -34,6 +35,7 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
   const oldReExported = new Map();
 
   for (const file of files) {
+    try {
     await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
 
@@ -42,7 +44,7 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
     const isNeedsRebuild = needsRebuild(filePath, code, graph);
 
     if (isNeedsRebuild) {
-      const ast = parseCode(code);
+      const extension = path.extname(filePath);
 
       // Store old graph state if file exists in graph
       if (graph.has(filePath)) {
@@ -60,12 +62,26 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
 
       // Create or reset file graph node
       graph.set(filePath, createFileNode(filePath, code));
-
-      // Extract imports and exports from AST
-      const { imports: fileImports, exports: fileExports } =
-        extractImportsAndExports(ast, filePath);
-      imports.push(...fileImports);
-      exports.push(...fileExports);
+      if(extension === '.vue') {
+      const {descriptor} = parse(code);
+      if(descriptor.scriptSetup || descriptor.script) {
+        const ast = parseCode(descriptor.scriptSetup?.content || descriptor.script?.content||'');
+        const { imports: fileImports, exports: fileExports } =
+          extractImportsAndExports(ast, filePath);
+        imports.push(...fileImports);
+        exports.push(...fileExports);
+      }
+      }else {
+        const ast = parseCode(code);
+        // Extract imports and exports from AST
+        const { imports: fileImports, exports: fileExports } =
+          extractImportsAndExports(ast, filePath);
+          imports.push(...fileImports);
+          exports.push(...fileExports);
+      }
+      }
+    } catch (error) {
+      throw new Error(`Error processing file ${file}: ${error.message}`);
     }
   }
 

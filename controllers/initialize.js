@@ -18,6 +18,7 @@ async function init(chalk) {
     configFile,
     JSON.stringify(
       {
+        framework: responses.framework,
         codeAlias: responses.codeAlias,
         paths: {},
         packageManager: responses.packageManager || "npm",

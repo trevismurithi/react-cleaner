@@ -5,7 +5,7 @@
  * @returns {Array<string>} Array of glob patterns
  */
 function buildContentPaths(directory, options) {
-  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
+  const contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx,vue}`];
   
   if (options.excludeDir && options.excludeDir.length > 0) {
     options.excludeDir.forEach((dir) => {
