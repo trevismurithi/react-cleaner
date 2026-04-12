@@ -28,8 +28,12 @@ function buildImagePaths(imageDirectory, options) {
  * @returns {Array<string>} Array of glob patterns for code files
  */
 function buildCodePaths(codeDirectory, options) {
-  const codePaths = [`${codeDirectory}/**/*.{js,jsx,ts,tsx}`];
-
+  let codePaths = [];
+  if (options.framework === "vue") {
+    codePaths = [`${codeDirectory}/**/*.{js,jsx,ts,vue}`];
+  }else{
+    codePaths = [`${codeDirectory}/**/*.{js,jsx,ts,tsx}`];
+  }
   if (options.excludeDirCode && options.excludeDirCode.length > 0) {
     options.excludeDirCode.forEach((dir) => {
       codePaths.push(`!${codeDirectory}/**/${dir}/**`);

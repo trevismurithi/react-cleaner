@@ -101,7 +101,7 @@ async function checkFileUsage(file, parentGraph, options) {
   // It should not be considered unused if components are used via re-exports
   const isUsed = checkImportedComponentsUsage(file, parentGraph);
   if (!isUsed) {
-    parentGraph.unusedFiles.add(fileNode);
+    parentGraph.unusedFiles.add({file: fileNode.file, size: fileNode.size});
   }
 }
 

@@ -1,7 +1,7 @@
 const { unUsedFiles } = require("../command");
 const { hydrateGraph } = require("../utils/graphUtils");
 const Table = require('cli-table3');
-const { askDeleteFiles, loadTSConfig } = require("../utils/utils");
+const { askDeleteFiles, loadTSConfig, moveFromTrash } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
@@ -254,9 +254,18 @@ async function scan(ora, chalk, pathToScan, options) {
     }
 }
 
+async function undoDeletions(chalk, type) {
+  console.log(chalk.yellow(`Undoing deletions for ${type}`));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  await moveFromTrash(type === "code" ? true : false);
+  console.log(chalk.green(`Undone deletions for ${type}`));
+  console.log(chalk.green('════════════════════════════════════════════════'));
+}
+
 module.exports = {
   summary,
   scan,
   list,
   unusedDependencies,
+  undoDeletions,
 };

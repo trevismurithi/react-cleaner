@@ -25,11 +25,11 @@ async function init(chalk) {
         excludeDir: DIRECTORIES_TO_EXCLUDE, // Exclude directories from the scan
         excludeFile: ["payload-types.ts", "payload-types.js"], // Exclude files from the scan
         excludeExtensions: EXTENSIONS_TO_EXCLUDE, // Exclude file extensions from the scan like .test.tsx, .test.ts, .test.js, .test.jsx
-        excludeDirPrint: [], // Exclude directories from the print scan
+        excludeDirPrint: responses.framework === "vue" ? ["layouts", "pages"] : [], // Exclude directories from the print scan
         excludeFilePrint:
           responses.framework === "nextjs"
             ? NEXT_ENTRY_FILES
-            : REACT_ENTRY_FILES,
+            : responses.framework === "vue" ? [] : REACT_ENTRY_FILES,
         excludeDirAssets: [], // Exclude directories from the asset scan
         excludeFileAssets: [], // Exclude files from the asset scan
         excludeDirCode: DIRECTORIES_TO_EXCLUDE, // Exclude directories from the code scan

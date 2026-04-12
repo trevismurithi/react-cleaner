@@ -49,7 +49,8 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
     const fileName = path.basename(file.file);
     const destination = path.join(trashDir, fileName);
     fs.renameSync(file.file, destination);
-    unusedFiles.delete(file);
+    file.destination = destination;
+
   }
 
   if (isCode) {
@@ -67,6 +68,41 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
   }
 
   console.log(`Moved ${files.length} files to .trash directory`);
+}
+
+async function moveFromTrash(isCode = true) {
+  const trashDir = path.join(process.cwd(), ".trash");
+  const cacheFile = path.join(process.cwd(), "unused-check-cache.json");
+  if (!fs.existsSync(cacheFile)) {
+    console.error(`Cache file does not exist, skipping...`);
+    return;
+  }
+  const cache = JSON.parse(
+    fs.readFileSync(cacheFile, "utf8")
+  );
+  if (!fs.existsSync(trashDir)) {
+    console.error(`Trash directory does not exist, skipping...`);
+    return;
+  }
+  let files = [];
+  if (isCode) {
+    files = Array.from(cache.parentGraph.unusedFiles);
+  } else {
+    files = Array.from(cache.imageParentGraph.unusedImages);
+  }
+  for (const file of files) {
+    if (!file.destination) {
+      continue;
+    }
+    fs.renameSync(file.destination, file.file);
+    file.destination = null;
+  }
+  if (isCode) {
+    cache.parentGraph.unusedFiles = Array.from(cache.parentGraph.unusedFiles);
+  } else {
+    cache.imageParentGraph.unusedImages = Array.from(cache.imageParentGraph.unusedImages);
+  }
+  fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2));
 }
 
 async function deleteFiles(files, unusedFiles, isCode = true) {
@@ -156,4 +192,5 @@ module.exports = {
   compareFiles,
   createStepBar,
   loadTSConfig,
+  moveFromTrash,
 };

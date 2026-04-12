@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
-const { summary, scan, list, unusedDependencies } = require("../controllers/list");
+const { summary, scan, list, unusedDependencies, undoDeletions } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
@@ -93,6 +93,13 @@ async function loadOra(){
   .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
   .action(async (directory, rootPath, options) => {
     await getUnusedImages(ora,chalk, directory, rootPath, options);
+  });
+
+  program.command('undo')
+  .description("Undo the deletions")
+  .argument("<type>", "The type of deletions to undo images or code (images or code)")
+  .action(async (type) => {
+    await undoDeletions(chalk, type);
   });
   program.parse(process.argv);
 })();
