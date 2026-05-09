@@ -1,4 +1,6 @@
 {
+  "framework": "react",
+  "codeAlias": null,
   "paths": {},
   "packageManager": "npm",
   "excludeDir": [
@@ -80,6 +82,6 @@
     "__generated__"
   ],
   "excludeFileCode": [],
-  "isRootFolderReferenced": false,
-  "alias": true
+  "isRootFolderReferenced": true,
+  "alias": false
 }

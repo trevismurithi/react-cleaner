@@ -7,7 +7,7 @@
 function buildContentPaths(directory, options) {
   let contentPaths = [];
   if (options.framework === "vue") {
-    contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx,vue}`];
+    contentPaths = [`${directory}/**/*.{ts,js,jsx,vue}`];
   }else{
     contentPaths = [`${directory}/**/*.{tsx,ts,js,jsx}`];
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
-const { summary, scan, list, unusedDependencies, undoDeletions } = require("../controllers/list");
+const { summary, scan, list, unusedDependencies, undoDeletions, unusedExports } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
@@ -30,7 +30,7 @@ async function loadOra(){
   });
 
   program.command("list")
-  .description("List the files by dependency")
+  .description("List the files used by a dependency")
   .argument("<dependency>", "The dependency to list the files by")
   .option("-t, --table", "Display results in a table format")
   .action(async (dependency, options) => {
@@ -41,6 +41,7 @@ async function loadOra(){
   .description("List the unused dependencies")
   .option("-d, --directory <directory>", "The directory to list the unused dependencies from")
   .option("-t, --table", "Display results in a table format")
+  .option("-u, --uninstall", "Uninstall the unused dependencies")
   .action(async (options) => {
     await unusedDependencies(chalk, 
       options.directory || process.cwd(),
@@ -95,6 +96,13 @@ async function loadOra(){
     await getUnusedImages(ora,chalk, directory, rootPath, options);
   });
 
+  program.command('exports')
+  .description("List the unused exports")
+  .option("-f, --fix", "Fix the unused exports")
+  .action(async (options) => {
+    await unusedExports(chalk, options);
+  });
+  
   program.command('undo')
   .description("Undo the deletions")
   .argument("<type>", "The type of deletions to undo images or code (images or code)")

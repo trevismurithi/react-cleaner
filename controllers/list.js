@@ -1,11 +1,40 @@
 const { unUsedFiles } = require("../command");
 const { hydrateGraph } = require("../utils/graphUtils");
+const { findUnusedExports } = require("./code");
 const Table = require('cli-table3');
-const { askDeleteFiles, loadTSConfig, moveFromTrash } = require("../utils/utils");
+const { askDeleteFiles, loadTSConfig, moveFromTrash, uninstallDependency, combineValues } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
 const { query, unusedDependencies: findUnusedDeps } = require("./query");
+const { editFile } = require("../utils/editFile");
+
+async function unusedExports(chalk, options = {}) {
+  const unUsedExportsWithPath = findUnusedExports();
+  if(unUsedExportsWithPath.size === 0) {
+    console.log(chalk.green('✓ No unused exports found. All exports are in use.'));
+    return;
+  }
+  // print the unused exports in a table
+  const table = new Table({
+    head: [chalk.cyan('Export Name'), chalk.cyan('File Path')],
+    colWidths: [100, 100],
+    style: { head: [], border: [] }
+  });
+  unUsedExportsWithPath.forEach((filePath, exportName) => {
+    table.push([chalk.white(exportName), chalk.white(formatFilePath(filePath, 95))]);
+  });
+   console.log(table.toString());
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  if(options.fix){
+    const listToRemove = combineValues(unUsedExportsWithPath);
+    console.log(listToRemove);
+    const stats = await editFile(listToRemove);
+    console.log(stats);
+  }
+  // write the total number of unused exports
+  console.log(chalk.yellow(`Total unused exports: ${unUsedExportsWithPath.size}`));
+}
 
  async function list(ora, chalk, dependency, options = {}) {
   // Load graph from cache
@@ -142,6 +171,16 @@ async function unusedDependencies(chalk, directoryPath = process.cwd(), options 
   console.log(chalk.yellow('════════════════════════════════════════════════'));
   // write the total number of unused dependencies
   console.log(chalk.yellow(`Total unused dependencies: ${unusedDeps.size}`));
+  if(options.uninstall){
+  // uninstall unused dependencies
+  for(const dependency of unusedDeps){
+      console.log(chalk.yellow(`Uninstalling ${dependency}...`));
+      // uninstall the dependency
+      await uninstallDependency(dependency);
+      console.log(chalk.green('════════════════════════════════════════════════'));
+    }
+  }
+
 }
 
 async function summary(chalk, options) {
@@ -268,4 +307,5 @@ module.exports = {
   list,
   unusedDependencies,
   undoDeletions,
+  unusedExports,
 };
