@@ -1,6 +1,47 @@
-const { Project } = require('ts-morph');
-const fs = require('fs');
-const path = require('path');
+const { Project, SyntaxKind } = require("ts-morph");
+const fs = require("fs");
+const path = require("path");
+
+/** `console.<name>(...)` calls treated as dev-only output (includes log, dir, table, …). */
+const CONSOLE_DEBUG_METHOD_NAMES = new Set([
+  "log",
+  "dir",
+  "dirxml",
+  "table",
+  "debug",
+  "info",
+  "trace",
+]);
+
+/**
+ * @param {import('ts-morph').CallExpression} call
+ * @returns {string | null} Method name if this is a removable `console.<method>` / `<ns>.console.<method>` call
+ */
+function getRemovableConsoleDebugMethod(call) {
+  const expr = call.getExpression();
+  if (!expr.isKind(SyntaxKind.PropertyAccessExpression)) {
+    return null;
+  }
+  const method = expr.getName();
+  if (!CONSOLE_DEBUG_METHOD_NAMES.has(method)) {
+    return null;
+  }
+  const receiver = expr.getExpression();
+  if (
+    receiver.isKind(SyntaxKind.Identifier) &&
+    receiver.getText() === "console"
+  ) {
+    return method;
+  }
+  if (
+    receiver.isKind(SyntaxKind.PropertyAccessExpression) &&
+    receiver.getName() === "console" &&
+    receiver.getExpression().isKind(SyntaxKind.Identifier)
+  ) {
+    return method;
+  }
+  return null;
+}
 
 /**
  * Counts references to a name node in the same source file, excluding the definition site.
@@ -46,7 +87,7 @@ function findUnusedFunctionsAndVariablesInFile(filePath) {
       continue;
     }
     const nameNode = fn.getNameNode();
-    if (nameNode.getKindName() !== 'Identifier') {
+    if (nameNode.getKindName() !== "Identifier") {
       continue;
     }
     if (countInFileNonDefinitionReferences(nameNode, sourceFile) === 0) {
@@ -60,7 +101,7 @@ function findUnusedFunctionsAndVariablesInFile(filePath) {
       continue;
     }
     const nameNode = decl.getNameNode();
-    if (nameNode.getKindName() !== 'Identifier') {
+    if (nameNode.getKindName() !== "Identifier") {
       continue;
     }
     if (countInFileNonDefinitionReferences(nameNode, sourceFile) === 0) {
@@ -104,112 +145,365 @@ function removeNamedExportSpecifier(sourceFile, exportName, stats) {
         stats.totalItemsRemoved++;
       }
     }
-    if (!exportDecl.hasNamedExports() || exportDecl.getNamedExports().length === 0) {
+    if (
+      !exportDecl.hasNamedExports() ||
+      exportDecl.getNamedExports().length === 0
+    ) {
       exportDecl.remove();
     }
   }
 }
+/**
+ * Removes a specific named entity from imports and exports.
+ * If it's the last one, it nukes the whole line.
+ * @param {import('ts-morph').SourceFile} sourceFile
+ * @param {string} nameToRemove
+ * @param {{ totalItemsRemoved: number }} stats
+ */
+function pruneNamedBinding(sourceFile, nameToRemove, stats) {
+  // 1. Handle Imports: import { A, B } from './module'
+  const importDeclarations = sourceFile.getImportDeclarations();
 
-async function editFile(listToRemove) {
-    const project = new Project({
-        compilerOptions: {
-            allowJs: true,
-        }
-    });
-    const stats = {
-       totalItemsRemoved: 0,
-      totalLinesRemoved: 0,
-      bytesSaved: 0,
-      filesModified: 0,
+  importDeclarations.forEach((importDecl) => {
+    const specifier = importDecl
+      .getNamedImports()
+      .find((s) => s.getName() === nameToRemove);
+
+    if (specifier) {
+      // If this is the only import specifier, remove the whole line
+      if (importDecl.getNamedImports().length === 1) {
+        importDecl.remove();
+      } else {
+        // Otherwise, just remove the one name (ts-morph handles commas!)
+        specifier.remove();
+      }
+      stats.totalItemsRemoved++;
     }
-    for(const [filePath, exportNames] of listToRemove.entries()) {
-        const sourceFile = project.addSourceFileAtPath(filePath);
-        const initialLoc = sourceFile.getEndLineNumber()
-        const initialSize = fs.statSync(filePath).size;
+  });
 
-        exportNames.forEach(exportName => {
-            // look for variable declaration
-            const variableDeclaration = sourceFile.getVariableDeclaration(exportName);
-            if(variableDeclaration) {
-                variableDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
+  // 2. Handle Re-exports: export { A, B } from './module'
+  const exportDeclarations = sourceFile.getExportDeclarations();
 
-            // look for function declaration
-            const functionDeclaration = sourceFile.getFunction(exportName);
-            if(functionDeclaration) {
-                functionDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
+  exportDeclarations.forEach((exportDecl) => {
+    const specifier = exportDecl
+      .getNamedExports()
+      .find((s) => s.getName() === nameToRemove);
 
-            // look for class declaration
-            const classDeclaration = sourceFile.getClass(exportName);
-            if(classDeclaration) {
-                classDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
-
-            // look for interface declaration
-            const interfaceDeclaration = sourceFile.getInterface(exportName);
-            if(interfaceDeclaration) {
-                interfaceDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
-
-            // look for type alias
-            const typeAliasDeclaration = sourceFile.getTypeAlias(exportName);
-            if(typeAliasDeclaration) {
-                typeAliasDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
-
-            // look for enum declaration
-            const enumDeclaration = sourceFile.getEnum(exportName);
-            if(enumDeclaration) {
-                enumDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
-
-            // namespace or legacy `module` block (ModuleDeclaration)
-            const moduleOrNamespaceDeclaration = sourceFile.getModule(exportName);
-            if(moduleOrNamespaceDeclaration) {
-                moduleOrNamespaceDeclaration.remove();
-                stats.totalItemsRemoved++;
-            }
-
-            removeNamedExportSpecifier(sourceFile, exportName, stats);
-        })
-
-        await sourceFile.save();
-
-        // calculate delta for this file
-        const finalLoc = sourceFile.getEndLineNumber()
-        const finalSize = fs.statSync(filePath).size;
-        const linesRemoved = initialLoc - finalLoc;
-        const bytesSaved = initialSize - finalSize;
-        stats.totalLinesRemoved += linesRemoved;
-        stats.bytesSaved += bytesSaved;
-        stats.filesModified++;
+    if (specifier) {
+      // If it's the only export in the block, remove the whole line
+      if (exportDecl.getNamedExports().length === 1) {
+        exportDecl.remove();
+      } else {
+        specifier.remove();
+      }
+      stats.totalItemsRemoved++;
     }
-
-    return generateSavingsReport(stats);
+  });
 }
 
-function generateSavingsReport(stats) {
-    // 0.25 (15 mins) per file for audit, 0.01 (36s) per variable for "cognitive cleanup"
-    const hoursSaved = (stats.filesModified * 0.25) + (stats.totalItemsRemoved * 0.01);    
-    return {
-      title: "Qleaner Surgical Report",
-      removedCount: stats.totalItemsRemoved,
-      locRemoved: stats.totalLinesRemoved,
-      kbSaved: (stats.bytesSaved / 1024).toFixed(2),
-      timeSaved: `${hoursSaved.toFixed(2)} hrs`,
-      message: `You just saved your team approximately ${hoursSaved.toFixed(1)} hours of future manual auditing.`
-    };
+/**
+ * Removes all unused exports from the source file.
+ * @param {Map<string, string[]>} listToRemove
+ * @param {Map<string, Map<string, string[]>>} fileAssociated
+ * @returns {Promise<object>} The savings report
+ */
+async function editFile(listToRemove, fileAssociated) {
+  const project = new Project({
+    compilerOptions: {
+      allowJs: true,
+    },
+  });
+  const stats = {
+    totalItemsRemoved: 0,
+    totalLinesRemoved: 0,
+    bytesSaved: 0,
+    filesModified: 0,
+  };
+  for (const [filePath, exportNames] of listToRemove.entries()) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const initialLoc = sourceFile.getEndLineNumber();
+    const initialSize = fs.statSync(filePath).size;
+
+    exportNames.forEach((exportName) => {
+      // look for variable declaration
+      const variableDeclaration = sourceFile.getVariableDeclaration(exportName);
+      if (variableDeclaration) {
+        variableDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // look for function declaration
+      const functionDeclaration = sourceFile.getFunction(exportName);
+      if (functionDeclaration) {
+        functionDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // look for class declaration
+      const classDeclaration = sourceFile.getClass(exportName);
+      if (classDeclaration) {
+        classDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // look for interface declaration
+      const interfaceDeclaration = sourceFile.getInterface(exportName);
+      if (interfaceDeclaration) {
+        interfaceDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // look for type alias
+      const typeAliasDeclaration = sourceFile.getTypeAlias(exportName);
+      if (typeAliasDeclaration) {
+        typeAliasDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // look for enum declaration
+      const enumDeclaration = sourceFile.getEnum(exportName);
+      if (enumDeclaration) {
+        enumDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      // namespace or legacy `module` block (ModuleDeclaration)
+      const moduleOrNamespaceDeclaration = sourceFile.getModule(exportName);
+      if (moduleOrNamespaceDeclaration) {
+        moduleOrNamespaceDeclaration.remove();
+        stats.totalItemsRemoved++;
+      }
+
+      removeNamedExportSpecifier(sourceFile, exportName, stats);
+    });
+
+    await sourceFile.save();
+
+    const fileAssociatedFiles = fileAssociated.get(filePath);
+    fileAssociatedFiles.forEach((fileAssociatedFile) => {
+      const fileAssociatedSourceFile =
+        project.addSourceFileAtPath(fileAssociatedFile);
+      exportNames.forEach((exportName) => {
+        pruneNamedBinding(fileAssociatedSourceFile, exportName, stats);
+      });
+      fileAssociatedSourceFile.save();
+    });
+
+    // calculate delta for this file
+    const finalLoc = sourceFile.getEndLineNumber();
+    const finalSize = fs.statSync(filePath).size;
+    const linesRemoved = initialLoc - finalLoc;
+    const bytesSaved = initialSize - finalSize;
+    stats.totalLinesRemoved += linesRemoved;
+    stats.bytesSaved += bytesSaved;
+    stats.filesModified++;
   }
 
-module.exports = {
-    editFile,
-    generateSavingsReport,
-    findUnusedFunctionsAndVariablesInFile,
+  return generateSavingsReport(stats);
 }
+
+/**
+ * Generates a savings report based on the stats.
+ * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
+ * @returns {object} The savings report
+ */
+function generateSavingsReport(stats) {
+  // 0.25 (15 mins) per file for audit, 0.01 (36s) per variable for "cognitive cleanup"
+  const hoursSaved =
+    stats.filesModified * 0.25 + stats.totalItemsRemoved * 0.01;
+  return {
+    title: "Qleaner Surgical Report",
+    totalItemsRemoved: stats.totalItemsRemoved,
+    totalLinesRemoved: stats.totalLinesRemoved,
+    bytesSaved: stats.bytesSaved,
+    filesModified: stats.filesModified,
+    estimatedDeveloperHoursSaved: hoursSaved,
+    message: `You just saved your team approximately ${hoursSaved.toFixed(1)} hours of future manual auditing.`,
+  };
+}
+
+/**
+ * Removes all unused variables, functions, and classes from the source file.
+ * @param {import('ts-morph').Graph} graph
+ * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
+ * @returns {number} The number of console.log statements removed
+ */
+async function pruneInternal(graph) {
+  const project = new Project({
+    compilerOptions: {
+      allowJs: true,
+    },
+  });
+  const stats = {
+    totalItemsRemoved: 0,
+    totalLinesRemoved: 0,
+    bytesSaved: 0,
+    filesModified: 0,
+  };
+
+  for (const [filePath] of graph.entries()) {
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const initialLoc = sourceFile.getEndLineNumber();
+    const initialSize = fs.statSync(filePath).size;
+    const isAffected = pruneInternalUnused(sourceFile, stats);
+    if (isAffected) {
+      await sourceFile.save();
+      const finalLoc = sourceFile.getEndLineNumber();
+      const finalSize = fs.statSync(filePath).size;
+      const linesRemoved = initialLoc - finalLoc;
+      const bytesSaved = initialSize - finalSize;
+      stats.totalLinesRemoved += linesRemoved;
+      stats.bytesSaved += bytesSaved;
+      stats.filesModified++;
+    }
+  }
+
+  return generateSavingsReport(stats);
+}
+
+/**
+ * Removes all unused variables, functions, and classes from the source file.
+ * @param {import('ts-morph').SourceFile} sourceFile
+ * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
+ * @returns {boolean} True if the file was affected, false otherwise
+ */
+function pruneInternalUnused(sourceFile, stats) {
+  let isAffected = false;
+  // Check Variables, Functions, and Classes
+  const candidates = [
+    ...sourceFile.getVariableDeclarations(),
+    ...sourceFile.getFunctions(),
+    ...sourceFile.getClasses(),
+  ];
+
+  candidates.forEach((node) => {
+    // 1. Skip if it's exported (let the global scanner handle exports)
+    if (node.isExported && node.isExported()) return;
+
+    // 2. Check for references
+    const references = node.findReferencesAsNodes();
+
+    // If references == 0, it's dead.
+    // Note: In TS-Morph, the declaration itself is sometimes counted as a reference,
+    // so we check if references are only within the declaration's own range.
+    if (references.length === 0) {
+      isAffected = true;
+      node.remove();
+      stats.totalItemsRemoved++;
+    }
+  });
+  return isAffected;
+}
+
+/**
+ * Removes common `console` debug calls (log, dir, table, …) from files in the graph.
+ * @param {Map<string, unknown>} graph
+ */
+async function nukeConsoleLogs(graph) {
+  const project = new Project({
+    compilerOptions: {
+      allowJs: true,
+    },
+  });
+  const stats = {
+    totalItemsRemoved: 0,
+    totalLinesRemoved: 0,
+    bytesSaved: 0,
+    filesModified: 0,
+  };
+  for (const [filePath] of graph.entries()) {
+    let logsRemoved = 0;
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const initialLoc = sourceFile.getEndLineNumber();
+    const initialSize = fs.statSync(filePath).size;
+
+    // Copy: removing nodes while traversing can skip later matches.
+    for (const call of sourceFile
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .slice()) {
+      if (!getRemovableConsoleDebugMethod(call)) {
+        continue;
+      }
+      const exprStmt = call.getParentIfKind(SyntaxKind.ExpressionStatement);
+      if (exprStmt) {
+        exprStmt.remove();
+        logsRemoved++;
+      }
+    }
+    if (logsRemoved > 0) {
+      await sourceFile.save();
+      const finalLoc = sourceFile.getEndLineNumber();
+      const finalSize = fs.statSync(filePath).size;
+      const linesRemoved = initialLoc - finalLoc;
+      const bytesSaved = initialSize - finalSize;
+      stats.totalItemsRemoved += logsRemoved;
+      stats.totalLinesRemoved += linesRemoved;
+      stats.bytesSaved += bytesSaved;
+      stats.filesModified++;
+    }
+  }
+  return generateSavingsReport(stats);
+}
+
+/**
+ * Removes duplicate logic from the source file.
+ * @param {Map<string, unknown>} graph
+ * @returns {Promise<object>} The savings report
+ */
+async function deduplicateLogic(graph) {
+  const project = new Project({
+    compilerOptions: {
+      allowJs: true,
+    },
+  });
+  const stats = {
+    totalItemsRemoved: 0,
+    totalLinesRemoved: 0,
+    bytesSaved: 0,
+    filesModified: 0,
+  };
+  for (const [filePath] of graph.entries()) {
+    let duplicatesRemoved = 0;
+  const seenCode = new Set();
+    const sourceFile = project.addSourceFileAtPath(filePath);
+    const initialLoc = sourceFile.getEndLineNumber();
+    const initialSize = fs.statSync(filePath).size;
+  
+    // We check functions and classes specifically
+    const logicBlocks = [
+      ...sourceFile.getFunctions(),
+      ...sourceFile.getClasses()
+    ];
+  
+    logicBlocks.forEach(node => {
+      const codeBody = node.getText(); // The actual source code of the function/class
+  
+      if (seenCode.has(codeBody)) {
+        node.remove();
+        duplicatesRemoved++;
+      } else {
+        seenCode.add(codeBody);
+      }
+    });
+    if (duplicatesRemoved > 0) {
+      await sourceFile.save();
+      const finalLoc = sourceFile.getEndLineNumber();
+      const finalSize = fs.statSync(filePath).size;
+      const linesRemoved = initialLoc - finalLoc;
+      const bytesSaved = initialSize - finalSize;
+      stats.totalItemsRemoved += duplicatesRemoved;
+      stats.totalLinesRemoved += linesRemoved;
+      stats.bytesSaved += bytesSaved;
+      stats.filesModified++;
+    }
+  }
+  return generateSavingsReport(stats);
+}
+module.exports = {
+  editFile,
+  generateSavingsReport,
+  findUnusedFunctionsAndVariablesInFile,
+  pruneInternal,
+  nukeConsoleLogs,
+  deduplicateLogic,
+};

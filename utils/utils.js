@@ -154,6 +154,19 @@ async function updateStatistics (action, {sessionID, filesDeleted, bytesSaved, e
   fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
 }
 
+async function updateFileAssociatedStats(sessionID, fileAssociated) {
+  const filePath = path.join(process.cwd(), "qleaner.stats.json");
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
+  }
+  const config = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  config.fileAssociatedStats = {
+    ...config.fileAssociatedStats,
+    [sessionID]: fileAssociated,
+  };
+  fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
+}
+
 async function deleteFiles(files, unusedFiles, isCode = true) {
   const cache = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), "unused-check-cache.json"), "utf8")
@@ -303,4 +316,5 @@ module.exports = {
   moveFromTrash,
   uninstallDependency,
   combineValues,
+  updateFileAssociatedStats,
 };

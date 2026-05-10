@@ -3,6 +3,7 @@ const path = require('path');
 const { hydrateGraph } = require('../utils/graphUtils');
 
 function findUnusedExports() {
+    const fileAssociated = new Map();
     const unUsedExportsWithPath = new Map();
     const unusedExports = new Set();
     const usedExports = new Set();
@@ -13,13 +14,14 @@ function findUnusedExports() {
         if(node.exports.size === 0) {
             continue
         }
-        findUnusedFlags(node, unusedExports, usedExports, graph, node.exports, unUsedExportsWithPath, node.file);
+        fileAssociated.set(node.file, new Set());
+        findUnusedFlags(node, unusedExports, usedExports, graph, node.exports, unUsedExportsWithPath, node.file, fileAssociated);
     }
-    return unUsedExportsWithPath;
+    return {unUsedExportsWithPath, fileAssociated};
 }
 
 
-function findUnusedFlags(node, unusedExports, usedExports, graph, exportedNames, unUsedExportsWithPath, currentFile) {
+function findUnusedFlags(node, unusedExports, usedExports, graph, exportedNames, unUsedExportsWithPath, currentFile, fileAssociated) {
     if(node.importedBy.size > 0) {
         for(const importedByFile of node.importedBy) {
             const importedNode = graph.get(importedByFile);
@@ -34,6 +36,7 @@ function findUnusedFlags(node, unusedExports, usedExports, graph, exportedNames,
                         if(unusedExports.has(exportComponentName)) {
                             unusedExports.delete(exportComponentName)
                             unUsedExportsWithPath.delete(exportComponentName)
+                            fileAssociated.delete(currentFile)
                         }
                         return
                     }
@@ -41,6 +44,7 @@ function findUnusedFlags(node, unusedExports, usedExports, graph, exportedNames,
                 if(!usedExports.has(exportComponentName)) {
                     unusedExports.add(exportComponentName)
                     unUsedExportsWithPath.set(exportComponentName, currentFile)
+                    fileAssociated.get(currentFile).add(importedByFile)
                 }
             })
         }
@@ -49,12 +53,10 @@ function findUnusedFlags(node, unusedExports, usedExports, graph, exportedNames,
     if (node.reExportedBy.size > 0) {
         for(const reExportedByFile of node.reExportedBy) {
             const reExportedByNode = graph.get(reExportedByFile);
-            // if(node.file === '/Users/trevis/projects/react-cleaner/src/infisical-main/frontend/src/hooks/api/secrets/queries.tsx'){
-            //     console.log(reExportedByNode)
-      
-            //     console.log('--------------------------------')
-            // }
-            findUnusedFlags(reExportedByNode, unusedExports, usedExports, graph, exportedNames, unUsedExportsWithPath, currentFile);
+            if(fileAssociated.has(currentFile)) {
+                fileAssociated.get(currentFile).add(reExportedByFile)
+            }
+            findUnusedFlags(reExportedByNode, unusedExports, usedExports, graph, exportedNames, unUsedExportsWithPath, currentFile, fileAssociated);
         }
     }
 }

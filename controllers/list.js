@@ -2,35 +2,75 @@ const { unUsedFiles } = require("../command");
 const { hydrateGraph } = require("../utils/graphUtils");
 const { findUnusedExports } = require("./code");
 const Table = require('cli-table3');
-const { askDeleteFiles, loadTSConfig, moveFromTrash, uninstallDependency, combineValues } = require("../utils/utils");
+const { askDeleteFiles, loadTSConfig, moveFromTrash, uninstallDependency, combineValues, updateFileAssociatedStats } = require("../utils/utils");
 const fs = require('fs');
 const path = require('path');
 const { summarizeAll, getTop10LargestFiles, dependenciesSummary, formatFilePath } = require("./summary");
 const { query, unusedDependencies: findUnusedDeps } = require("./query");
-const { editFile } = require("../utils/editFile");
+const { editFile, pruneInternal, nukeConsoleLogs, deduplicateLogic } = require("../utils/editFile");
 
+async function checkForDuplicates(chalk) {
+  const cache = JSON.parse(fs.readFileSync(path.join(process.cwd(), "unused-check-cache.json"), "utf8"));
+  const graph = hydrateGraph(cache.parentGraph.graph);
+  const stats = await deduplicateLogic(graph);
+  await updateFileAssociatedStats(new Date().toISOString(), stats);
+  console.log(chalk.yellow('Check for duplicates:'));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
+  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
+  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
+  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+}
+async function pruneConsoleLogs(chalk) {
+  const cache = JSON.parse(fs.readFileSync(path.join(process.cwd(), "unused-check-cache.json"), "utf8"));
+  const graph = hydrateGraph(cache.parentGraph.graph);
+  const stats = await nukeConsoleLogs(graph);
+  await updateFileAssociatedStats(new Date().toISOString(), stats);
+  console.log(chalk.yellow('Prune console logs:'));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
+  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
+  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
+  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+}
+
+async function pruneUnusedCode(chalk) {
+  const cache = JSON.parse(fs.readFileSync(path.join(process.cwd(), "unused-check-cache.json"), "utf8"));
+  const graph = hydrateGraph(cache.parentGraph.graph);
+  const stats = await pruneInternal(graph);
+  updateFileAssociatedStats(new Date().toISOString(), stats);
+  console.log(chalk.yellow('Prune internal unused code:'));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
+  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
+  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
+  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
+  console.log(chalk.yellow('════════════════════════════════════════════════'));
+} 
 async function unusedExports(chalk, options = {}) {
-  const unUsedExportsWithPath = findUnusedExports();
+  const {unUsedExportsWithPath, fileAssociated} = findUnusedExports();
   if(unUsedExportsWithPath.size === 0) {
     console.log(chalk.green('✓ No unused exports found. All exports are in use.'));
     return;
   }
   // print the unused exports in a table
   const table = new Table({
-    head: [chalk.cyan('Export Name'), chalk.cyan('File Path')],
+    head: [chalk.cyan('Unreferenced Exports'), chalk.cyan('File Path')],
     colWidths: [100, 100],
     style: { head: [], border: [] }
   });
-  unUsedExportsWithPath.forEach((filePath, exportName) => {
+  const listToRemove = combineValues(unUsedExportsWithPath);
+  listToRemove.forEach((exportName, filePath) => {
     table.push([chalk.white(exportName), chalk.white(formatFilePath(filePath, 95))]);
   });
-   console.log(table.toString());
+  console.log(table.toString());
   console.log(chalk.yellow('════════════════════════════════════════════════'));
   if(options.fix){
-    const listToRemove = combineValues(unUsedExportsWithPath);
-    console.log(listToRemove);
-    const stats = await editFile(listToRemove);
-    console.log(stats);
+    
+    const stats = await editFile(listToRemove, fileAssociated);
+    await updateFileAssociatedStats(new Date().toISOString(), stats);
   }
   // write the total number of unused exports
   console.log(chalk.yellow(`Total unused exports: ${unUsedExportsWithPath.size}`));
@@ -308,4 +348,7 @@ module.exports = {
   unusedDependencies,
   undoDeletions,
   unusedExports,
+  pruneUnusedCode,
+  pruneConsoleLogs,
+  checkForDuplicates,
 };
