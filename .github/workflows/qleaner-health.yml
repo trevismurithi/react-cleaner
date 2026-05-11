@@ -1,4 +1,4 @@
-name: "Qleaner Health Guardian"
+name: "Qleaner Health Guardian (Local Mode)"
 
 on:
   pull_request:
@@ -9,69 +9,71 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # Required for the Action to post PR comments
+      pull-requests: write
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js
+      - name: 2. Setup Node.js & Yarn
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'yarn' # This caches your node_modules for faster subsequent runs
 
-      - name: 3. Restore Qleaner Smart Cache
-        # Qleaner v1.3.3 uses unused-check-cache.json for fast incremental scans.
-        # Restoring this prevents the Action from rebuilding the entire dependency graph every time.
+      - name: 3. Install Local Dependencies
+        # Since it's not on NPM, we must install the project's own dependencies to run 'yarn start'
+        run: yarn install
+
+      - name: 4. Restore Qleaner Smart Cache
+        # Restores unused-check-cache.json for incremental scans.
         uses: actions/cache@v4
         with:
           path: unused-check-cache.json
-          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             qleaner-cache-${{ runner.os }}-
 
-      - name: 4. Install Qleaner
-        run: npm install -g qleaner
-
-      - name: 5. Execute Cleanup Pipeline
-        # 'qleaner tidy' runs the full sequence: logs, internal code, duplicates, and exports.
-        # It automatically generates qleaner.stats.json with surgical metrics.
+      - name: 5. Execute Health Pipeline
+        # We replace global 'qleaner' with your local 'yarn start' command
+        # Using -d (dry-run) and -C (clear-cache) as requested
         run: |
-          qleaner scan -d -C
-          qleaner tidy
-          qleaner summary --dependencies > health_summary.txt
+          yarn start tidy
+          yarn start summary --dependencies > health_summary.txt
 
       - name: 6. Analyze and Post PR Report
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
-            const summary = fs.readFileSync('health_summary.txt', 'utf8');
             
-            // Extract the latest surgical session from your stats.json
-            const sessions = Object.values(stats.fileAssociatedStats || {});
-            const lastSession = sessions[sessions.length - 1] || {};
-            
-            const body = `### 🧹 Qleaner Repository Health Report
-            **Surgical Impact of this PR:**
-            - **Items Removed:** ${lastSession.totalItemsRemoved || 0} (vars, functions, classes)
-            - **Lines of Code (LOC) Pruned:** ${lastSession.totalLinesRemoved || 0}
-            - **Storage Reclaimed:** ${lastSession.bytesSaved || 0} bytes
-            
-            **🚀 Estimated Developer Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
-            
-            **Project Hotspots:**
-            \`\`\`
-            ${summary}
-            \`\`\`
-            
-            *Automated by Qleaner v1.3.3. Maintain velocity by keeping your codebase healthy.*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            })
+            // Check if stats file exists before reading
+            if (fs.existsSync('qleaner.stats.json')) {
+              const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
+              const summary = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'No summary generated.';
+              
+              const sessions = Object.values(stats.fileAssociatedStats || {});
+              const lastSession = sessions[sessions.length - 1] || {};
+              
+              const body = `### 🧹 Qleaner Local Health Report
+              **Surgical Impact of this PR:**
+              - **Items Removed:** ${lastSession.totalItemsRemoved || 0}
+              - **Lines of Code (LOC) Pruned:** ${lastSession.totalLinesRemoved || 0}
+              - **Storage Reclaimed:** ${lastSession.bytesSaved || 0} bytes
+              
+              **🚀 Estimated Developer Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
+              
+              **Project Hotspots:**
+              \`\`\`
+              ${summary}
+              \`\`\`
+              
+              *Running via local source (yarn start).*`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
