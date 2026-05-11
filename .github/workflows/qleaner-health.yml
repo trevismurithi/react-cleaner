@@ -2,7 +2,7 @@ name: "Qleaner Health Guardian"
 
 on:
   pull_request:
-    branches: [ main, master, develop, staging ]
+    branches: [ main, master, develop ]
 
 jobs:
   hygiene-check:
