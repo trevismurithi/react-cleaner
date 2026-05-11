@@ -317,4 +317,5 @@ module.exports = {
   uninstallDependency,
   combineValues,
   updateFileAssociatedStats,
+  moveToTrash,
 };

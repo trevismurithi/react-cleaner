@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const { Command } = require("commander");
+const { version: pkgVersion } = require("../package.json");
 const {
   summary,
   scan,
@@ -10,6 +11,7 @@ const {
   pruneUnusedCode,
   pruneConsoleLogs,
   checkForDuplicates,
+  tidyUp,
 } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
@@ -31,7 +33,7 @@ async function loadOra() {
   program
     .name("qleaner")
     .description("A tool to clean up your React code")
-    .version("1.0.34");
+    .version(pkgVersion);
 
   program
     .command("init")
@@ -78,7 +80,7 @@ async function loadOra() {
   program
     .command("scan")
     .description("Scan the project for unused files")
-    .argument("<path>", "The path to the directory to scan for unused files")
+    .option("-p, --path <path>", "The path to the directory to scan for unused files")
     .option("-e, --exclude-dir <dir...>", "Exclude directories from the scan")
     .option("-f, --exclude-file <file...>", "Exclude files from the scan")
     .option(
@@ -94,12 +96,13 @@ async function loadOra() {
       "-d, --dry-run",
       "Show what would be deleted without actually deleting (skips prompt)",
     )
+    .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
     .option(
       "-C, --clear-cache",
       "Clear the cache recommended after making code changes",
     )
-    .action(async (path, options) => {
-      await scan(ora, chalk, path, options);
+    .action(async (options) => {
+      await scan(ora, chalk, options);
     });
 
   program
@@ -155,22 +158,25 @@ async function loadOra() {
     .command("exports")
     .description("List the unused exports")
     .option("-f, --fix", "Fix the unused exports")
+    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
     .action(async (options) => {
       await unusedExports(chalk, options);
     });
   program
     .command("prune")
     .description("Prune the unused code (variables, functions, classes)")
-    .action(async () => {
-      await pruneUnusedCode(chalk);
+    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .action(async (options) => {
+      await pruneUnusedCode(chalk, options);
     });
   program
     .command("prune-logs")
     .description(
       "Prune the unused console logs (log, dir, dirxml, table, debug, info, trace)",
     )
-    .action(async () => {
-      await pruneConsoleLogs(chalk);
+    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .action(async (options) => {
+      await pruneConsoleLogs(chalk, options);
     });
   program
     .command("undo")
@@ -186,8 +192,15 @@ async function loadOra() {
   program
     .command("duplicates")
     .description("Check for duplicates in the project")
+    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .action(async (options) => {
+      await checkForDuplicates(chalk, options);
+    });
+  program
+    .command("tidy")
+    .description("Tidy up the project")
     .action(async () => {
-      await checkForDuplicates(chalk);
+      await tidyUp(ora, chalk);
     });
   program.parse(process.argv);
 })();

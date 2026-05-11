@@ -328,7 +328,8 @@ function generateSavingsReport(stats) {
  * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
  * @returns {number} The number of console.log statements removed
  */
-async function pruneInternal(graph) {
+async function pruneInternal(files, isDryRun = false) {
+  let unusedCodeFound = 0;
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -341,12 +342,15 @@ async function pruneInternal(graph) {
     filesModified: 0,
   };
 
-  for (const [filePath] of graph.entries()) {
+  for (const filePath of files) {
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
-    const isAffected = pruneInternalUnused(sourceFile, stats);
+    const isAffected = pruneInternalUnused(sourceFile, stats, isDryRun);
     if (isAffected) {
+      unusedCodeFound++;
+    }
+    if (isAffected && !isDryRun) {
       await sourceFile.save();
       const finalLoc = sourceFile.getEndLineNumber();
       const finalSize = fs.statSync(filePath).size;
@@ -358,7 +362,10 @@ async function pruneInternal(graph) {
     }
   }
 
-  return generateSavingsReport(stats);
+  if (!isDryRun) {
+    return generateSavingsReport(stats);
+  }
+  return unusedCodeFound;
 }
 
 /**
@@ -367,7 +374,7 @@ async function pruneInternal(graph) {
  * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
  * @returns {boolean} True if the file was affected, false otherwise
  */
-function pruneInternalUnused(sourceFile, stats) {
+function pruneInternalUnused(sourceFile, stats, isDryRun) {
   let isAffected = false;
   // Check Variables, Functions, and Classes
   const candidates = [
@@ -388,7 +395,9 @@ function pruneInternalUnused(sourceFile, stats) {
     // so we check if references are only within the declaration's own range.
     if (references.length === 0) {
       isAffected = true;
-      node.remove();
+      if (!isDryRun) {
+        node.remove();
+      }
       stats.totalItemsRemoved++;
     }
   });
@@ -399,7 +408,8 @@ function pruneInternalUnused(sourceFile, stats) {
  * Removes common `console` debug calls (log, dir, table, …) from files in the graph.
  * @param {Map<string, unknown>} graph
  */
-async function nukeConsoleLogs(graph) {
+async function nukeConsoleLogs(files, isDryRun = false) {
+  let logsFound = 0;
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -411,38 +421,65 @@ async function nukeConsoleLogs(graph) {
     bytesSaved: 0,
     filesModified: 0,
   };
-  for (const [filePath] of graph.entries()) {
+  for (const filePath of files) {
     let logsRemoved = 0;
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
 
-    // Copy: removing nodes while traversing can skip later matches.
-    for (const call of sourceFile
-      .getDescendantsOfKind(SyntaxKind.CallExpression)
-      .slice()) {
-      if (!getRemovableConsoleDebugMethod(call)) {
+    // Important: collect nodes first, then mutate. Removing nodes can "forget" other nodes
+    // captured earlier, which makes later reads throw InvalidOperationError.
+    const removableStatements = [];
+    for (const call of sourceFile.getDescendantsOfKind(
+      SyntaxKind.CallExpression,
+    )) {
+      let isRemovable = false;
+      try {
+        isRemovable = Boolean(getRemovableConsoleDebugMethod(call));
+      } catch {
+        // If the node is already forgotten for any reason, skip it safely.
         continue;
       }
+      if (!isRemovable) continue;
+
       const exprStmt = call.getParentIfKind(SyntaxKind.ExpressionStatement);
-      if (exprStmt) {
-        exprStmt.remove();
-        logsRemoved++;
+      if (exprStmt) removableStatements.push(exprStmt);
+    }
+
+    if (removableStatements.length > 0) {
+      logsRemoved = removableStatements.length;
+      logsFound += removableStatements.length;
+
+      if (!isDryRun) {
+        // Remove bottom-to-top so edits don't disturb earlier node positions.
+        const uniqueByStart = new Map();
+        for (const stmt of removableStatements) {
+          uniqueByStart.set(stmt.getStart(), stmt);
+        }
+        const toRemove = [...uniqueByStart.values()].sort(
+          (a, b) => b.getStart() - a.getStart(),
+        );
+
+        for (const stmt of toRemove) {
+          stmt.remove();
+        }
+
+        await sourceFile.save();
+        const finalLoc = sourceFile.getEndLineNumber();
+        const finalSize = fs.statSync(filePath).size;
+        const linesRemoved = initialLoc - finalLoc;
+        const bytesSaved = initialSize - finalSize;
+        stats.totalItemsRemoved += logsRemoved;
+        stats.totalLinesRemoved += linesRemoved;
+        stats.bytesSaved += bytesSaved;
+        stats.filesModified++;
       }
     }
-    if (logsRemoved > 0) {
-      await sourceFile.save();
-      const finalLoc = sourceFile.getEndLineNumber();
-      const finalSize = fs.statSync(filePath).size;
-      const linesRemoved = initialLoc - finalLoc;
-      const bytesSaved = initialSize - finalSize;
-      stats.totalItemsRemoved += logsRemoved;
-      stats.totalLinesRemoved += linesRemoved;
-      stats.bytesSaved += bytesSaved;
-      stats.filesModified++;
-    }
   }
-  return generateSavingsReport(stats);
+  if (!isDryRun) {
+    return generateSavingsReport(stats);
+  }
+  return logsFound;
 }
 
 /**
@@ -450,7 +487,8 @@ async function nukeConsoleLogs(graph) {
  * @param {Map<string, unknown>} graph
  * @returns {Promise<object>} The savings report
  */
-async function deduplicateLogic(graph) {
+async function deduplicateLogic(files, isDryRun = false) {
+  let duplicatesFound = 0;
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -462,30 +500,34 @@ async function deduplicateLogic(graph) {
     bytesSaved: 0,
     filesModified: 0,
   };
-  for (const [filePath] of graph.entries()) {
+  for (const filePath of files) {
     let duplicatesRemoved = 0;
-  const seenCode = new Set();
+    const seenCode = new Set();
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
-  
+
     // We check functions and classes specifically
     const logicBlocks = [
       ...sourceFile.getFunctions(),
-      ...sourceFile.getClasses()
+      ...sourceFile.getClasses(),
     ];
-  
-    logicBlocks.forEach(node => {
+
+    logicBlocks.forEach((node) => {
       const codeBody = node.getText(); // The actual source code of the function/class
-  
+
       if (seenCode.has(codeBody)) {
-        node.remove();
+        console.log(`Duplicate found: ${codeBody}`);
+        if (!isDryRun) {
+          node.remove();
+        }
         duplicatesRemoved++;
+        duplicatesFound++;
       } else {
         seenCode.add(codeBody);
       }
     });
-    if (duplicatesRemoved > 0) {
+    if (!isDryRun && duplicatesRemoved > 0) {
       await sourceFile.save();
       const finalLoc = sourceFile.getEndLineNumber();
       const finalSize = fs.statSync(filePath).size;
@@ -497,7 +539,10 @@ async function deduplicateLogic(graph) {
       stats.filesModified++;
     }
   }
-  return generateSavingsReport(stats);
+  if (!isDryRun) {
+    return generateSavingsReport(stats);
+  }
+  return duplicatesFound;
 }
 module.exports = {
   editFile,

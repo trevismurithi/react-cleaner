@@ -1,5 +1,12 @@
 {
-  "statistics": {},
+  "statistics": {
+    "2026-05-11T10:55:01.097Z": {
+      "filesDeleted": 2,
+      "bytesSaved": 54,
+      "exportsStripped": null,
+      "estimatedDeveloperHoursSaved": 0.5
+    }
+  },
   "fileAssociatedStats": {
     "2026-05-10T20:19:07.073Z": {
       "title": "Qleaner Surgical Report",
@@ -135,10 +142,11 @@
     },
     "2026-05-10T19:34:13.424Z": {
       "title": "Qleaner Surgical Report",
-      "removedCount": 8,
-      "locRemoved": 16,
-      "kbSaved": "0.21",
-      "timeSaved": "0.33 hrs",
+      "totalItemsRemoved": 8,
+      "totalLinesRemoved": 16,
+      "bytesSaved": 21,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.33,
       "message": "You just saved your team approximately 0.3 hours of future manual auditing."
     },
     "2026-05-10T19:32:27.357Z": {
@@ -152,6 +160,168 @@
       "totalItemsRemoved": 1,
       "totalLinesRemoved": 4,
       "bytesSaved": 45,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T06:45:47.407Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 0,
+      "totalLinesRemoved": 0,
+      "bytesSaved": 0,
+      "filesModified": 0,
+      "estimatedDeveloperHoursSaved": 0,
+      "message": "You just saved your team approximately 0.0 hours of future manual auditing."
+    },
+    "2026-05-11T06:45:47.416Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 0,
+      "totalLinesRemoved": 0,
+      "bytesSaved": 0,
+      "filesModified": 0,
+      "estimatedDeveloperHoursSaved": 0,
+      "message": "You just saved your team approximately 0.0 hours of future manual auditing."
+    },
+    "2026-05-11T06:45:48.082Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 4,
+      "totalLinesRemoved": 11,
+      "bytesSaved": 137,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.29,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:22:32.155Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 4,
+      "bytesSaved": 45,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:22:44.666Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 4,
+      "bytesSaved": 45,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:25:24.969Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 4,
+      "bytesSaved": 45,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:27:29.720Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 11,
+      "totalLinesRemoved": 11,
+      "bytesSaved": 354,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.36,
+      "message": "You just saved your team approximately 0.4 hours of future manual auditing."
+    },
+    "2026-05-11T07:28:06.798Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 0,
+      "totalLinesRemoved": 0,
+      "bytesSaved": 0,
+      "filesModified": 0,
+      "estimatedDeveloperHoursSaved": 0,
+      "message": "You just saved your team approximately 0.0 hours of future manual auditing."
+    },
+    "2026-05-11T07:28:39.147Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 3,
+      "totalLinesRemoved": 7,
+      "bytesSaved": 91,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.28,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:32:07.113Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 11,
+      "totalLinesRemoved": 11,
+      "bytesSaved": 354,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.36,
+      "message": "You just saved your team approximately 0.4 hours of future manual auditing."
+    },
+    "2026-05-11T07:32:08.111Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 3,
+      "totalLinesRemoved": 7,
+      "bytesSaved": 91,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.28,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T07:38:26.146Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 0,
+      "totalLinesRemoved": 0,
+      "bytesSaved": 0,
+      "filesModified": 0,
+      "estimatedDeveloperHoursSaved": 0,
+      "message": "You just saved your team approximately 0.0 hours of future manual auditing."
+    },
+    "2026-05-11T09:21:02.989Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 11,
+      "totalLinesRemoved": 11,
+      "bytesSaved": 354,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.36,
+      "message": "You just saved your team approximately 0.4 hours of future manual auditing."
+    },
+    "2026-05-11T09:21:03.877Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 2,
+      "totalLinesRemoved": 3,
+      "bytesSaved": 46,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.27,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T09:21:03.890Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 4,
+      "bytesSaved": 45,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T09:38:23.810Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 1,
+      "bytesSaved": 32,
+      "filesModified": 1,
+      "estimatedDeveloperHoursSaved": 0.26,
+      "message": "You just saved your team approximately 0.3 hours of future manual auditing."
+    },
+    "2026-05-11T09:38:24.884Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 3,
+      "totalLinesRemoved": 12,
+      "bytesSaved": 148,
+      "filesModified": 2,
+      "estimatedDeveloperHoursSaved": 0.53,
+      "message": "You just saved your team approximately 0.5 hours of future manual auditing."
+    },
+    "2026-05-11T09:38:24.903Z": {
+      "title": "Qleaner Surgical Report",
+      "totalItemsRemoved": 1,
+      "totalLinesRemoved": 3,
+      "bytesSaved": 44,
       "filesModified": 1,
       "estimatedDeveloperHoursSaved": 0.26,
       "message": "You just saved your team approximately 0.3 hours of future manual auditing."
