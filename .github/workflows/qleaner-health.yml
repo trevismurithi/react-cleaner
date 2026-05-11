@@ -57,7 +57,7 @@ jobs:
           # Check if tidy actually changed any files before committing
           if ! git diff --cached --exit-code; then
             git commit -m "chore: automated qleaner repository hygiene"
-            git push origin ${{ github.ref }}
+            git push 
           else
             echo "No hygiene issues detected. Code is pristine."
           fi
