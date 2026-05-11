@@ -21,5 +21,7 @@ function dummyFunction2() {
 console.warn(dummyFunction2());
 console.error(dummyFunction2());
  console.log(dummyFunction2());
+ console.log(dummyFunction2());
+ console.log(dummyFunction2());
 console.warn(dummyFunction2());
 console.error(dummyFunction2());
