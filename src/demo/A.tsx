@@ -1,30 +1,30 @@
-// export const A = () => {
-//     return <div>A</div>
-// }
-// // create dummy variables and functions like 10 that are not used
+export const A = () => {
+    return <div>A</div>
+}
+// create dummy variables and functions like 10 that are not used
 
-// function dummyFunction3() {
-//     return 10;
-// }
-// function dummyVariable() {}
+function dummyFunction3() {
+    return 10;
+}
+function dummyVariable() {}
 
-// const dummyVariable2 = 10;
+const dummyVariable2 = 10;
 
-// function dummyFunction() {
-//     return 10;
-// }
-// function dummyFunction() {
-//     return 10;
-// }
+function dummyFunction() {
+    return 10;
+}
+function dummyFunction() {
+    return 10;
+}
 
-// function dummyFunction2() {
-//     return 10;
-// }
+function dummyFunction2() {
+    return 10;
+}
 
-// console.warn(dummyFunction2());
-// console.error(dummyFunction2());
-//  console.log(dummyFunction2());
-//  console.log(dummyFunction2());
-//  console.log(dummyFunction2());
-// console.warn(dummyFunction2());
-// console.error(dummyFunction2());
+console.warn(dummyFunction2());
+console.error(dummyFunction2());
+ console.log(dummyFunction2());
+ console.log(dummyFunction2());
+ console.log(dummyFunction2());
+console.warn(dummyFunction2());
+console.error(dummyFunction2());
