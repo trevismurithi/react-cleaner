@@ -45,6 +45,7 @@ jobs:
         run: |
           yarn start tidy
           yarn start summary > health_summary.txt
+          node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt > pr_report.md
 
       - name: 6. Commit and Push Cleaned Code
         # This saves the changes back to the PR branch correctly
@@ -68,34 +69,34 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
-            if (fs.existsSync('qleaner.stats.json')) {
-              const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
-              const summaryText = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'Summary not available.';
-              
-              // Get the most recent surgical impact metrics
-              const sessions = Object.values(stats.fileAssociatedStats || {});
-              const lastSession = sessions[sessions.length - 1] || {};
-              
-              const body = `### 🧹 Qleaner Health Guardian Report
-              **Surgical Fixes Applied:**
-              - **Items Removed:** ${lastSession.totalItemsRemoved || 0}
-              - **Lines Pruned:** ${lastSession.totalLinesRemoved || 0}
-              - **Size Saved:** ${lastSession.bytesSaved || 0} bytes
-              
-              **🚀 Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
-              
-              **Repository Hotspots:**
-              \`\`\`
-              ${summaryText}
-              \`\`\`
-              
-              *Codebase health maintained by Qleaner v1.3.3.*`;
-              
-              github.rest.issues.createComment({
+            if (!fs.existsSync('pr_report.md')) { return; }
+
+            const body = fs.readFileSync('pr_report.md', 'utf8');
+            const marker = '<!-- qleaner-report -->';
+
+            // Find an existing comment from a previous push to this PR and update it
+            // instead of creating a new one on every run.
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: body
+                body,
               });
             }
