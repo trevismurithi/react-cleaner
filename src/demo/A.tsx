@@ -41,6 +41,9 @@ function dummyFunction6() {
     return 10;
 }
 
+function dummyFunction7() {
+    return 10;
+}
 console.warn(dummyFunction2());
 console.error(dummyFunction2());
  console.log(dummyFunction2());
