@@ -2,23 +2,23 @@ name: "Qleaner Health Guardian"
 
 on:
   pull_request:
-    branches: [ main, master, develop, staging ]
+    branches: [ main, master, develop ]
 
 jobs:
   hygiene-check:
     name: "Repository Hygiene and Stats"
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Crucial for pushing code changes
-      pull-requests: write # Crucial for posting PR comments
+      contents: write # Required for pushing code changes
+      pull-requests: write # Required for posting PR comments
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
         with:
-          # fetch-depth: 0 ensures we have full history for git push
+          # We explicitly check out the branch to avoid 'detached HEAD' errors
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
-          # Use the GITHUB_TOKEN to allow the bot to push back to the branch
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. Setup Node.js & Yarn
@@ -28,11 +28,11 @@ jobs:
           cache: 'yarn'
 
       - name: 3. Install Local Dependencies
-        # Required because Qleaner runs via 'yarn start' from source code
+        # Essential for running Qleaner from source via 'yarn start'
         run: yarn install
 
       - name: 4. Restore Qleaner Smart Cache
-        # Restores incremental scan data to speed up PR analysis
+        # Uses unused-check-cache.json to ensure fast, incremental PR analysis
         uses: actions/cache@v4
         with:
           path: unused-check-cache.json
@@ -41,29 +41,29 @@ jobs:
             qleaner-cache-${{ runner.os }}-
 
       - name: 5. Execute Cleanup and Summary
-        # Runs 'tidy' (logs, code, duplicates, exports) and generates hotspots
+        # Runs the full 'tidy' sequence and generates dependency hotspots
         run: |
           yarn start tidy
           yarn start summary --dependencies > health_summary.txt
 
       - name: 6. Commit and Push Cleaned Code
-        # This saves the surgical fixes back to your GitHub branch
+        # This saves the changes back to the PR branch correctly
         run: |
-          # Use your email or the standard GitHub bot email
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           git add .
-          # Check if tidy actually changed any files before committing
+          # Check if tidy actually changed any files in stats or code
           if ! git diff --cached --exit-code; then
             git commit -m "chore: automated qleaner repository hygiene"
-            git push 
+            # Explicitly push to the PR branch to resolve detached HEAD issue
+            git push origin HEAD:${{ github.head_ref }}
           else
             echo "No hygiene issues detected. Code is pristine."
           fi
 
       - name: 7. Post PR Health Report
-        if: always() # Ensures report is posted even if git push was skipped
+        if: always() # Post report even if git push was skipped
         uses: actions/github-script@v7
         with:
           script: |
@@ -73,7 +73,7 @@ jobs:
               const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
               const summaryText = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'Summary not available.';
               
-              // Get the most recent surgical session from stats
+              // Get the most recent surgical impact metrics
               const sessions = Object.values(stats.fileAssociatedStats || {});
               const lastSession = sessions[sessions.length - 1] || {};
               
@@ -90,7 +90,7 @@ jobs:
               ${summaryText}
               \`\`\`
               
-              *Maintaining codebase health with Qleaner v1.3.3.*`;
+              *Codebase health maintained by Qleaner v1.3.3.*`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
