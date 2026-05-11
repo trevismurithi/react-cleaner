@@ -1,0 +1,77 @@
+name: "Qleaner Health Guardian"
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  hygiene-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required for the Action to post PR comments
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 3. Restore Qleaner Smart Cache
+        # Qleaner v1.3.3 uses unused-check-cache.json for fast incremental scans.
+        # Restoring this prevents the Action from rebuilding the entire dependency graph every time.
+        uses: actions/cache@v4
+        with:
+          path: unused-check-cache.json
+          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            qleaner-cache-${{ runner.os }}-
+
+      - name: 4. Install Qleaner
+        run: npm install -g qleaner
+
+      - name: 5. Execute Cleanup Pipeline
+        # 'qleaner tidy' runs the full sequence: logs, internal code, duplicates, and exports.
+        # It automatically generates qleaner.stats.json with surgical metrics.
+        run: |
+          qleaner scan --dry-run
+          qleaner tidy
+          qleaner summary --dependencies > health_summary.txt
+
+      - name: 6. Analyze and Post PR Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
+            const summary = fs.readFileSync('health_summary.txt', 'utf8');
+            
+            // Extract the latest surgical session from your stats.json
+            const sessions = Object.values(stats.fileAssociatedStats || {});
+            const lastSession = sessions[sessions.length - 1] || {};
+            
+            const body = `### 🧹 Qleaner Repository Health Report
+            **Surgical Impact of this PR:**
+            - **Items Removed:** ${lastSession.totalItemsRemoved || 0} (vars, functions, classes)
+            - **Lines of Code (LOC) Pruned:** ${lastSession.totalLinesRemoved || 0}
+            - **Storage Reclaimed:** ${lastSession.bytesSaved || 0} bytes
+            
+            **🚀 Estimated Developer Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
+            
+            **Project Hotspots:**
+            \`\`\`
+            ${summary}
+            \`\`\`
+            
+            *Automated by Qleaner v1.3.3. Maintain velocity by keeping your codebase healthy.*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            })

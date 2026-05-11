@@ -5,7 +5,7 @@ function findFilesByDependency(graph, dependency) {
   const dependencyArray = dependency.split('/');
   // check if all parts of the dependency exist in the graph
   // loop through the graph on the entries do the check on each part
-  for ([file, node] of graph.entries()) {
+  for (const [file, node] of graph.entries()) {
     if (dependencyArray.every(part => file.includes(part))) {
       matchingFiles = new Set([...matchingFiles, ...node.importedBy]);
     }

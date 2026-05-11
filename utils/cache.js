@@ -25,6 +25,7 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         imported: serializeImported(node.imported),
       };
     }
+    console.log('--------------------------------');
   } else {
     for (const [file, node] of imageParentGraph.imageGraph.entries()) {
       imageGraphData[file] = {
@@ -37,6 +38,7 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
       };
     }
   }
+
   if (Object.keys(graphData).length > 0)
     return {
       parentGraph: {
@@ -48,6 +50,7 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         unusedImages: Array.from(imageParentGraph.unusedImages),
       },
     };
+
   if (Object.keys(imageGraphData).length > 0)
     return {
       parentGraph: {
@@ -59,6 +62,17 @@ function serializeGraph({ parentGraph, imageParentGraph, isCode = true }) {
         unusedImages: Array.from(imageParentGraph.unusedImages),
       },
     };
+
+  return {
+    parentGraph: {
+      graph: parentGraph.graph,
+      unusedFiles: Array.from(parentGraph.unusedFiles),
+    },
+    imageParentGraph: {
+      imageGraph: imageGraphData,
+      unusedImages: Array.from(imageParentGraph.unusedImages),
+    },
+  }
 }
 
 function loadCache(rootPath, {clearCache, code}) {

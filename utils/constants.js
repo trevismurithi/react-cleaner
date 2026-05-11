@@ -93,6 +93,12 @@ const DIRECTORIES_TO_EXCLUDE = [
 
 const QUESTIONS = [
   {
+    type: "text",
+    message: "Enter the path to scan for unused files",
+    name: "path",
+    initial: process.cwd(),
+  },
+  {
     type: "select",
     name: "packageManager",
     message: "Select your package manager",
@@ -109,7 +115,7 @@ const QUESTIONS = [
     message: "How do you reference images in your project?",
     initial: 0,
     choices: [
-      { title: "Relative paths (./assets/logo.png)", value: "relative" },
+      { title: "Relative paths (./assets/logo.png) or alias (@/assets/logo.png)", value: "relative" },
       { title: "Absolute paths from public/ (/images/logo.png)", value: "public" },
     ],
   },
@@ -120,6 +126,7 @@ const QUESTIONS = [
     choices: [
       { title: "React", value: "react" },
       { title: "Next.js", value: "nextjs" },
+      { title: "Vue", value: "vue" },
     ],
     initial: 0,
   },

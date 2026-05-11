@@ -101,7 +101,7 @@ async function checkFileUsage(file, parentGraph, options) {
   // It should not be considered unused if components are used via re-exports
   const isUsed = checkImportedComponentsUsage(file, parentGraph);
   if (!isUsed) {
-    parentGraph.unusedFiles.add(fileNode);
+    parentGraph.unusedFiles.add({file: fileNode.file, size: fileNode.size});
   }
 }
 
@@ -184,6 +184,9 @@ function trackExportedComponents(reExportedBy, exportedComponents, parentGraph) 
 // Checks all files to determine which ones are unused by comparing against import statements
 // Initializes unused files set from cache if available, then checks each file
 async function checkUnusedFiles(files, parentGraph, options, chalk) {
+  if (options.excludeDirPrint && options.excludeDirPrint.length > 0) {
+    files = files.filter((file) => !isExcludedFile(file, options.excludeDirPrint));
+  }
   const checkBar = createStepBar(
     `1/${files.length}`,
     files.length,
