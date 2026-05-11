@@ -1,0 +1,24 @@
+yarn run v1.22.22
+$ node ./bin/cli.js summary
+⚠️  Note: Make sure to run a new scan before viewing the summary for accurate results.
+   Use the scan command to update the cache with the latest project state.
+
+
+📋 Project Summary
+════════════════════════════════════════════════
+┌───────────────────────────────────┬────────────────────┐
+│ 📄 Total Code Files:              │ 4                  │
+├───────────────────────────────────┼────────────────────┤
+│ 🖼️  Total Image Files:            │ 0                  │
+├───────────────────────────────────┼────────────────────┤
+│ 🗑️  Total Unused Files:           │ 1                  │
+├───────────────────────────────────┼────────────────────┤
+│ 🗑️  Total Unused Images:          │ ✓ 0                │
+├───────────────────────────────────┼────────────────────┤
+│ 🔗 Total Dead Image Links:        │ ✓ 0                │
+├───────────────────────────────────┼────────────────────┤
+│ 📦 Total Files:                   │ 4                  │
+└───────────────────────────────────┴────────────────────┘
+════════════════════════════════════════════════
+
+Done in 0.79s.
