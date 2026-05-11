@@ -3,6 +3,9 @@ export const A = () => {
 }
 // create dummy variables and functions like 10 that are not used
 
+function dummyFunction3() {
+    return 10;
+}
 function dummyVariable() {}
 
 const dummyVariable2 = 10;
