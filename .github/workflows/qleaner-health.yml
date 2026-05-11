@@ -38,7 +38,7 @@ jobs:
         # 'qleaner tidy' runs the full sequence: logs, internal code, duplicates, and exports.
         # It automatically generates qleaner.stats.json with surgical metrics.
         run: |
-          qleaner scan --dry-run
+          qleaner scan -d -C
           qleaner tidy
           qleaner summary --dependencies > health_summary.txt
 
