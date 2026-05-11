@@ -1,4 +1,4 @@
-name: "Qleaner Health Guardian (Local Mode)"
+name: "Qleaner Health Guardian"
 
 on:
   pull_request:
@@ -6,27 +6,33 @@ on:
 
 jobs:
   hygiene-check:
+    name: "Repository Hygiene and Stats"
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
+      contents: write # Crucial for pushing code changes
+      pull-requests: write # Crucial for posting PR comments
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 ensures we have full history for git push
+          fetch-depth: 0
+          # Use the GITHUB_TOKEN to allow the bot to push back to the branch
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. Setup Node.js & Yarn
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn' # This caches your node_modules for faster subsequent runs
+          cache: 'yarn'
 
       - name: 3. Install Local Dependencies
-        # Since it's not on NPM, we must install the project's own dependencies to run 'yarn start'
+        # Required because Qleaner runs via 'yarn start' from source code
         run: yarn install
 
       - name: 4. Restore Qleaner Smart Cache
-        # Restores unused-check-cache.json for incremental scans.
+        # Restores incremental scan data to speed up PR analysis
         uses: actions/cache@v4
         with:
           path: unused-check-cache.json
@@ -34,41 +40,57 @@ jobs:
           restore-keys: |
             qleaner-cache-${{ runner.os }}-
 
-      - name: 5. Execute Health Pipeline
-        # We replace global 'qleaner' with your local 'yarn start' command
-        # Using -d (dry-run) and -C (clear-cache) as requested
+      - name: 5. Execute Cleanup and Summary
+        # Runs 'tidy' (logs, code, duplicates, exports) and generates hotspots
         run: |
           yarn start tidy
           yarn start summary --dependencies > health_summary.txt
 
-      - name: 6. Analyze and Post PR Report
+      - name: 6. Commit and Push Cleaned Code
+        # This saves the surgical fixes back to your GitHub branch
+        run: |
+          # Use your email or the standard GitHub bot email
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          # Check if tidy actually changed any files before committing
+          if ! git diff --cached --exit-code; then
+            git commit -m "chore: automated qleaner repository hygiene"
+            git push
+          else
+            echo "No hygiene issues detected. Code is pristine."
+          fi
+
+      - name: 7. Post PR Health Report
+        if: always() # Ensures report is posted even if git push was skipped
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             
-            // Check if stats file exists before reading
             if (fs.existsSync('qleaner.stats.json')) {
               const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
-              const summary = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'No summary generated.';
+              const summaryText = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'Summary not available.';
               
+              // Get the most recent surgical session from stats
               const sessions = Object.values(stats.fileAssociatedStats || {});
               const lastSession = sessions[sessions.length - 1] || {};
               
-              const body = `### 🧹 Qleaner Local Health Report
-              **Surgical Impact of this PR:**
+              const body = `### 🧹 Qleaner Health Guardian Report
+              **Surgical Fixes Applied:**
               - **Items Removed:** ${lastSession.totalItemsRemoved || 0}
-              - **Lines of Code (LOC) Pruned:** ${lastSession.totalLinesRemoved || 0}
-              - **Storage Reclaimed:** ${lastSession.bytesSaved || 0} bytes
+              - **Lines Pruned:** ${lastSession.totalLinesRemoved || 0}
+              - **Size Saved:** ${lastSession.bytesSaved || 0} bytes
               
-              **🚀 Estimated Developer Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
+              **🚀 Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
               
-              **Project Hotspots:**
+              **Repository Hotspots:**
               \`\`\`
-              ${summary}
+              ${summaryText}
               \`\`\`
               
-              *Running via local source (yarn start).*`;
+              *Maintaining codebase health with Qleaner v1.3.3.*`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
