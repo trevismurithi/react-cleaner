@@ -63,7 +63,7 @@ function dummyFunction11() {
 
 function dummyFunction12() {
     return 10;
-
+}
 
 console.warn(dummyFunction2());
 console.error(dummyFunction2());
