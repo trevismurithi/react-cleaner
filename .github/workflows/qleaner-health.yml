@@ -44,7 +44,7 @@ jobs:
         # Runs the full 'tidy' sequence and generates dependency hotspots
         run: |
           yarn start tidy
-          yarn start summary --dependencies > health_summary.txt
+          yarn start summary > health_summary.txt
 
       - name: 6. Commit and Push Cleaned Code
         # This saves the changes back to the PR branch correctly

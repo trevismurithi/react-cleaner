@@ -199,8 +199,9 @@ async function loadOra() {
   program
     .command("tidy")
     .description("Tidy up the project")
-    .action(async () => {
-      await tidyUp(ora, chalk);
+    .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
+    .action(async (options) => {
+      await tidyUp(ora, chalk, options);
     });
   program.parse(process.argv);
 })();

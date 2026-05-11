@@ -42,23 +42,23 @@ async function getConfig() {
   return files;
 }
 
-async function tidyUp(ora, chalk) {
+async function tidyUp(ora, chalk, options = {}) {
   const spinner = ora("🔍 Tidying up the project...").start();
   const stats = await pruneConsoleLogs(chalk, { dryRun: true });
-  if (stats > 0) {
+  if (stats > 0 && !options.autoFix) {
     spinner.text = "🔍 Pruning console logs...";
     await pruneConsoleLogs(chalk);
     spinner.succeed("Prune console logs completed");
   }
   const unusedCodeStats = await pruneUnusedCode(chalk, { dryRun: true });
-  if (unusedCodeStats > 0) {
+  if (unusedCodeStats > 0 && !options.autoFix) {
     spinner.text = "🔍 Pruning unused code...";
     await pruneUnusedCode(chalk);
     spinner.succeed("Prune unused code completed");
   }
   spinner.text = "🔍 Checking for duplicates...";
   const duplicatesStats = await checkForDuplicates(chalk, { dryRun: true });
-  if (duplicatesStats > 0) {
+  if (duplicatesStats > 0 && !options.autoFix) {
     spinner.text = "🔍 Pruning duplicates...";
     await checkForDuplicates(chalk);
     spinner.succeed("Check for duplicates completed");
@@ -69,16 +69,18 @@ async function tidyUp(ora, chalk) {
   });
   spinner.text = "🔍 Checking for unused exports...";
   const unusedExportsStats = await unusedExports(chalk, { dryRun: true });
-  if (unusedExportsStats > 0) {
+  if (unusedExportsStats > 0 && !options.autoFix) {
     spinner.text = "🔍 Reporting unused exports...";
     await unusedExports(chalk);
     spinner.succeed("Unused exports step completed");
   }
-  await scan(ora, chalk, {
-    dryRun: true,
-    clearCache: false,
-  });
-  spinner.succeed("Tidy up completed");
+  if(!options.autoFix) {
+    await scan(ora, chalk, {
+      dryRun: true,
+      clearCache: false,
+    });
+    spinner.succeed("Tidy up completed");
+  }
 }
 
 async function checkForDuplicates(chalk, options = {}) {
