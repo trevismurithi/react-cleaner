@@ -9,17 +9,12 @@ jobs:
     name: "Repository Hygiene and Stats"
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required for pushing code changes
-      pull-requests: write # Required for posting PR comments
+      contents: read
+      pull-requests: write
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
-        with:
-          # We explicitly check out the branch to avoid 'detached HEAD' errors
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. Setup Node.js & Yarn
         uses: actions/setup-node@v4
@@ -28,43 +23,29 @@ jobs:
           cache: 'yarn'
 
       - name: 3. Install Local Dependencies
-        # Essential for running Qleaner from source via 'yarn start'
         run: yarn install
 
       - name: 4. Restore Qleaner Smart Cache
-        # Uses unused-check-cache.json to ensure fast, incremental PR analysis
+        # unused-check-cache.json: dependency graph, unused-file lists, image graph, parentGraph.fixes (surgical-pass fingerprints)
         uses: actions/cache@v4
         with:
           path: unused-check-cache.json
-          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock', '**/qleaner.config.json') }}
           restore-keys: |
             qleaner-cache-${{ runner.os }}-
 
-      - name: 5. Execute Cleanup and Summary
-        # Runs the full 'tidy' sequence and generates dependency hotspots
+      - name: 5. Tidy (dry-run), summary, and image scan (read-only)
+        # tidy without --auto-fix: each step dry-runs only; stdout/stderr captured for the PR comment. No code commits.
+        env:
+          NO_COLOR: "1"
         run: |
-          yarn start tidy
+          yarn start tidy src/info-portal-development > tidy_report.txt 2>&1
           yarn start summary > health_summary.txt
-          node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt > pr_report.md
+          yarn start image src/info-portal-development/assets src/info-portal-development --dry-run -t > image_report.txt 2>&1
+          node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
-      - name: 6. Commit and Push Cleaned Code
-        # This saves the changes back to the PR branch correctly
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add .
-          # Check if tidy actually changed any files in stats or code
-          if ! git diff --cached --exit-code; then
-            git commit -m "chore: automated qleaner repository hygiene"
-            # Explicitly push to the PR branch to resolve detached HEAD issue
-            git push origin HEAD:${{ github.head_ref }}
-          else
-            echo "No hygiene issues detected. Code is pristine."
-          fi
-
-      - name: 7. Post PR Health Report
-        if: always() # Post report even if git push was skipped
+      - name: 6. Post PR Health Report
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
@@ -74,8 +55,6 @@ jobs:
             const body = fs.readFileSync('pr_report.md', 'utf8');
             const marker = '<!-- qleaner-report -->';
 
-            // Find an existing comment from a previous push to this PR and update it
-            // instead of creating a new one on every run.
             const { data: comments } = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,

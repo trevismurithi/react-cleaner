@@ -95,14 +95,6 @@ function summarizeAll(chalk) {
   const hasData = codeGraph.graph.size > 0 || imageGraph.graph.size > 0;
 
   if (!hasData) {
-    console.log(chalk.yellow.bold("\n⚠️  No Project Data Found"));
-    console.log(
-      chalk.yellow("════════════════════════════════════════════════")
-    );
-    console.log(chalk.yellow("   Run a scan to analyze your project first."));
-    console.log(
-      chalk.yellow("   Use the scan command to generate project data.\n")
-    );
     return;
   }
   const totalImageFiles = getTotalImageFiles(imageGraph.graph);
@@ -115,10 +107,6 @@ function summarizeAll(chalk) {
     totalDeadImageLinks: deadImageLinks.size,
     totalFiles: codeGraph.graph.size + totalImageFiles,
   };
-
-  console.log(chalk.green.bold("\n📋 Project Summary"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
   const summaryTable = new Table({
     colWidths: [35, 20],
     style: { head: [], border: [] },
@@ -167,11 +155,6 @@ function summarizeAll(chalk) {
       chalk.magenta.bold(summary.totalFiles.toString()),
     ]
   );
-
-  console.log(summaryTable.toString());
-  console.log(
-    chalk.green("════════════════════════════════════════════════\n")
-  );
 }
 
 function getTop10LargestFiles(chalk) {
@@ -183,14 +166,7 @@ function getTop10LargestFiles(chalk) {
   const codeFilesAbove100KB = findCodeFilesAbove100KB(codeGraph.graph);
 
   // Top 10 Largest Code Files
-  console.log(chalk.green.bold("\n📊 Top 10 Largest Code Files"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
   if (!top10CodeFiles || top10CodeFiles.length === 0) {
-    console.log(
-      chalk.yellow(
-        "   No code files found. Run a scan to analyze your project."
-      )
-    );
   } else {
     const codeTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
@@ -203,19 +179,9 @@ function getTop10LargestFiles(chalk) {
         chalk.magenta((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
-    console.log(codeTable.toString());
   }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
   // Top 10 Largest Image Files
-  console.log(chalk.green.bold("\n🖼️  Top 10 Largest Image Files"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
   if (!top10ImageFiles || top10ImageFiles.length === 0) {
-    console.log(
-      chalk.yellow(
-        "   No image files found. Run a scan to analyze your project."
-      )
-    );
   } else {
     const imageTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
@@ -228,13 +194,8 @@ function getTop10LargestFiles(chalk) {
         chalk.magenta((file[1] / (1024 * 1024)).toFixed(2) + " MB"),
       ]);
     });
-    console.log(imageTable.toString());
   }
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
   // Total Sizes Summary
-  console.log(chalk.green.bold("\n📈 Total Sizes Summary"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
   const sizeTable = new Table({
     colWidths: [30, 20],
     style: { head: [], border: [] },
@@ -253,14 +214,8 @@ function getTop10LargestFiles(chalk) {
         : chalk.gray("No data"),
     ]
   );
-  console.log(sizeTable.toString());
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
   // Code Files Above 100 KB
-  console.log(chalk.green.bold("\n⚠️  Code Files Above 100 KB"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
   if (!codeFilesAbove100KB || codeFilesAbove100KB.length === 0) {
-    console.log(chalk.green("   ✓ No code files exceed 100 KB. Great job!"));
   } else {
     const largeFilesTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
@@ -273,20 +228,13 @@ function getTop10LargestFiles(chalk) {
         chalk.red((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
-    console.log(largeFilesTable.toString());
   }
-  console.log(
-    chalk.green("════════════════════════════════════════════════\n")
-  );
 }
 
 function printSectionHeader(chalk, title) {
-  console.log(chalk.green.bold(`\n${title}`));
-  console.log(chalk.green("════════════════════════════════════════════════"));
 }
 
 function printSectionFooter(chalk) {
-  console.log(chalk.green("════════════════════════════════════════════════"));
 }
 
 function displayTableSection(chalk, data, config) {
@@ -296,7 +244,6 @@ function displayTableSection(chalk, data, config) {
   
   if (!data || data.length === 0) {
     const colorFn = emptyMessageColor || chalk.yellow;
-    console.log(colorFn(`   ${emptyMessage}`));
   } else {
     const table = new Table({
       head: headers.map(h => chalk.cyan(h)),
@@ -307,8 +254,6 @@ function displayTableSection(chalk, data, config) {
     data.forEach((item) => {
       table.push(getRowData(item));
     });
-    
-    console.log(table.toString());
   }
   
   printSectionFooter(chalk);
@@ -422,14 +367,6 @@ function displayAliveImageHotspots(chalk, data) {
 function checkDataAvailability(chalk, codeGraph, imageGraph) {
   const hasData = codeGraph.graph.size > 0 || imageGraph.graph.size > 0;
   if (!hasData) {
-    console.log(chalk.yellow.bold("\n⚠️  No Project Data Found"));
-    console.log(
-      chalk.yellow("════════════════════════════════════════════════")
-    );
-    console.log(chalk.yellow("   Run a scan to analyze your project first."));
-    console.log(
-      chalk.yellow("   Use the scan command to generate project data.\n")
-    );
     return false;
   }
   return true;
@@ -471,10 +408,6 @@ function dependenciesSummary(chalk) {
   }
 
   const data = collectDependencyData(codeGraph, imageGraph);
-
-  console.log(chalk.green.bold("\n📊 Dependencies Summary"));
-  console.log(chalk.green("════════════════════════════════════════════════"));
-
   displayHeavyDependencies(chalk, data.top10FilesWithHeavyDependencies);
   displayLightDependencies(chalk, data.top10FilesWithLightDependencies);
   displayFileHotspots(chalk, data.top10FilesHotspots);
@@ -483,10 +416,6 @@ function dependenciesSummary(chalk) {
   displayReexportedBy(chalk, data.top10FilesWithMostReexportedBy);
   displayDeadImageHotspots(chalk, data.top10FilesHotspotsDeadImage);
   displayAliveImageHotspots(chalk, data.top10FilesHotspotsAliveImage);
-
-  console.log(
-    chalk.green("════════════════════════════════════════════════\n")
-  );
 }
 module.exports = {
   summarizeAll,

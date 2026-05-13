@@ -16,6 +16,9 @@ const {
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
 
+/** When omitted, commands resolve paths from the current working directory. */
+const DEFAULT_SCAN_PATH = ".";
+
 async function loadChalk() {
   return (await import("chalk")).default;
 }
@@ -48,7 +51,7 @@ async function loadOra() {
     .argument("<dependency>", "The dependency to list the files by")
     .option("-t, --table", "Display results in a table format")
     .action(async (dependency, options) => {
-      list(ora, chalk, dependency, options);
+      await list(ora, chalk, dependency, options);
     });
 
   program
@@ -80,7 +83,11 @@ async function loadOra() {
   program
     .command("scan")
     .description("Scan the project for unused files")
-    .option("-p, --path <path>", "The path to the directory to scan for unused files")
+    .argument(
+      "[pathToScan]",
+      "Directory to scan for unused files",
+      DEFAULT_SCAN_PATH,
+    )
     .option("-e, --exclude-dir <dir...>", "Exclude directories from the scan")
     .option("-f, --exclude-file <file...>", "Exclude files from the scan")
     .option(
@@ -101,8 +108,8 @@ async function loadOra() {
       "-C, --clear-cache",
       "Clear the cache recommended after making code changes",
     )
-    .action(async (options) => {
-      await scan(ora, chalk, options);
+    .action(async (pathToScan, options) => {
+      await scan(ora, chalk, pathToScan, options);
     });
 
   program
@@ -117,11 +124,19 @@ async function loadOra() {
       "The root path to the project code utilizing the images",
     )
     .option(
+      "-u, --auto-prune",
+      "Automatically move unused images to the .trash directory (no prompt)",
+    )
+    .option(
+      "-T, --size-threshold-mb <megabytes>",
+      "Highlight unused images larger than this size in MB (display only)",
+    )
+    .option(
       "-e, --exclude-dir-assets <dir...>",
       "Exclude directories from the scan",
     )
     .option(
-      "-f, --exclude-file-assets <file...>",
+      "-F, --exclude-file-assets <file...>",
       "Exclude files from the scan",
     )
     .option(
@@ -156,28 +171,50 @@ async function loadOra() {
 
   program
     .command("exports")
-    .description("List the unused exports")
-    .option("-f, --fix", "Fix the unused exports")
-    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-    .action(async (options) => {
-      await unusedExports(chalk, options);
+    .description("List or remove unused exports (uses graph cache; run scan if cache is missing)")
+    .argument(
+      "[pathToScan]",
+      "Project directory to analyze",
+      DEFAULT_SCAN_PATH,
+    )
+    .option("-r, --fresh-scan", "Rebuild graph cache before analyzing unused exports")
+    .option("-f, --fix", "Remove unused exports from source files")
+    .option(
+      "-d, --dry-run",
+      "Only print how many unused exports were found (no table, no edits)",
+    )
+    .action(async (pathToScan, options) => {
+      await unusedExports(ora, chalk, pathToScan, {...options, message: "Removing unreferenced exports"});
     });
+
   program
     .command("prune")
     .description("Prune the unused code (variables, functions, classes)")
+    .argument(
+      "[pathToScan]",
+      "Directory to scan for unused code",
+      DEFAULT_SCAN_PATH,
+    )
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-    .action(async (options) => {
-      await pruneUnusedCode(chalk, options);
+    .action(async (pathToScan, options) => {
+      await pruneUnusedCode(chalk, pathToScan, {...options, message: "Removing unused code"});
     });
+
   program
     .command("prune-logs")
     .description(
       "Prune the unused console logs (log, dir, dirxml, table, debug, info, trace)",
     )
+    .argument(
+      "[pathToScan]",
+      "Directory to scan for console log calls",
+      DEFAULT_SCAN_PATH,
+    )
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-    .action(async (options) => {
-      await pruneConsoleLogs(chalk, options);
+    .action(async (pathToScan, options) => {
+      await pruneConsoleLogs(chalk, pathToScan, {...options, message: "Removing console logs"});
     });
+
   program
     .command("undo")
     .description("Undo the deletions")
@@ -191,17 +228,32 @@ async function loadOra() {
 
   program
     .command("duplicates")
-    .description("Check for duplicates in the project")
-    .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
-    .action(async (options) => {
-      await checkForDuplicates(chalk, options);
+    .description("Find and optionally remove duplicate functions/classes in scanned files")
+    .argument(
+      "[pathToScan]",
+      "Directory to scan (same glob roots as scan / prune)",
+      DEFAULT_SCAN_PATH,
+    )
+    .option(
+      "-d, --dry-run",
+      "Report duplicates only; do not modify files",
+    )
+    .action(async (pathToScan, options) => {
+      await checkForDuplicates(chalk, pathToScan, {...options, message: "Removing duplicate code"});
     });
+
   program
     .command("tidy")
     .description("Tidy up the project")
+    .argument(
+      "[pathToScan]",
+      "Project directory for cleanup (logs, dead code, duplicates, exports)",
+      DEFAULT_SCAN_PATH,
+    )
     .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
-    .action(async (options) => {
-      await tidyUp(ora, chalk, options);
+    .action(async (pathToScan, options) => {
+      await tidyUp(ora, chalk, pathToScan, options);
     });
+
   program.parse(process.argv);
 })();

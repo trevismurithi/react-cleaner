@@ -12,12 +12,12 @@
 - **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run)
 - **Prune Console Logs** - Strip unused `console` calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`)
 - **Duplicate Detection** - Find and clean duplicate constructs across the project
-- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command (`qleaner tidy` has no flags in the CLI)
+- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`** to apply fixes when dry-run finds work
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
 - **Project Summary** - Get comprehensive statistics about your codebase
 - **File Size Analysis** - Identify the largest files and potential optimization targets
 - **Dependency Analysis** - See which files have heavy dependencies and hotspots
-- **Smart Caching** - Fast incremental scans with intelligent cache invalidation (`unused-check-cache.json`)
+- **Smart Caching** - Fast incremental scans with intelligent cache invalidation (`unused-check-cache.json`, including `parentGraph.fixes` fingerprints for surgical passes when present)
 - **Dry-Run Mode** - Where supported, `-d` / `--dry-run` matches the CLI: show what would be deleted without actually deleting (skips prompt)
 - **Interactive Deletion** - Choose to delete files permanently or move them to `.trash`, or use **`scan --auto-fix`** to move all reported unused files to `.trash` without a prompt
 - **Enhanced File Finding** - Advanced path resolution using jsconfig/tsconfig for accurate dependency tracking in large codebases with complex import structures
@@ -44,6 +44,14 @@ yarn add qleaner --dev
 # or
 npm install qleaner --save-dev
 ```
+
+## GitHub Actions
+
+This repo includes **[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)** (“Qleaner Health Guardian”). On pull requests it:
+
+1. Restores **`unused-check-cache.json`** (Actions cache; key includes `yarn.lock` and `qleaner.config.json`).
+2. Runs **`yarn start tidy .`** (no **`--auto-fix` / `-u`** — every step is dry-run only), **`yarn start summary`**, and **`yarn start image . . --dry-run -t`**, captures tidy and image CLI output, and builds **`pr_report.md`** with [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) (stats, sparkline, **cache snapshot** including `parentGraph.fixes`, **tidy output**, **image scan output**, repository summary text). Image directory and code root are both `.` in the workflow—change those paths for your layout.
+3. Posts or updates a single sticky PR comment (no automatic code commits).
 
 ## Quick Start
 
@@ -73,23 +81,21 @@ This interactive command will ask you:
 
 **If you don't use jsconfig/tsconfig:** Select "none" during initialization, then manually add your path aliases to the `paths` field in `qleaner.config.json` (see Configuration section below).
 
-This creates a `qleaner.config.json` file in your project root with sensible defaults.
+This creates a `qleaner.config.json` file in your project root with sensible defaults. It also updates **`.gitignore`**: a **`# Qleaner`** section is appended with **`unused-check-cache.json`** and **`.trash/`** when those patterns are not already ignored (so the dependency cache and soft-delete folder stay out of version control). If `.gitignore` did not exist, it is created with that section.
 
 ### 2. Scan for Unused Code Files
 
-Scan for unused files. The directory comes from **`--path` / `-p`**, or from the `path` field in `qleaner.config.json`, or the current working directory if unset.
+Scan for unused files. Pass a **directory as the first argument** (`[pathToScan]`, default **`.`**), or rely on the `path` field in `qleaner.config.json` when you omit it.
 
 ```bash
 # Dry run (recommended first time) — explicit directory
-qleaner scan --path src --dry-run
-# short form
-qleaner scan -p src --dry-run
+qleaner scan src --dry-run
 
-# Use default path from qleaner.config.json (after init)
+# Current directory (same as qleaner scan . --dry-run)
 qleaner scan --dry-run
 
-# Actual scan (will prompt for deletion)
-qleaner scan -p src
+# Actual scan (will prompt for deletion unless --auto-fix)
+qleaner scan src
 ```
 
 ### 3. Scan for Unused Images
@@ -114,6 +120,8 @@ The CLI is implemented in [`bin/cli.js`](https://github.com/trevismurithi/react-
 ### `qleaner init`
 
 Initialize Qleaner with an interactive configuration wizard. This command asks you a series of questions to set up Qleaner for your project and creates a `qleaner.config.json` file in your project root with sensible defaults.
+
+After writing the config, init updates **`.gitignore`**: it adds **`unused-check-cache.json`** and **`.trash/`** under a **`# Qleaner`** heading only when those entries are not already present (missing lines are appended; existing rules are left unchanged).
 
 **Configuration is Critical:** Getting the configuration right, especially the jsconfig/tsconfig selection, is essential for Qleaner to accurately find files in large codebases. Incorrect configuration may result in false positives (files reported as unused when they're actually used) or missed dependencies.
 
@@ -150,7 +158,7 @@ qleaner init
 cat qleaner.config.json
 
 # Then run your first scan
-qleaner scan -p src --dry-run
+qleaner scan src --dry-run
 ```
 
 **Note:** If you already have a `qleaner.config.json` file, this command will prompt you before overwriting it. You can manually edit the config file instead if needed.
@@ -159,8 +167,10 @@ qleaner scan -p src --dry-run
 
 Scan a directory for unused code files. Merge order: values from `qleaner.config.json` first, then CLI flags (CLI wins).
 
+**Arguments:**
+- `[pathToScan]` - Directory to scan (default **`.`**; combined with config `path` and exclusions as implemented in `command.js`)
+
 **Options:**
-- `-p, --path <path>` - Directory to scan (overrides `path` in `qleaner.config.json`; default is config `path` or current directory)
 - `-e, --exclude-dir <dir...>` - Exclude directories from scan (e.g., `-e node_modules dist`)
 - `-f, --exclude-file <file...>` - Exclude specific files by name (e.g., `-f config.js`)
 - `-F, --exclude-file-print <files...>` - Scan but don't report as unused (for entry points)
@@ -173,25 +183,25 @@ Scan a directory for unused code files. Merge order: values from `qleaner.config
 **Examples:**
 ```bash
 # Basic scan (will prompt for deletion if unused files found)
-qleaner scan -p src
+qleaner scan src
 
 # Dry run with table output (recommended first time)
-qleaner scan -p src --dry-run --table
+qleaner scan src --dry-run --table
 
 # Move every reported unused file to .trash without prompting (use after a trusted dry-run)
-qleaner scan -p src --auto-fix
+qleaner scan src --auto-fix
 
 # Exclude test files and multiple directories
-qleaner scan -p src -x test.tsx test.ts test.js test.jsx -e node_modules dist build
+qleaner scan src -x test.tsx test.ts test.js test.jsx -e node_modules dist build
 
 # Exclude specific files from being reported as unused (entry points)
-qleaner scan -p src -F index.tsx main.tsx app.tsx
+qleaner scan src -F index.tsx main.tsx app.tsx
 
 # Clear cache and perform fresh scan
-qleaner scan -p src --clear-cache
+qleaner scan src --clear-cache
 
 # Comprehensive scan with multiple exclusions
-qleaner scan -p src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
+qleaner scan src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
 ```
 
 ### `qleaner image <directory> <rootPath>`
@@ -203,8 +213,10 @@ Scan for unused images by comparing image files against references in your code.
 - `<rootPath>` - Root directory of your source code that references images (e.g., `src`, `app`)
 
 **Options:**
+- `-u, --auto-prune` - Move **all** reported unused images to **`.trash`** without a prompt (only when **not** using `--dry-run`)
+- `-T, --size-threshold-mb <megabytes>` - Highlight unused images larger than this size in the report (table column or list suffix; display only)
 - `-e, --exclude-dir-assets <dir...>` - Exclude directories from image file scan (can specify multiple)
-- `-f, --exclude-file-assets <file...>` - Exclude specific image files by name pattern
+- `-F, --exclude-file-assets <file...>` - Exclude specific image files by name pattern
 - `-E, --exclude-dir-code <dir...>` - Exclude directories when scanning code for image references (e.g., `-E node_modules dist`)
 - `-S, --exclude-file-code <file...>` - Exclude specific files when scanning code for image references
 - `-r, --is-root-folder-referenced` - Images use root-referenced paths (e.g., `/images/logo.png` where `/` is the root)
@@ -212,7 +224,7 @@ Scan for unused images by comparing image files against references in your code.
 - `-t, --table` - Display results in a formatted table with columns: Unused Images, In Code, Exists, Size
 - `-C, --clear-cache` - Clear cache before scanning (recommended after major code changes)
 - `-H, --hide-not-found-images` - Hide images referenced in code but not found on disk (dead links)
-- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-d, --dry-run` - Show what would be deleted without actually deleting; does not move files and does not run `--auto-prune`
 
 **Important:** Either `-r` (root-referenced) or `-a` (alias) must be set, but not both. They cannot have the same value.
 
@@ -241,6 +253,12 @@ qleaner image public/images src -r --clear-cache
 
 # Comprehensive scan with all options
 qleaner image src/assets src -a --exclude-dir-code node_modules dist --hide-not-found-images --table --dry-run
+
+# Highlight unused images larger than 2 MB (report only)
+qleaner image public/images src -r --dry-run -T 2 --table
+
+# Move all unused images to .trash without prompting (after a trusted dry-run)
+qleaner image public/images src -r --auto-prune
 ```
 
 **Supported Image Reference Patterns:**
@@ -315,14 +333,18 @@ qleaner dep --uninstall
 
 List **unused exports** (symbols exported from a file that nothing imports, following the same graph as the scan). Use `--fix` to apply edits that remove those exports.
 
+**Arguments:**
+- `[pathToScan]` - Project directory to analyze (default **`.`**)
+
 **Options:**
+- `-r, --fresh-scan` - Clear graph-related state before analyzing (via `scan` with `clearCache` as implemented in `unusedExports`)
 - `-f, --fix` - Fix (remove) the unused exports
-- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-d, --dry-run` - Only print how many unused exports were found (no table, no edits)
 
 **Examples:**
 ```bash
-qleaner exports --dry-run
-qleaner exports --fix
+qleaner exports . --dry-run
+qleaner exports . --fix
 ```
 
 **Note:** Requires `unused-check-cache.json` from `qleaner scan` over the same project tree you care about. With `--fix`, files are edited in place—use version control.
@@ -331,13 +353,16 @@ qleaner exports --fix
 
 Remove **unused internal declarations** (unused variables, functions, classes, etc.) via static analysis. Always try `--dry-run` first.
 
+**Arguments:**
+- `[pathToScan]` - Directory whose files are globbed from config (default **`.`**)
+
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 
 **Examples:**
 ```bash
-qleaner prune --dry-run
-qleaner prune
+qleaner prune . --dry-run
+qleaner prune .
 ```
 
 **Note:** Operates on files discovered from `qleaner.config.json` (`path` and exclusions). Large refactors may update `qleaner.stats.json` with change statistics.
@@ -346,26 +371,32 @@ qleaner prune
 
 Remove **unused** `console` calls: `log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`.
 
+**Arguments:**
+- `[pathToScan]` - Directory to scan (default **`.`**)
+
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 
 **Examples:**
 ```bash
-qleaner prune-logs --dry-run
-qleaner prune-logs
+qleaner prune-logs . --dry-run
+qleaner prune-logs .
 ```
 
 ### `qleaner duplicates`
 
 Detect and clean **duplicate** code patterns across files under the configured `path`.
 
+**Arguments:**
+- `[pathToScan]` - Directory to scan (default **`.`**)
+
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 
 **Examples:**
 ```bash
-qleaner duplicates --dry-run
-qleaner duplicates
+qleaner duplicates . --dry-run
+qleaner duplicates .
 ```
 
 ### `qleaner undo <type>`
@@ -383,20 +414,31 @@ qleaner undo images
 
 ### `qleaner tidy`
 
-**Tidy up the project** — the CLI defines no flags for this command. `tidyUp` in `controllers/list.js` runs this sequence:
+**Tidy up the project** — runs a pipeline of checks; each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work.
 
-1. **`prune-console-logs`** — dry-run; if any logs would be removed, runs again without dry-run and applies edits.
-2. **`prune`** (unused code) — same pattern (dry-run then apply if needed).
-3. **`duplicates`** — dry-run; if duplicates would be removed, runs again without dry-run and applies.
-4. **`scan`** — `dryRun: true` and `clearCache: true` (refreshes cache, no deletion).
-5. **`exports`** — dry-run to count unused exports; if the count is greater than zero, runs **`unusedExports(chalk)`** without `--fix`, so you get the **table of unused exports only** (no automatic removal; use `qleaner exports --fix` yourself if you want edits).
-6. **`scan`** again — `dryRun: true`, `clearCache: false`.
+**Arguments:**
+- `[pathToScan]` - Project root or source directory for globs (default **`.`**)
+
+**Options:**
+- `-u, --auto-fix` - After a successful dry-run count for a step, run the real pass (console logs, internal unused code, duplicates, **unused exports with `--fix`**). Finishes with a **dry-run `scan`** (unused files listed, not moved).
+
+Sequence (see `controllers/list.js`):
+
+1. **Console logs** — `prune-logs` dry-run → apply if needed  
+2. **Unused internal code** — `prune` dry-run → apply if needed  
+3. **Duplicates** — `duplicates` dry-run → apply if needed  
+4. **Unused exports** — `exports` dry-run → apply with **fix** if needed  
+5. **Unused files scan** — `scan` with `dryRun: true` only when `--auto-fix` ran (reports unused files; does not move them)
 
 Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with `--dry-run` until you trust the behavior.
 
 **Examples:**
 ```bash
+# Report-only (dry-runs each step; no edits)
 qleaner tidy
+
+# Apply safe code cleanups when issues are found
+qleaner tidy . --auto-fix
 ```
 
 ### `qleaner summary`
@@ -471,7 +513,9 @@ Qleaner can be configured via `qleaner.config.json` or CLI flags. For **`qleaner
   "excludeFileCode": [],
   "isRootFolderReferenced": true,
   "alias": false,
-  "autoFix": false
+  "autoFix": false,
+  "autoPrune": false,
+  "sizeThresholdMb": null
 }
 ```
 
@@ -481,6 +525,8 @@ Qleaner can be configured via `qleaner.config.json` or CLI flags. For **`qleaner
 |--------|------|-------------|
 | `path` | string | Default directory for `qleaner scan` (when `-p` is omitted) and for commands that glob from config (`exports`, `prune`, `prune-logs`, `duplicates`, `tidy`). Often your app root or `src`. |
 | `autoFix` | boolean | When `true` (and not overridden), `qleaner scan` without `--dry-run` moves all reported unused files to `.trash` via `moveToTrash` instead of opening the interactive delete prompt (same effect as `--auto-fix` / `-u` on the scan command). |
+| `autoPrune` | boolean | When `true`, `qleaner image` without `--dry-run` moves all reported unused images to `.trash` without a prompt (same as `--auto-prune` / `-u` on the image command). |
+| `sizeThresholdMb` | number \| null | Optional default for highlighting large unused images in the image report (same semantics as `--size-threshold-mb` / `-T`). |
 | `framework` | string | One of `react`, `nextjs`, or `vue`. Sets default `excludeFilePrint` and, for Vue, default `excludeDirPrint`. |
 | `codeAlias` | string \| null | **Critical!** Config file to use for path alias resolution. Options: `"tsconfig.json"`, `"jsconfig.json"`, `"tsconfig.app.json"`, `"tsconfig.base.json"`, or `null` for manual configuration. Qleaner reads path aliases from this file to resolve imports (e.g., `@/components`, `~/utils`). |
 | `paths` | object | **Manual path aliases** (only used if `codeAlias` is `null`). Object mapping alias patterns to file paths. Example: `{ "@/*": ["./src/*"], "~/*": ["./src/*"] }`. If `codeAlias` is set, this field is ignored and paths are read from the config file instead. |
@@ -571,7 +617,7 @@ Some edit-heavy commands (`prune`, `prune-logs`, `duplicates`, `exports --fix`) 
 
 ```bash
 # Clear cache and rescan
-qleaner scan -p src --clear-cache
+qleaner scan src --clear-cache
 ```
 
 ## File Deletion
@@ -633,11 +679,11 @@ cat qleaner.config.json
 # Check that codeAlias matches your project's config file
 
 # 3. Scan for unused code files (dry run first!)
-qleaner scan -p src --dry-run --table
+qleaner scan src --dry-run --table
 
 # 4. Review results - if you see false positives, check your config
 # Fix codeAlias or paths if needed, then clear cache and rescan:
-qleaner scan -p src --clear-cache --dry-run --table
+qleaner scan src --clear-cache --dry-run --table
 
 # 5. Scan for unused images (dry run)
 qleaner image public/images src -r --dry-run --table
@@ -646,10 +692,10 @@ qleaner image public/images src -r --dry-run --table
 qleaner dep --table
 
 # 7. Optional: unused exports, prune, logs, duplicates (dry-run first)
-qleaner exports --dry-run
-qleaner prune --dry-run
-qleaner prune-logs --dry-run
-qleaner duplicates --dry-run
+qleaner exports . --dry-run
+qleaner prune . --dry-run
+qleaner prune-logs . --dry-run
+qleaner duplicates . --dry-run
 
 # 8. Get project summary
 qleaner summary
@@ -661,11 +707,12 @@ qleaner summary --largest-files
 qleaner summary --dependencies
 
 # 11. Once confident with results, run actual scans and delete files
-qleaner scan -p src
+qleaner scan src
 qleaner image public/images src -r
 
-# 12. Optional one-shot cleanup (no CLI flags; runs internal pipeline)
+# 12. Optional one-shot cleanup (dry-run each step; add --auto-fix to apply)
 # qleaner tidy
+# qleaner tidy . --auto-fix
 ```
 
 ## Use Cases
@@ -718,7 +765,7 @@ MIT
 
 ### Command Dependencies
 
-**Best practice:** Run `qleaner scan -p <your-src>` (or `qleaner scan` with `path` in `qleaner.config.json`) before commands that need `unused-check-cache.json`.
+**Best practice:** Run `qleaner scan <your-src>` (or `qleaner scan` with `path` in `qleaner.config.json`) before commands that need `unused-check-cache.json`.
 
 | Command | Requires |
 |---------|----------|
@@ -726,7 +773,7 @@ MIT
 | `qleaner dep` | `unused-check-cache.json` from `qleaner scan` |
 | `qleaner exports` | `unused-check-cache.json` from `qleaner scan` |
 | `qleaner summary` | Code and/or image cache from `qleaner scan` / `qleaner image` |
-| `qleaner prune`, `prune-logs`, `duplicates` | `qleaner.config.json` with `path` (no graph cache) |
+| `qleaner prune`, `prune-logs`, `duplicates` | `qleaner.config.json` with `path`; optional `unused-check-cache.json` for incremental behavior / `parentGraph.fixes` |
 | `qleaner tidy` | Config, scan cache for the exports step, and the same prerequisites as the sub-steps |
 
 ### Common Issues
@@ -760,7 +807,7 @@ A:
 **Q: How do I know if my configuration is correct?**
 A:
 - After `qleaner init`, verify `codeAlias` in `qleaner.config.json` matches your project's config file
-- Run a test scan: `qleaner scan -p src --dry-run` and check if files you know are used are incorrectly reported as unused
+- Run a test scan: `qleaner scan src --dry-run` and check if files you know are used are incorrectly reported as unused
 - If you see false positives, check:
   1. Does your `jsconfig.json`/`tsconfig.json` exist and have correct `paths` configuration?
   2. Is `codeAlias` pointing to the right file?

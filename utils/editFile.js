@@ -1,6 +1,54 @@
 const { Project, SyntaxKind } = require("ts-morph");
 const fs = require("fs");
 const path = require("path");
+const {
+  getFileHash,
+  getFixPassHashes,
+  updateFixPassEntry,
+} = require("./cache");
+const { createStepBar } = require("./utils");
+
+/** Keys under `parentGraph.fixes` — must match `FIX_PASS_KEYS` in cache.js */
+const FIX_PASS = {
+  pruneInternal: "pruneInternal",
+  nukeConsoleLogs: "nukeConsoleLogs",
+  deduplicateLogic: "deduplicateLogic",
+};
+
+/**
+ * Skip ts-morph when this pass already ran on the same file content (see `parentGraph.fixes`).
+ * Dry-run never skips so counts stay accurate.
+ * @param {string} resolvedPath
+ * @param {Map<string, string>} passHashes
+ * @param {boolean} isDryRun
+ */
+function shouldSkipFixPass(resolvedPath, passHashes, isDryRun) {
+  if (isDryRun) {
+    return false;
+  }
+  if (!passHashes.has(resolvedPath)) {
+    return false;
+  }
+  let content;
+  try {
+    content = fs.readFileSync(resolvedPath, "utf8");
+  } catch {
+    return false;
+  }
+  return getFileHash(content) === passHashes.get(resolvedPath);
+}
+
+/** @returns {string | null} MD5 hex written to cache, or null */
+function recordFixPassFingerprint(cwd, passKey, resolvedPath) {
+  try {
+    const content = fs.readFileSync(resolvedPath, "utf8");
+    const hash = getFileHash(content);
+    updateFixPassEntry(cwd, passKey, resolvedPath, hash);
+    return hash;
+  } catch {
+    return null;
+  }
+}
 
 /** `console.<name>(...)` calls treated as dev-only output (includes log, dir, table, …). */
 const CONSOLE_DEBUG_METHOD_NAMES = new Set([
@@ -51,16 +99,21 @@ function getRemovableConsoleDebugMethod(call) {
 function countInFileNonDefinitionReferences(nameNode, sourceFile) {
   const filePath = sourceFile.getFilePath();
   let count = 0;
-  for (const referenced of nameNode.findReferences()) {
-    for (const ref of referenced.getReferences()) {
-      if (ref.getSourceFile().getFilePath() !== filePath) {
-        continue;
+  try {
+    for (const referenced of nameNode.findReferences()) {
+      for (const ref of referenced.getReferences()) {
+        if (ref.getSourceFile().getFilePath() !== filePath) {
+          continue;
+        }
+        if (ref.isDefinition()) {
+          continue;
+        }
+        count++;
       }
-      if (ref.isDefinition()) {
-        continue;
-      }
-      count++;
     }
+  } catch {
+    // Incomplete program (missing module, or .vue not in project) — treat as "has refs".
+    return 1;
   }
   return count;
 }
@@ -203,11 +256,12 @@ function pruneNamedBinding(sourceFile, nameToRemove, stats) {
 
 /**
  * Removes all unused exports from the source file.
+ * Does not use `parentGraph.fixes` skipping: targets are explicit removals; importers must still be updated.
  * @param {Map<string, string[]>} listToRemove
  * @param {Map<string, Map<string, string[]>>} fileAssociated
  * @returns {Promise<object>} The savings report
  */
-async function editFile(listToRemove, fileAssociated) {
+async function editFile(listToRemove, fileAssociated, chalk, message = "Editing files") {
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -219,6 +273,12 @@ async function editFile(listToRemove, fileAssociated) {
     bytesSaved: 0,
     filesModified: 0,
   };
+  const scanBar = createStepBar(
+    `1/${listToRemove.size}`,
+    listToRemove.size,
+    message,
+    chalk
+  );
   for (const [filePath, exportNames] of listToRemove.entries()) {
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
@@ -297,8 +357,10 @@ async function editFile(listToRemove, fileAssociated) {
     stats.totalLinesRemoved += linesRemoved;
     stats.bytesSaved += bytesSaved;
     stats.filesModified++;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    scanBar.increment();
   }
-
+  scanBar.stop();
   return generateSavingsReport(stats);
 }
 
@@ -328,7 +390,15 @@ function generateSavingsReport(stats) {
  * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
  * @returns {number} The number of console.log statements removed
  */
-async function pruneInternal(files, isDryRun = false) {
+async function pruneInternal(files, isDryRun = false, chalk, message = "Removing unused code") {
+  const cwd = process.cwd();
+  const passHashes = getFixPassHashes(cwd, FIX_PASS.pruneInternal);
+  const scanBar = createStepBar(
+    `1/${files.length}`,
+    files.length,
+    message,
+    chalk
+  );
   let unusedCodeFound = 0;
   const project = new Project({
     compilerOptions: {
@@ -343,7 +413,14 @@ async function pruneInternal(files, isDryRun = false) {
   };
 
   for (const filePath of files) {
-    const sourceFile = project.addSourceFileAtPath(filePath);
+    const resolved = path.resolve(filePath);
+    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      scanBar.increment();
+      continue;
+    }
+
+    const sourceFile = project.addSourceFileAtPath(resolved);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
     const isAffected = pruneInternalUnused(sourceFile, stats, isDryRun);
@@ -360,8 +437,16 @@ async function pruneInternal(files, isDryRun = false) {
       stats.bytesSaved += bytesSaved;
       stats.filesModified++;
     }
+    if (!isDryRun) {
+      const hash = recordFixPassFingerprint(cwd, FIX_PASS.pruneInternal, resolved);
+      if (hash != null) {
+        passHashes.set(resolved, hash);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    scanBar.increment();
   }
-
+  scanBar.stop();
   if (!isDryRun) {
     return generateSavingsReport(stats);
   }
@@ -388,7 +473,13 @@ function pruneInternalUnused(sourceFile, stats, isDryRun) {
     if (node.isExported && node.isExported()) return;
 
     // 2. Check for references
-    const references = node.findReferencesAsNodes();
+    let references;
+    try {
+      references = node.findReferencesAsNodes();
+    } catch {
+      // Incomplete program (e.g. import of a deleted .vue) — do not remove this symbol.
+      return;
+    }
 
     // If references == 0, it's dead.
     // Note: In TS-Morph, the declaration itself is sometimes counted as a reference,
@@ -408,7 +499,15 @@ function pruneInternalUnused(sourceFile, stats, isDryRun) {
  * Removes common `console` debug calls (log, dir, table, …) from files in the graph.
  * @param {Map<string, unknown>} graph
  */
-async function nukeConsoleLogs(files, isDryRun = false) {
+async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removing console logs") {
+  const cwd = process.cwd();
+  const passHashes = getFixPassHashes(cwd, FIX_PASS.nukeConsoleLogs);
+  const scanBar = createStepBar(
+    `1/${files.length}`,
+    files.length,
+    message,
+    chalk
+  );
   let logsFound = 0;
   const project = new Project({
     compilerOptions: {
@@ -422,6 +521,13 @@ async function nukeConsoleLogs(files, isDryRun = false) {
     filesModified: 0,
   };
   for (const filePath of files) {
+    const resolved = path.resolve(filePath);
+    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      scanBar.increment();
+      continue;
+    }
+
     let logsRemoved = 0;
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
@@ -475,7 +581,16 @@ async function nukeConsoleLogs(files, isDryRun = false) {
         stats.filesModified++;
       }
     }
+    if (!isDryRun) {
+      const hash = recordFixPassFingerprint(cwd, FIX_PASS.nukeConsoleLogs, resolved);
+      if (hash != null) {
+        passHashes.set(resolved, hash);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    scanBar.increment();
   }
+  scanBar.stop();
   if (!isDryRun) {
     return generateSavingsReport(stats);
   }
@@ -487,7 +602,15 @@ async function nukeConsoleLogs(files, isDryRun = false) {
  * @param {Map<string, unknown>} graph
  * @returns {Promise<object>} The savings report
  */
-async function deduplicateLogic(files, isDryRun = false) {
+async function deduplicateLogic(files, isDryRun = false, chalk, message = "Removing duplicates") {
+  const cwd = process.cwd();
+  const passHashes = getFixPassHashes(cwd, FIX_PASS.deduplicateLogic);
+  const scanBar = createStepBar(
+    `1/${files.length}`,
+    files.length,
+    message,
+    chalk
+  );
   let duplicatesFound = 0;
   const project = new Project({
     compilerOptions: {
@@ -501,6 +624,13 @@ async function deduplicateLogic(files, isDryRun = false) {
     filesModified: 0,
   };
   for (const filePath of files) {
+    const resolved = path.resolve(filePath);
+    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      scanBar.increment();
+      continue;
+    }
+
     let duplicatesRemoved = 0;
     const seenCode = new Set();
     const sourceFile = project.addSourceFileAtPath(filePath);
@@ -517,7 +647,6 @@ async function deduplicateLogic(files, isDryRun = false) {
       const codeBody = node.getText(); // The actual source code of the function/class
 
       if (seenCode.has(codeBody)) {
-        console.log(`Duplicate found: ${codeBody}`);
         if (!isDryRun) {
           node.remove();
         }
@@ -538,7 +667,20 @@ async function deduplicateLogic(files, isDryRun = false) {
       stats.bytesSaved += bytesSaved;
       stats.filesModified++;
     }
+    if (!isDryRun) {
+      const hash = recordFixPassFingerprint(
+        cwd,
+        FIX_PASS.deduplicateLogic,
+        resolved,
+      );
+      if (hash != null) {
+        passHashes.set(resolved, hash);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    scanBar.increment();
   }
+  scanBar.stop();
   if (!isDryRun) {
     return generateSavingsReport(stats);
   }

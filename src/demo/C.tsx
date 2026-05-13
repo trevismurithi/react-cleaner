@@ -1,2 +1,2 @@
 export { A } from './A';
-export { BValue, BFunction } from './B';
+export { BValue } from './B';

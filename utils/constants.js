@@ -93,12 +93,6 @@ const DIRECTORIES_TO_EXCLUDE = [
 
 const QUESTIONS = [
   {
-    type: "text",
-    message: "Enter the path to scan for unused files",
-    name: "path",
-    initial: process.cwd(),
-  },
-  {
     type: "select",
     name: "packageManager",
     message: "Select your package manager",

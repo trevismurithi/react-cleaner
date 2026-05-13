@@ -307,26 +307,7 @@ async function getUnusedImages(
       ...config,
       ...options,
     };
-    if(options.alias === options.isRootFolderReferenced) {
-      console.log(chalk.red("Error: alias and isRootFolderReferenced cannot be the same"));
-      console.log(chalk.red("Please set one of them to true"));
-      console.log(chalk.red("Example:"));
-      console.log(chalk.red("qleaner image public/images src -a"));
-      console.log(chalk.red("qleaner image public/images src -r"));
-      console.log(chalk.red("Or set one of them to false in the config file"));
-      console.log(chalk.red("Example:"));
-      console.log(chalk.red("qleaner.config.json:"));
-      console.log(chalk.red('{'));
-      console.log(chalk.red('  "alias": false,'));
-      console.log(chalk.red('  "isRootFolderReferenced": true,'));
-      console.log(chalk.red('}'));
-      console.log(chalk.red("Or set one of them to true in the config file"));
-      console.log(chalk.red("Example:"));
-      console.log(chalk.red("qleaner.config.json:"));
-      console.log(chalk.red('{'));
-      console.log(chalk.red('  "alias": true,'));
-      console.log(chalk.red('  "isRootFolderReferenced": false,'));
-      console.log(chalk.red('}'));
+    if (options.alias === options.isRootFolderReferenced) {
       process.exit(1);
     }
   }
@@ -377,10 +358,10 @@ async function getUnusedImages(
   console.timeEnd(LOG_PREFIX);
   // save cache
   saveCache(process.cwd(), { parentGraph, imageParentGraph }, false);
-  // Handle deletion
-  handleImageDeletion(imageParentGraph.unusedImages, options, chalk);
+  // Handle deletion / move to trash
+  await handleImageDeletion(imageParentGraph.unusedImages, options, chalk);
   spinner.succeed(
-    `Handled deletion of ${imageParentGraph.unusedImages.size} unused images`
+    `Handled deletion of ${imageParentGraph.unusedImages.size} unused images`,
   );
   spinner.succeed(`Completed Qleaner scan`);
 }

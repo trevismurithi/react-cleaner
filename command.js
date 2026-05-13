@@ -1,7 +1,7 @@
 const fg = require("fast-glob");
 const path = require("path");
 const { createResolver } = require("./utils/resolver");
-const { loadCache, saveCache } = require("./utils/cache");
+const { loadCache, saveCache, normalizeFixes } = require("./utils/cache");
 const { isExcludedFile, createStepBar } = require("./utils/utils");
 const { buildContentPaths } = require("./utils/pathBuilder");
 const { hydrateGraph } = require("./utils/graphUtils");
@@ -35,6 +35,7 @@ function initializeCache(spinner, options, code = true) {
     parentGraph: {
       graph: graph || cache.parentGraph.graph,
       unusedFiles: new Set(cache.parentGraph.unusedFiles),
+      fixes: normalizeFixes(cache.parentGraph.fixes),
     },
     imageParentGraph: {
       imageGraph: imageGraph || cache.imageParentGraph.imageGraph,

@@ -1,0 +1,74 @@
+import { faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+
+import {
+  PamResourceType,
+  THttpEvent,
+  TPamCommandLog,
+  TPamSession,
+  TTerminalEvent
+} from "@app/hooks/api/pam";
+
+import { CommandLogView } from "./CommandLogView";
+import { HttpEventView } from "./HttpEventView";
+import { TerminalEventView } from "./TerminalEventView";
+
+type Props = {
+  session: TPamSession;
+};
+
+export const PamSessionLogsSection = ({ session }: Props) => {
+  // Determine log type based on resource type
+  const isSSHSession = session.resourceType === PamResourceType.SSH;
+  const isDatabaseSession =
+    session.resourceType === PamResourceType.Postgres ||
+    session.resourceType === PamResourceType.MySQL ||
+    session.resourceType === PamResourceType.Redis;
+  const isHttpSession = session.resourceType === PamResourceType.Kubernetes;
+  const isAwsIamSession = session.resourceType === PamResourceType.AwsIam;
+  const hasLogs = session.logs.length > 0;
+
+  return (
+    <div className="flex h-full w-full flex-col gap-4 rounded-lg border border-mineshaft-600 bg-mineshaft-900 p-4">
+      <div className="flex items-center border-b border-mineshaft-400 pb-4">
+        <h3 className="text-lg font-medium text-mineshaft-100">Session Logs</h3>
+      </div>
+
+      {isDatabaseSession && hasLogs && <CommandLogView logs={session.logs as TPamCommandLog[]} />}
+      {isSSHSession && hasLogs && <TerminalEventView events={session.logs as TTerminalEvent[]} />}
+      {isHttpSession && hasLogs && <HttpEventView events={session.logs as THttpEvent[]} />}
+      {isAwsIamSession && (
+        <div className="flex grow items-center justify-center text-bunker-300">
+          <div className="text-center">
+            <div className="mb-2">AWS Console session activity is logged in AWS CloudTrail</div>
+            <div className="text-xs text-bunker-400">
+              View detailed activity logs for this session in your AWS CloudTrail console.
+              <br />
+              <a
+                href="https://console.aws.amazon.com/cloudtrail"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-primary-400 hover:text-primary-300"
+              >
+                Open AWS CloudTrail
+                <FontAwesomeIcon icon={faUpRightFromSquare} className="size-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+      {!hasLogs && !isAwsIamSession && (
+        <div className="flex grow items-center justify-center text-bunker-300">
+          <div className="text-center">
+            <div className="mb-2">Session logs are not yet available</div>
+            <div className="text-xs text-bunker-400">
+              Logs will be uploaded after the session duration has elapsed.
+              <br />
+              If logs do not appear after some time, please contact your Gateway administrators.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
