@@ -39,9 +39,9 @@ jobs:
         env:
           NO_COLOR: "1"
         run: |
-          yarn start tidy src/info-portal-development > tidy_report.txt 2>&1
+          yarn start tidy src/infisical-main/frontend > tidy_report.txt 2>&1
           yarn start summary > health_summary.txt
-          yarn start image src/info-portal-development/assets src/info-portal-development --dry-run -t > image_report.txt 2>&1
+          yarn start image src/infisical-main/public src/infisical-main --dry-run -t > image_report.txt 2>&1
           node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
       - name: 6. Post PR Health Report
