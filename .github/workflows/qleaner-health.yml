@@ -41,7 +41,7 @@ jobs:
         run: |
           yarn start tidy src/infisical-main/frontend > tidy_report.txt 2>&1
           yarn start summary > health_summary.txt
-          yarn start image src/infisical-main/public src/infisical-main --dry-run -t > image_report.txt 2>&1
+          yarn start image src/infisical-main/public src/infisical-main -d -T 1 > image_report.txt 2>&1
           node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
       - name: 6. Post PR Health Report
