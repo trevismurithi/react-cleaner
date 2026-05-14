@@ -194,10 +194,16 @@ async function scanCodeFilesForImages(
       if(extension === '.vue') {
         const {descriptor} = parse(code);
         if(descriptor.scriptSetup || descriptor.script) {
-          ast = parseCode(descriptor.scriptSetup?.content || descriptor.script?.content||'');
+          const vueScriptLang =
+            descriptor.scriptSetup?.lang || descriptor.script?.lang || "";
+          ast = parseCode(
+            descriptor.scriptSetup?.content || descriptor.script?.content || "",
+            filePath,
+            vueScriptLang
+          );
         }
       }else {
-        ast = parseCode(code);
+        ast = parseCode(code, filePath);
       }
       if (imageGraph.has(filePath)) {
         const oldFiles = new Set(imageGraph.get(filePath).imports);

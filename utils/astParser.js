@@ -1,15 +1,45 @@
+const path = require("path");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+
+const defaultParsePlugins = ["jsx", "typescript", "decorators-legacy"];
+const typescriptNoJsxPlugins = ["typescript", "decorators-legacy"];
+
+/**
+ * @param {string} [filePath]
+ * @param {string} [vueScriptLang] - SFC script lang (e.g. ts, tsx); only used when filePath ends in .vue
+ */
+function babelPluginsForFile(filePath, vueScriptLang) {
+  let effectivePath = filePath;
+  if (filePath && vueScriptLang && /\.vue$/i.test(filePath)) {
+    const lang = String(vueScriptLang).toLowerCase();
+    if (lang === "ts" || lang === "mts" || lang === "cts") {
+      effectivePath = filePath.replace(/\.vue$/i, ".ts");
+    } else if (lang === "tsx" || lang === "jsx") {
+      effectivePath = filePath.replace(/\.vue$/i, ".tsx");
+    }
+  }
+  if (!effectivePath) {
+    return defaultParsePlugins;
+  }
+  const ext = path.extname(effectivePath).toLowerCase();
+  if (ext === ".ts" || ext === ".mts" || ext === ".cts") {
+    return typescriptNoJsxPlugins;
+  }
+  return defaultParsePlugins;
+}
 
 /**
  * Parses code into an AST
  * @param {string} code - The source code to parse
+ * @param {string} [filePath] - Used to pick plugins (.ts without jsx so angle-bracket assertions parse)
+ * @param {string} [vueScriptLang] - When filePath is .vue, script lang so TS blocks are parsed without jsx
  * @returns {Object} The parsed AST
  */
-function parseCode(code) {
+function parseCode(code, filePath, vueScriptLang) {
   return parser.parse(code, {
     sourceType: "module",
-    plugins: ["jsx", "typescript", "decorators-legacy"],
+    plugins: babelPluginsForFile(filePath, vueScriptLang),
   });
 }
 
