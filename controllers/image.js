@@ -263,7 +263,6 @@ async function scanCodeFilesForImages(
 function findUnusedImages(imageParentGraph, imageFiles, options) {
   for (const imageFile of imageFiles) {
     const filePath = path.resolve(imageFile);
-    console.log('---', filePath);
     const image = imageParentGraph.imageGraph.get(filePath);
     // image not found in imageGraph, indicate it as unused
     if (!image) {
