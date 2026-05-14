@@ -47,7 +47,9 @@ npm install qleaner --save-dev
 
 ## GitHub Actions
 
-This repo includes **[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)** (“Qleaner Health Guardian”). On pull requests it:
+This repo includes **[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)** (“Qleaner Health Guardian”).
+
+**Required status checks:** In GitHub → *Settings* → *Branches* → branch protection, if you require a status check, use the **job id** shown on PRs after this workflow has run at least once — **`hygiene-check`** (the workflow does not set a custom job `name`, so the check name matches the job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run for that PR (e.g. workflow file missing on the base branch, Actions disabled, or a fork PR waiting for maintainer approval to run workflows).
 
 1. Restores **`unused-check-cache.json`** (Actions cache; key includes `yarn.lock` and `qleaner.config.json`).
 2. Runs, in order: **`yarn start tidy <path> -r`** (no **`--auto-fix` / `-u`** — dry-run pipeline only; **`-r`** adds per-tier console-log hit tables in the tidy capture when `foundByRisk` is present), **`yarn start image <assets> <code> -d -T 1`**, **`yarn start summary`**, then **`node .github/scripts/pr-report.js …`** (stats, sparkline, cache snapshot, **tidy**, **image**, **summary**). The **job succeeds** when every command exits **0**. Paths match this repo’s Infisical sample tree—edit the workflow for your layout.

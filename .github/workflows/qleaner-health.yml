@@ -1,12 +1,17 @@
 name: "Qleaner Health Guardian"
 
+# Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
+# Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
+# If a required check stays "Expected — Waiting for status to be reported", the workflow did not run
+# (e.g. wrong base branch, draft PR awaiting approval for first-time contributors, or workflow file not on default branch).
+
 on:
   pull_request:
-    branches: [ main, master, develop, staging ]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 jobs:
   hygiene-check:
-    name: "Repository Hygiene and Stats"
     runs-on: ubuntu-latest
     permissions:
       contents: read
