@@ -211,8 +211,19 @@ async function loadOra() {
       DEFAULT_SCAN_PATH,
     )
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .option(
+      "--list-risk-categories",
+      "Print risk tier docs (category headings + pattern file paths); then exit (no scan)",
+    )
+    .option(
+      "-i, --list-risk-categories-info",
+      "Same as --list-risk-categories (short alias); then exit (no scan)",
+    )
     .action(async (pathToScan, options) => {
-      await pruneConsoleLogs(chalk, pathToScan, {...options, message: "Removing console logs"});
+      await pruneConsoleLogs(chalk, pathToScan, {
+        ...options,
+        message: "Removing console logs",
+      });
     });
 
   program
@@ -251,6 +262,14 @@ async function loadOra() {
       DEFAULT_SCAN_PATH,
     )
     .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
+    .option(
+      "-r, --list-risk-categories",
+      "Print risk tier docs (category headings + pattern file paths); then exit (no tidy pipeline)",
+    )
+    .option(
+      "-i, --list-risk-categories-info",
+      "Same as -r / --list-risk-categories; then exit (no tidy pipeline)",
+    )
     .action(async (pathToScan, options) => {
       await tidyUp(ora, chalk, pathToScan, options);
     });

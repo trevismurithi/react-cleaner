@@ -7,12 +7,13 @@ const { getCssImages } = require("../utils/cssImages");
 const { createStepBar } = require("../utils/utils");
 const { initializeCache } = require("../command");
 const { needsRebuild, getFileHash, saveCache } = require("../utils/cache");
-const { normalize } = require("../utils/resolver");
+const { normalize, createResolver } = require("../utils/resolver");
 const { buildImagePaths, buildCodePaths } = require("../utils/imagePathBuilder");
 const { createASTTraverser } = require("../utils/imageAstParser");
 const { addToImageGraph } = require("../utils/imageGraphUtils");
 const { displayUnusedImages, handleImageDeletion } = require("../utils/imageDisplay");
 const { parse } = require("@vue/compiler-sfc");
+const { resolveScanPathConfig } = require("./list");
 
 /**
  * Creates a file node in the image graph for a code file
@@ -38,21 +39,22 @@ function createCodeFileNode(filePath, imageGraph) {
  * @param {Map} imageGraph - The image graph Map
  * @param {Object} options - Options object
  */
-function processImageImport(importInfo, imageDirectory, imageGraph, options) {
+async function processImageImport(importInfo, imageDirectory, imageGraph, options, resolver) {
   const filePath = path.resolve(importInfo.file);
-  let importPath = normalize(importInfo.source, imageDirectory, {
+  const { importPath: resolvedImportPath, } = await resolver(importInfo.file, importInfo.source);
+  let importPath = normalize(resolvedImportPath, imageDirectory, {
     alias: options.alias ? true : false,
     isRootFolderReferenced: options.isRootFolderReferenced ? true : false,
   });
 
   if (importPath && !fs.existsSync(importPath)) {
     if (options.alias) {
-      importPath = normalize(importInfo.source, imageDirectory, {
+      importPath = normalize(resolvedImportPath, imageDirectory, {
         alias: false,
         isRootFolderReferenced: true,
       });
     } else {
-      importPath = normalize(importInfo.source, imageDirectory, {
+      importPath = normalize(resolvedImportPath, imageDirectory, {
         alias: true,
         isRootFolderReferenced: false,
       });
@@ -82,7 +84,8 @@ async function processImageImports(
   imageDirectory,
   imageGraph,
   options,
-  chalk
+  chalk,
+  resolver
 ) {
   let packingBar = null;
   if (imports.length > 0) {
@@ -99,7 +102,7 @@ async function processImageImports(
       await new Promise((resolve) => setTimeout(resolve, 20));
       packingBar.increment();
     }
-    processImageImport(importInfo, imageDirectory, imageGraph, options);
+    processImageImport(importInfo, imageDirectory, imageGraph, options, resolver);
   }
 
   if (packingBar) {
@@ -133,14 +136,15 @@ async function compareCodePaths(oldPaths, createStepBar, imageGraph, chalk) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       compareBar.increment();
     }
-    if (imageGraph.has(filePath)) {
+    const resolvedFilePath = path.resolve(filePath);
+    if (imageGraph.has(resolvedFilePath)) {
       const removedFiles = new Set(
-        [...oldFiles].filter((x) => !imageGraph.get(filePath).imports.has(x))
+        [...oldFiles].filter((x) => !imageGraph.get(resolvedFilePath).imports.has(x))
       );
       if (removedFiles.size > 0) {
         removedFiles.forEach((file) => {
           if (imageGraph.has(file)) {
-            imageGraph.get(file).importedBy.delete(filePath);
+            imageGraph.get(file).importedBy.delete(resolvedFilePath);
           }
         });
       }
@@ -171,7 +175,8 @@ async function scanCodeFilesForImages(
   codeDirectory,
   imageDirectory,
   imageGraph,
-  options
+  options,
+  resolver
 ) {
   const imports = [];
   const oldPaths = new Map();
@@ -224,7 +229,8 @@ async function scanCodeFilesForImages(
     imageDirectory,
     imageGraph,
     options,
-    chalk
+    chalk,
+    resolver
   );
 
   const removedFilesCount = await compareCodePaths(
@@ -257,6 +263,7 @@ async function scanCodeFilesForImages(
 function findUnusedImages(imageParentGraph, imageFiles, options) {
   for (const imageFile of imageFiles) {
     const filePath = path.resolve(imageFile);
+    console.log('---', filePath);
     const image = imageParentGraph.imageGraph.get(filePath);
     // image not found in imageGraph, indicate it as unused
     if (!image) {
@@ -320,10 +327,16 @@ async function getUnusedImages(
   // read qleaner.config.json
   // Start spinner
   const spinner = ora("Start Qleaner scan...").start();
+  const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
+    codeDirectory,
+    options,
+    chalk,
+  );
+  const resolver = createResolver(codeDirectory, pathConfig);
   // Build paths and collect files
   spinner.text = "🔍 Discovering image files...";
-  const imagePaths = buildImagePaths(imageDirectory, options);
-  const codePaths = buildCodePaths(codeDirectory, options);
+  const imagePaths = buildImagePaths(imageDirectory, mergedOpts);
+  const codePaths = buildCodePaths(codeDirectory, mergedOpts);
   const imageFiles = await fg(imagePaths);
   const codeFiles = await fg(codePaths);
   spinner.succeed(
@@ -331,7 +344,7 @@ async function getUnusedImages(
   );
   const { parentGraph, imageParentGraph } = initializeCache(
     spinner,
-    options,
+    mergedOpts,
     false
   );
 
@@ -345,19 +358,21 @@ async function getUnusedImages(
     codeDirectory,
     imageDirectory,
     imageParentGraph.imageGraph,
-    options
+    mergedOpts,
+    resolver
   );
   spinner.succeed(`Scanned ${codeFiles.length} code files`);
-
+  console.log('unused images', imageParentGraph.unusedImages.size);
+  console.log('numberOfCodeFiles', numberOfCodeFiles);
   if (imageParentGraph.unusedImages.size === 0 || numberOfCodeFiles > 0) {
     // Find unused images
     imageParentGraph.unusedImages = new Set();
-    findUnusedImages(imageParentGraph, imageFiles, options);
+    findUnusedImages(imageParentGraph, imageFiles, mergedOpts);
   }
 
   spinner.succeed(`Found ${imageParentGraph.unusedImages.size} unused images`);
   // Display results
-  displayUnusedImages(imageParentGraph.unusedImages, options, chalk);
+  displayUnusedImages(imageParentGraph.unusedImages, mergedOpts, chalk);
   spinner.succeed(
     `Displayed ${imageParentGraph.unusedImages.size} unused images`
   );
@@ -365,7 +380,7 @@ async function getUnusedImages(
   // save cache
   saveCache(process.cwd(), { parentGraph, imageParentGraph }, false);
   // Handle deletion / move to trash
-  await handleImageDeletion(imageParentGraph.unusedImages, options, chalk);
+  await handleImageDeletion(imageParentGraph.unusedImages, mergedOpts, chalk);
   spinner.succeed(
     `Handled deletion of ${imageParentGraph.unusedImages.size} unused images`,
   );

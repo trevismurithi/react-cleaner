@@ -107,6 +107,10 @@ function summarizeAll(chalk) {
     totalDeadImageLinks: deadImageLinks.size,
     totalFiles: codeGraph.graph.size + totalImageFiles,
   };
+
+  console.log(chalk.green.bold("\n📋 Project Summary"));
+  console.log(chalk.green("════════════════════════════════════════════════"));
+
   const summaryTable = new Table({
     colWidths: [35, 20],
     style: { head: [], border: [] },
@@ -155,6 +159,10 @@ function summarizeAll(chalk) {
       chalk.magenta.bold(summary.totalFiles.toString()),
     ]
   );
+  console.log(summaryTable.toString());
+  console.log(
+    chalk.green("════════════════════════════════════════════════\n")
+  );
 }
 
 function getTop10LargestFiles(chalk) {
@@ -167,6 +175,11 @@ function getTop10LargestFiles(chalk) {
 
   // Top 10 Largest Code Files
   if (!top10CodeFiles || top10CodeFiles.length === 0) {
+    console.log(
+      chalk.yellow(
+        "   No code files found. Run a scan to analyze your project."
+      )
+    );
   } else {
     const codeTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
@@ -179,9 +192,15 @@ function getTop10LargestFiles(chalk) {
         chalk.magenta((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
+    console.log(codeTable.toString());
   }
   // Top 10 Largest Image Files
   if (!top10ImageFiles || top10ImageFiles.length === 0) {
+    console.log(
+      chalk.yellow(
+        "   No image files found. Run a scan to analyze your project."
+      )
+    );
   } else {
     const imageTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
@@ -194,6 +213,7 @@ function getTop10LargestFiles(chalk) {
         chalk.magenta((file[1] / (1024 * 1024)).toFixed(2) + " MB"),
       ]);
     });
+    console.log(imageTable.toString());
   }
   // Total Sizes Summary
   const sizeTable = new Table({
@@ -214,9 +234,16 @@ function getTop10LargestFiles(chalk) {
         : chalk.gray("No data"),
     ]
   );
+  console.log(sizeTable.toString());
+  console.log(chalk.green("════════════════════════════════════════════════\n"));
   // Code Files Above 100 KB
   if (!codeFilesAbove100KB || codeFilesAbove100KB.length === 0) {
-  } else {
+    console.log(
+      chalk.yellow(
+        "   No code files above 100 KB found. Run a scan to analyze your project."
+      )
+    );
+    } else {
     const largeFilesTable = new Table({
       head: [chalk.cyan("File Path"), chalk.cyan("Size")],
       colWidths: [90, 15],
@@ -228,22 +255,30 @@ function getTop10LargestFiles(chalk) {
         chalk.red((file[1] / 1024).toFixed(2) + " KB"),
       ]);
     });
+    console.log(largeFilesTable.toString());
+    console.log(chalk.green("════════════════════════════════════════════════\n"));
   }
 }
 
 function printSectionHeader(chalk, title) {
+  console.log(chalk.green.bold(`\n${title}`));
+  console.log(chalk.green("════════════════════════════════════════════════"));
 }
 
 function printSectionFooter(chalk) {
+  console.log(chalk.green("════════════════════════════════════════════════"));
 }
 
 function displayTableSection(chalk, data, config) {
   const { title, emptyMessage, headers, colWidths, getRowData, emptyMessageColor } = config;
   
+  
   printSectionHeader(chalk, title);
   
   if (!data || data.length === 0) {
     const colorFn = emptyMessageColor || chalk.yellow;
+    console.log(colorFn(`   ${emptyMessage}`));
+
   } else {
     const table = new Table({
       head: headers.map(h => chalk.cyan(h)),
@@ -254,6 +289,8 @@ function displayTableSection(chalk, data, config) {
     data.forEach((item) => {
       table.push(getRowData(item));
     });
+
+    console.log(table.toString());
   }
   
   printSectionFooter(chalk);

@@ -4,7 +4,8 @@
  * Called by the CI workflow; writes report.md to stdout or a file.
  *
  * Usage: node .github/scripts/pr-report.js <stats-file> <summary-file> [tidy-report-file] [image-report-file]
- * Legacy 3-file form (no tidy path): ... <stats> <summary> <image-report-file>
+ * CI / default: argv[2]=qleaner.stats.json, argv[3]=health_summary.txt, argv[4]=tidy_report.txt, argv[5]=image_report.txt
+ * Legacy 3-file form (no tidy path): ... <stats> <summary> <image-report-file> (argv[4] only)
  */
 
 const fs = require("fs");
@@ -239,6 +240,8 @@ ${sparkLines}
 ${cacheSnapshotSection}
 
 #### Tidy pipeline (dry-run only, no --auto-fix)
+_Console log dry-run lines and per-tier hit tables (when \`foundByRisk\` is present) appear in this block when CI captures \`tidy … -r\` (see \`controllers/list.js\`)._
+
 ${tidyReportSection}
 
 #### Image scan (dry-run, table)

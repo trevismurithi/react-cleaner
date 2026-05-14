@@ -26,6 +26,12 @@ const {
   nukeConsoleLogs,
   deduplicateLogic,
 } = require("../utils/editFile");
+const {
+  CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS,
+} = require("../utils/consoleLogHighRiskPatterns");
+const {
+  CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS,
+} = require("../utils/consoleLogMediumRiskPatterns");
 const { buildContentPaths } = require("../utils/pathBuilder");
 const fg = require("fast-glob");
 
@@ -57,7 +63,9 @@ function loadHydratedGraph(chalk) {
     cache = JSON.parse(fs.readFileSync(file, "utf8"));
   } catch {
     console.log(
-      chalk.red('⚠️  Error reading cache file. Please run "qleaner scan" again.'),
+      chalk.red(
+        '⚠️  Error reading cache file. Please run "qleaner scan" again.',
+      ),
     );
     return null;
   }
@@ -80,16 +88,110 @@ function printSurgicalSummary(chalk, heading, stats) {
   printRule(chalk);
 }
 
+/** Numeric total from a dry-run result (`nukeConsoleLogs` → `{ total, highRisk, mediumRisk, lowRisk, foundByRisk? }`). */
+function dryRunItemTotal(result) {
+  if (
+    result &&
+    typeof result === "object" &&
+    typeof result.total === "number"
+  ) {
+    return result.total;
+  }
+  return typeof result === "number" ? result : 0;
+}
+
+/** Max rows per risk tier when printing `foundByRisk` (dry-run console log pass). */
+const CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER = 100;
+
+function truncateConsolePreview(text, maxLen = 90) {
+  const s = String(text == null ? "" : text)
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length <= maxLen) {
+    return s;
+  }
+  return `${s.slice(0, maxLen)}…`;
+}
+
+/**
+ * @param {import("chalk").Chalk} chalk
+ * @param {{ high?: unknown[], medium?: unknown[], low?: unknown[] }} foundByRisk
+ */
+function printConsoleLogDryRunFoundByRisk(chalk, foundByRisk) {
+  if (!foundByRisk || typeof foundByRisk !== "object") {
+    return;
+  }
+
+  const tiers = [
+    { key: "high", title: "High-risk sensitive (file:line)", style: chalk.red },
+    { key: "medium", title: "Medium-risk (file:line)", style: chalk.yellow },
+    { key: "low", title: "Low-risk (file:line)", style: chalk.green },
+  ];
+
+  let any = false;
+  for (const { key, title, style } of tiers) {
+    const items = foundByRisk[key];
+    if (!Array.isArray(items) || items.length === 0) {
+      continue;
+    }
+    any = true;
+    const shown = items.slice(0, CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER);
+    const omitted = items.length - shown.length;
+
+    printRule(chalk);
+    console.log(style.bold(`${title} — ${items.length} hit(s)`));
+    const table = newTable(
+      chalk,
+      ["File", "Line", "Call preview"],
+      [72, 6, 72],
+    );
+    for (const row of shown) {
+      const file = typeof row.file === "string" ? row.file : "";
+      const line = row.line != null ? String(row.line) : "";
+      const preview = truncateConsolePreview(row.preview, 88);
+      table.push([
+        chalk.white(formatFilePath(path.resolve(file), 68)),
+        chalk.white(line),
+        chalk.gray(preview),
+      ]);
+    }
+    console.log(table.toString());
+    if (omitted > 0) {
+      console.log(
+        chalk.gray(
+          `… and ${omitted} more in this tier (cap ${CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER} per tier).`,
+        ),
+      );
+    }
+  }
+
+  if (any) {
+    printRule(chalk);
+  }
+}
+
 async function runSurgicalPass(chalk, pathToScan, options, transform, labels) {
   const files = await getConfig(pathToScan);
-  const stats = await transform(
-    files,
-    options.dryRun,
-    chalk,
-    options.message,
-  );
+  const stats = await transform(files, options.dryRun, chalk, options.message);
   if (options.dryRun) {
-    console.log(chalk.yellow(`${labels.dryPrefix}: ${stats}`));
+    const detail =
+      stats &&
+      typeof stats === "object" &&
+      typeof stats.total === "number" &&
+      typeof stats.highRisk === "number" &&
+      typeof stats.mediumRisk === "number" &&
+      typeof stats.lowRisk === "number"
+        ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
+        : `${stats}`;
+    console.log(chalk.yellow(`${labels.dryPrefix}: ${detail}`));
+    if (
+      stats &&
+      typeof stats === "object" &&
+      stats.foundByRisk &&
+      options.listRiskCategories
+    ) {
+      printConsoleLogDryRunFoundByRisk(chalk, stats.foundByRisk);
+    }
     return stats;
   }
   await updateFileAssociatedStats(new Date().toISOString(), stats);
@@ -136,9 +238,15 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
         pruneConsoleLogs(chalk, pathToScan, {
           dryRun: true,
           message: "Checking for console logs",
+          listRiskCategories: options.listRiskCategories,
+          listRiskCategoriesInfo: options.listRiskCategoriesInfo,
         }),
       fix: () =>
-        pruneConsoleLogs(chalk, pathToScan, { message: "Removing console logs" }),
+        pruneConsoleLogs(chalk, pathToScan, {
+          message: "Removing console logs",
+          listRiskCategories: options.listRiskCategories,
+          listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+        }),
     },
     {
       checkLabel: "🔍 Checking for unused code...",
@@ -186,7 +294,7 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
   for (const step of steps) {
     spinner.text = step.checkLabel;
     const count = await step.dry();
-    if (count > 0 && autoFix) {
+    if (dryRunItemTotal(count) > 0 && autoFix) {
       spinner.text = step.fixLabel;
       await step.fix();
       spinner.succeed(step.done);
@@ -207,7 +315,59 @@ async function checkForDuplicates(chalk, pathToScan, options = {}) {
   });
 }
 
+function printConsoleLogRiskCategoryReference(chalk) {
+  const highPath = require.resolve("../utils/consoleLogHighRiskPatterns.js");
+  const mediumPath =
+    require.resolve("../utils/consoleLogMediumRiskPatterns.js");
+  const tierPath = require.resolve("../utils/editFile.js");
+
+  printRule(chalk, "cyan");
+  console.log(chalk.cyan.bold("Console log risk tiers (dry-run & tidy)"));
+  console.log(
+    chalk.gray(
+      "Each removable console.debug/log/info/… call is classified from its argument source text: high → medium → low.",
+    ),
+  );
+  printRule(chalk, "cyan");
+
+  console.log(chalk.yellow.bold("High-risk sensitive"));
+  console.log(chalk.white(`Patterns file: ${highPath}`));
+  console.log(
+    chalk.gray(`${CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS.length} sections:`),
+  );
+  CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS.forEach((label, i) => {
+    console.log(chalk.white(`  ${i + 1}. ${label}`));
+  });
+  console.log();
+
+  console.log(chalk.yellow.bold("Medium-risk"));
+  console.log(chalk.white(`Patterns file: ${mediumPath}`));
+  console.log(
+    chalk.gray(`${CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS.length} sections:`),
+  );
+  CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS.forEach((label, i) => {
+    console.log(chalk.white(`  ${i + 1}. ${label}`));
+  });
+  console.log();
+
+  console.log(chalk.yellow.bold("Low-risk"));
+  console.log(
+    chalk.white(
+      "Removable console calls whose argument text does not match high- or medium-risk heuristics.",
+    ),
+  );
+  console.log(chalk.white(`Classification logic: ${tierPath}`));
+  console.log(
+    chalk.gray("Search for `consoleLogDryRunRiskTier` in that file."),
+  );
+  printRule(chalk, "cyan");
+}
+
 async function pruneConsoleLogs(chalk, pathToScan, options = {}) {
+  if (options.listRiskCategoriesInfo) {
+    printConsoleLogRiskCategoryReference(chalk);
+    return;
+  }
   return runSurgicalPass(chalk, pathToScan, options, nukeConsoleLogs, {
     dryPrefix: "Total console logs found",
     summaryHeading: "Prune console logs",
@@ -226,7 +386,8 @@ async function unusedExports(ora, chalk, pathToScan, options = {}) {
     dryRun: true,
     clearCache: Boolean(options.freshScan),
   });
-  const { unUsedExportsWithPath, fileAssociated } = await findUnusedExports(chalk);
+  const { unUsedExportsWithPath, fileAssociated } =
+    await findUnusedExports(chalk);
 
   if (options.dryRun) {
     console.log(
@@ -520,6 +681,7 @@ async function undoDeletions(chalk, type) {
 }
 
 module.exports = {
+  resolveScanPathConfig,
   summary,
   scan,
   list,

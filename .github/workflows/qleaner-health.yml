@@ -34,14 +34,15 @@ jobs:
           restore-keys: |
             qleaner-cache-${{ runner.os }}-
 
-      - name: 5. Tidy (dry-run), summary, and image scan (read-only)
-        # tidy without --auto-fix: each step dry-runs only; stdout/stderr captured for the PR comment. No code commits.
+      - name: 5. Tidy (dry-run), image scan, and summary (read-only)
+        # Order: tidy (-r includes console-log dry-run with per-tier hit tables when foundByRisk exists) → image → summary.
+        # No --auto-fix: surgical steps are dry-run only. No code commits. Job succeeds when every command exits 0.
         env:
           NO_COLOR: "1"
         run: |
-          yarn start tidy src/infisical-main/frontend > tidy_report.txt 2>&1
+          yarn start tidy src/infisical-main/frontend -r > tidy_report.txt 2>&1
+          yarn start image src/infisical-main/frontend/public src/infisical-main/frontend -d -T 1 > image_report.txt 2>&1
           yarn start summary > health_summary.txt
-          yarn start image src/infisical-main/public src/infisical-main/frontend -d -T 1 > image_report.txt 2>&1
           node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
       - name: 6. Post PR Health Report

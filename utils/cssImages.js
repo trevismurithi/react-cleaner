@@ -149,14 +149,15 @@ async function compareCssPaths(oldPaths, createStepBar, imageGraph, chalk) {
       await new Promise((resolve) => setTimeout(resolve, 20));
       compareBar.increment();
     }
-    if (imageGraph.has(filePath)) {
+    const resolvedFilePath = path.resolve(filePath);
+    if (imageGraph.has(resolvedFilePath)) {
       const removedFiles = new Set(
-        [...oldFiles].filter((x) => !imageGraph.get(filePath).imports.has(x))
+        [...oldFiles].filter((x) => !imageGraph.get(resolvedFilePath).imports.has(x))
       );
       if (removedFiles.size > 0) {
         removedFiles.forEach((file) => {
           if (imageGraph.has(file)) {
-            imageGraph.get(file).importedBy.delete(filePath);
+            imageGraph.get(file).importedBy.delete(resolvedFilePath);
           }
         });
       }

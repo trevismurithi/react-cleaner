@@ -7,6 +7,8 @@ const {
   updateFixPassEntry,
 } = require("./cache");
 const { createStepBar } = require("./utils");
+const { matchesHighRiskConsoleArgText } = require("./consoleLogHighRiskPatterns");
+const { matchesMediumRiskConsoleArgText } = require("./consoleLogMediumRiskPatterns");
 
 /** Keys under `parentGraph.fixes` — must match `FIX_PASS_KEYS` in cache.js */
 const FIX_PASS = {
@@ -89,6 +91,24 @@ function getRemovableConsoleDebugMethod(call) {
     return method;
   }
   return null;
+}
+
+/**
+ * @param {import('ts-morph').CallExpression} call
+ * @returns {"high" | "medium" | "low"}
+ */
+function consoleLogDryRunRiskTier(call) {
+  const argText = call
+    .getArguments()
+    .map((a) => a.getText())
+    .join(" ");
+  if (matchesHighRiskConsoleArgText(argText)) {
+    return "high";
+  }
+  if (matchesMediumRiskConsoleArgText(argText)) {
+    return "medium";
+  }
+  return "low";
 }
 
 /**
@@ -497,6 +517,8 @@ function pruneInternalUnused(sourceFile, stats, isDryRun) {
 
 /**
  * Removes common `console` debug calls (log, dir, table, …) from files in the graph.
+ * Dry run returns `{ total, highRisk, mediumRisk, lowRisk, foundByRisk }` where `foundByRisk` is
+ * `{ high, medium, low }` arrays of `{ file, line, preview }` (for listing in dry-run output).
  * @param {Map<string, unknown>} graph
  */
 async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removing console logs") {
@@ -509,6 +531,14 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
     chalk
   );
   let logsFound = 0;
+  let highRiskLogs = 0;
+  let mediumRiskLogs = 0;
+  let lowRiskLogs = 0;
+  const foundByRisk = {
+    high: [],
+    medium: [],
+    low: [],
+  };
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -536,6 +566,8 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
     // Important: collect nodes first, then mutate. Removing nodes can "forget" other nodes
     // captured earlier, which makes later reads throw InvalidOperationError.
     const removableStatements = [];
+    /** @type {import('ts-morph').CallExpression[]} */
+    const removableCalls = [];
     for (const call of sourceFile.getDescendantsOfKind(
       SyntaxKind.CallExpression,
     )) {
@@ -549,12 +581,42 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
       if (!isRemovable) continue;
 
       const exprStmt = call.getParentIfKind(SyntaxKind.ExpressionStatement);
-      if (exprStmt) removableStatements.push(exprStmt);
+      if (exprStmt) {
+        removableStatements.push(exprStmt);
+        removableCalls.push(call);
+      }
     }
 
     if (removableStatements.length > 0) {
       logsRemoved = removableStatements.length;
       logsFound += removableStatements.length;
+      for (const call of removableCalls) {
+        switch (consoleLogDryRunRiskTier(call)) {
+          case "high":
+            highRiskLogs++;
+            foundByRisk.high.push({
+              file: filePath,
+              line: call.getStartLineNumber(),
+              preview: call.getText(),
+            });
+            break;
+          case "medium":
+            mediumRiskLogs++;
+            foundByRisk.medium.push({
+              file: filePath,
+              line: call.getStartLineNumber(),
+              preview: call.getText(),
+            });
+            break;
+          default:
+            lowRiskLogs++;
+            foundByRisk.low.push({
+              file: filePath,
+              line: call.getStartLineNumber(),
+              preview: call.getText(),
+            });
+        }
+      }
 
       if (!isDryRun) {
         // Remove bottom-to-top so edits don't disturb earlier node positions.
@@ -594,7 +656,13 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
   if (!isDryRun) {
     return generateSavingsReport(stats);
   }
-  return logsFound;
+  return {
+    total: logsFound,
+    highRisk: highRiskLogs,
+    mediumRisk: mediumRiskLogs,
+    lowRisk: lowRiskLogs,
+    foundByRisk,
+  };
 }
 
 /**

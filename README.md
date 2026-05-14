@@ -10,9 +10,9 @@
 - **Dead Image Links** - Find image references in code that point to non-existent files
 - **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them
 - **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run)
-- **Prune Console Logs** - Strip unused `console` calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`)
+- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.js` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.js`](utils/consoleLogHighRiskPatterns.js) and [`utils/consoleLogMediumRiskPatterns.js`](utils/consoleLogMediumRiskPatterns.js)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
 - **Duplicate Detection** - Find and clean duplicate constructs across the project
-- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`** to apply fixes when dry-run finds work
+- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. The first step forwards **`--list-risk-categories` / `-r`** and **`-i` / `--list-risk-categories-info`** into the console-log check: **`-i`** prints the risk index and that step returns immediately; **`-r`** toggles extra dry-run hit tables when combined with the step’s built-in dry run. The **rest of the tidy pipeline still runs** unless you only need the index (use **`prune-logs -i`** for a single quick print).
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
 - **Project Summary** - Get comprehensive statistics about your codebase
 - **File Size Analysis** - Identify the largest files and potential optimization targets
@@ -50,7 +50,7 @@ npm install qleaner --save-dev
 This repo includes **[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)** (“Qleaner Health Guardian”). On pull requests it:
 
 1. Restores **`unused-check-cache.json`** (Actions cache; key includes `yarn.lock` and `qleaner.config.json`).
-2. Runs **`yarn start tidy .`** (no **`--auto-fix` / `-u`** — every step is dry-run only), **`yarn start summary`**, and **`yarn start image . . --dry-run -t`**, captures tidy and image CLI output, and builds **`pr_report.md`** with [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) (stats, sparkline, **cache snapshot** including `parentGraph.fixes`, **tidy output**, **image scan output**, repository summary text). Image directory and code root are both `.` in the workflow—change those paths for your layout.
+2. Runs, in order: **`yarn start tidy <path> -r`** (no **`--auto-fix` / `-u`** — dry-run pipeline only; **`-r`** adds per-tier console-log hit tables in the tidy capture when `foundByRisk` is present), **`yarn start image <assets> <code> -d -T 1`**, **`yarn start summary`**, then **`node .github/scripts/pr-report.js …`** (stats, sparkline, cache snapshot, **tidy**, **image**, **summary**). The **job succeeds** when every command exits **0**. Paths match this repo’s Infisical sample tree—edit the workflow for your layout.
 3. Posts or updates a single sticky PR comment (no automatic code commits).
 
 ## Quick Start
@@ -369,18 +369,31 @@ qleaner prune .
 
 ### `qleaner prune-logs`
 
-Remove **unused** `console` calls: `log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`.
+Remove **`console`** debug calls: `log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace` (standalone expression statements only).
+
+> **Note:** `qleaner prune-logs --help` may describe flags differently; **runtime behavior** matches [`controllers/list.js`](controllers/list.js) (`pruneConsoleLogs`, `runSurgicalPass`) as summarized below.
 
 **Arguments:**
-- `[pathToScan]` - Directory to scan (default **`.`**)
+- `[pathToScan]` - Directory to scan (default **`.`**); globs come from `qleaner.config.json` like other prune commands
 
 **Options:**
-- `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-d, --dry-run` - Report counts only (no edits). Prints totals as **`N (high-risk sensitive: H, medium: M, low: L)`**. With **`--list-risk-categories`** also set, prints per-tier **hit tables** (file, line, preview) when the dry-run result includes `foundByRisk` (capped per tier in `controllers/list.js`).
+- **`-i` / `--list-risk-categories-info`** - Print the risk-tier **category index** (pattern file paths and section titles), then **return** without scanning or editing.
+- **`--list-risk-categories`** - Does **not** skip the scan by itself. Use with **`-d`** to dry-run and optionally show hit tables as above, or use **`-i`** for the index-only path.
+
+**Heuristics (not a security scanner):** Patterns live in **`utils/consoleLogHighRiskPatterns.js`** and **`utils/consoleLogMediumRiskPatterns.js`**; classification order is high → medium → low.
 
 **Examples:**
 ```bash
-qleaner prune-logs . --dry-run
-qleaner prune-logs .
+# Risk index only (no scan, no edits) — preferred for CI / docs
+qleaner prune-logs -i
+
+# Dry-run counts (hit tables only if you also pass --list-risk-categories)
+qleaner prune-logs src --dry-run
+qleaner prune-logs src --dry-run --list-risk-categories
+
+# Apply removals (not a dry run)
+qleaner prune-logs src
 ```
 
 ### `qleaner duplicates`
@@ -416,19 +429,23 @@ qleaner undo images
 
 **Tidy up the project** — runs a pipeline of checks; each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work.
 
+> **Note:** `qleaner tidy --help` may describe **`-r` / `-i`** differently; **runtime behavior** matches [`controllers/list.js`](controllers/list.js) (`tidyUp`) as summarized below.
+
 **Arguments:**
 - `[pathToScan]` - Project root or source directory for globs (default **`.`**)
 
 **Options:**
 - `-u, --auto-fix` - After a successful dry-run count for a step, run the real pass (console logs, internal unused code, duplicates, **unused exports with `--fix`**). Finishes with a **dry-run `scan`** (unused files listed, not moved).
+- **`-r` / `--list-risk-categories`** - Forwarded to the **console logs** step as `listRiskCategories` (with that step’s **`dryRun: true`**, toggles per-tier hit tables when the dry-run returns `foundByRisk`). Does **not** abort the rest of the tidy pipeline.
+- **`-i` / `--list-risk-categories-info`** - Forwarded to the console-log step; that step prints the **risk category index** and returns, then tidy **continues** with unused code, duplicates, and exports.
 
 Sequence (see `controllers/list.js`):
 
-1. **Console logs** — `prune-logs` dry-run → apply if needed  
+1. **Console logs** — `prune-logs` dry-run (counts; hit tables when **`--list-risk-categories` / `-r`** is set and `foundByRisk` is present) → apply if **`--auto-fix`**  
 2. **Unused internal code** — `prune` dry-run → apply if needed  
 3. **Duplicates** — `duplicates` dry-run → apply if needed  
 4. **Unused exports** — `exports` dry-run → apply with **fix** if needed  
-5. **Unused files scan** — `scan` with `dryRun: true` only when `--auto-fix` ran (reports unused files; does not move them)
+5. **Unused files scan** — `scan` with `dryRun: true` only when **`--auto-fix`** ran (reports unused files; does not move them)
 
 Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with `--dry-run` until you trust the behavior.
 
@@ -436,6 +453,12 @@ Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` man
 ```bash
 # Report-only (dry-runs each step; no edits)
 qleaner tidy
+
+# Same risk index as prune-logs -i (first step only; pipeline continues)
+qleaner tidy -i
+
+# Dry-run console step includes hit tables when matches exist
+qleaner tidy -r
 
 # Apply safe code cleanups when issues are found
 qleaner tidy . --auto-fix
@@ -640,7 +663,7 @@ When you run **`qleaner scan`** without `--dry-run`:
 ### Code Analysis
 1. **File Discovery** - Uses `fast-glob` to find all code files matching patterns with intelligent exclusion handling
 2. **Path Alias Resolution** - Reads path aliases from your `jsconfig.json` or `tsconfig.json` (or manual `paths` config) to understand how imports are resolved. This enables accurate file finding even in large codebases with complex import structures.
-3. **AST Parsing** - Parses JavaScript/TypeScript with Babel to extract imports and exports from code files
+3. **AST Parsing** - Parses JavaScript/TypeScript with Babel; **`.ts` / `.mts` / `.cts`** are parsed without the JSX plugin so TypeScript angle-bracket assertions (e.g. `<Type>expr`) are valid, while **`.tsx` / `.js` / `.jsx`** keep JSX parsing. Vue SFC scripts use **`lang`** to pick the same split. Used for dependency and image-reference scanning (`utils/astParser.js`, `utils/fileProcessing.js`, `controllers/image.js`).
 4. **Module Resolution** - Uses `enhanced-resolve` with your project's path aliases to resolve import paths accurately. Supports:
    - Path aliases (e.g., `@/components`, `~/utils`)
    - Relative imports (`./component`, `../utils`)
@@ -694,7 +717,8 @@ qleaner dep --table
 # 7. Optional: unused exports, prune, logs, duplicates (dry-run first)
 qleaner exports . --dry-run
 qleaner prune . --dry-run
-qleaner prune-logs . --dry-run
+qleaner prune-logs -i
+qleaner prune-logs src/infisical-main/frontend --dry-run
 qleaner duplicates . --dry-run
 
 # 8. Get project summary
