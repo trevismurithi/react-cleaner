@@ -46,7 +46,7 @@ jobs:
           NO_COLOR: "1"
         run: |
           yarn start tidy src/infisical-main/frontend -r > tidy_report.txt 2>&1
-          yarn start image src/infisical-main/frontend/public src/infisical-main/frontend -d -T 1 > image_report.txt 2>&1
+          yarn start image src/infisical-main/frontend/public src/infisical-main/frontend -d -T 0.1 > image_report.txt 2>&1
           yarn start summary > health_summary.txt
           node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
