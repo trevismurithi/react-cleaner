@@ -1,5 +1,7 @@
 name: "Qleaner Health Guardian"
 
+# Qleaner v1.4.0 (see package.json). PR report footer version is read from package.json in pr-report.js.
+
 # Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
 # Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
 # If a required check stays "Expected — Waiting for status to be reported", the workflow did not run

@@ -6,6 +6,7 @@ const ts = require("typescript");
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(exec);
+const crypto = require("crypto");
 
 async function askDeleteFiles(unusedFiles, isCode = true) {
   const response = await prompts({
@@ -35,7 +36,26 @@ async function askDeleteFiles(unusedFiles, isCode = true) {
   }
 }
 
-async function moveToTrash(files, unusedFiles, isCode = true) {
+/** Remove `.trash/<uuid>/` after restore when the subfolder is empty (legacy flat paths skip `.trash` itself). */
+function removeEmptyTrashSubdir(trashDir, destinationPath) {
+  const trashResolved = path.resolve(trashDir);
+  const parentDir = path.resolve(path.dirname(destinationPath));
+  if (parentDir === trashResolved) {
+    return;
+  }
+  if (!parentDir.startsWith(`${trashResolved}${path.sep}`)) {
+    return;
+  }
+  try {
+    if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
+      fs.rmdirSync(parentDir);
+    }
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+async function moveToTrash(files, _,isCode = true) {
   const trashDir = path.join(process.cwd(), ".trash");
   const cache = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), "unused-check-cache.json"), "utf8")
@@ -56,7 +76,9 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
       continue;
     }
     const fileName = path.basename(file.file);
-    const destination = path.join(trashDir, fileName);
+    const trashSubdir = path.join(trashDir, crypto.randomUUID());
+    fs.mkdirSync(trashSubdir, { recursive: true });
+    const destination = path.join(trashSubdir, fileName);
     fs.renameSync(file.file, destination);
     file.destination = destination;
     stats.filesDeleted += 1;
@@ -82,13 +104,13 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
     stats.estimatedDeveloperHoursSaved += 0.25;
   }
   if (isCode) {
-    cache.parentGraph.unusedFiles = Array.from(unusedFiles);
+    cache.parentGraph.unusedFiles = Array.from(files);
     fs.writeFileSync(
       path.join(process.cwd(), "unused-check-cache.json"),
       JSON.stringify(cache, null, 2)
     );
   } else {
-    cache.imageParentGraph.unusedImages = Array.from(unusedFiles);
+    cache.imageParentGraph.unusedImages = Array.from(files);
     fs.writeFileSync(
       path.join(process.cwd(), "unused-check-cache.json"),
       JSON.stringify(cache, null, 2)
@@ -128,7 +150,18 @@ async function moveFromTrash(isCode = true) {
     if (!file.destination) {
       continue;
     }
+    if (!fs.existsSync(file.destination)) {
+      console.error(
+        `Trash file missing, skipping restore: ${file.destination}`,
+      );
+      continue;
+    }
+    const restoreDir = path.dirname(file.file);
+    if (!fs.existsSync(restoreDir)) {
+      fs.mkdirSync(restoreDir, { recursive: true });
+    }
     fs.renameSync(file.destination, file.file);
+    removeEmptyTrashSubdir(trashDir, file.destination);
     file.destination = null;
   }
   updateStatistics("remove", {

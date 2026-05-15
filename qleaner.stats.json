@@ -1,0 +1,22 @@
+{
+  "statistics": {
+    "2026-05-15T13:28:58.558Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    },
+    "2026-05-15T14:08:02.857Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    },
+    "2026-05-15T14:41:43.821Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    }
+  }
+}

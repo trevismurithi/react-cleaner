@@ -13,6 +13,14 @@ const fs = require("fs");
 const path = require("path");
 const { FIX_PASS_KEYS } = require(path.join(__dirname, "../../utils/cache"));
 
+const PKG_VERSION = (() => {
+  try {
+    return require(path.join(__dirname, "../../package.json")).version;
+  } catch {
+    return "unknown";
+  }
+})();
+
 const statsPath = path.resolve(process.cwd(), process.argv[2] || "qleaner.stats.json");
 const summaryPath = path.resolve(process.cwd(), process.argv[3] || "health_summary.txt");
 
@@ -251,7 +259,7 @@ const imageReportSection = buildCliCaptureSection(
 const noChanges = thisRun.items === 0 && thisRun.lines === 0;
 
 const runBlock = noChanges
-  ? "> No code changes were needed — the codebase is already clean."
+  ? "> No code changes were made on this PR."
   : `| Metric | This PR |
 | --- | --- |
 | Items removed | **${fmt(thisRun.items)}** |
@@ -267,7 +275,7 @@ const sparkLines = last7
 const body = `<!-- qleaner-report -->
 ### Qleaner Health Guardian
 
-${noChanges ? "**No changes needed** — code is clean." : `**${fmt(thisRun.items)} items** cleaned up on this PR.`}
+${noChanges ? "**No changes Made** on this PR." : `**${fmt(thisRun.items)} items** cleaned up on this PR.`}
 
 #### This PR run
 ${runBlock}
@@ -298,6 +306,6 @@ ${imageReportSection}
 ${summaryText}
 \`\`\`
 
-<sub>Maintained by [Qleaner](https://github.com/trevis/react-cleaner) v1.3.3</sub>`;
+<sub>Maintained by [Qleaner](https://github.com/trevis/react-cleaner) v${PKG_VERSION}</sub>`;
 
 process.stdout.write(body);
