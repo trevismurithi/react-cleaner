@@ -65,14 +65,20 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
       if(extension === '.vue') {
       const {descriptor} = parse(code);
       if(descriptor.scriptSetup || descriptor.script) {
-        const ast = parseCode(descriptor.scriptSetup?.content || descriptor.script?.content||'');
+        const vueScriptLang =
+          descriptor.scriptSetup?.lang || descriptor.script?.lang || "";
+        const ast = parseCode(
+          descriptor.scriptSetup?.content || descriptor.script?.content || "",
+          filePath,
+          vueScriptLang
+        );
         const { imports: fileImports, exports: fileExports } =
           extractImportsAndExports(ast, filePath);
         imports.push(...fileImports);
         exports.push(...fileExports);
       }
       }else {
-        const ast = parseCode(code);
+        const ast = parseCode(code, filePath);
         // Extract imports and exports from AST
         const { imports: fileImports, exports: fileExports } =
           extractImportsAndExports(ast, filePath);

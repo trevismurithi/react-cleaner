@@ -1,9 +1,8 @@
 {
-  "path": "src/demo",
   "framework": "react",
-  "codeAlias": null,
+  "codeAlias": "tsconfig.app.json",
   "paths": {},
-  "packageManager": "npm",
+  "packageManager": "yarn",
   "excludeDir": [
     "node_modules",
     "dist",
@@ -83,6 +82,6 @@
     "__generated__"
   ],
   "excludeFileCode": [],
-  "isRootFolderReferenced": true,
-  "alias": false
+  "isRootFolderReferenced": false,
+  "alias": true
 }

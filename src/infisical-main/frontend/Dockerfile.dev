@@ -1,0 +1,17 @@
+# Base layer
+FROM node:20-alpine
+
+# Set the working directory 
+WORKDIR /app
+
+# Copy over dependency files 
+COPY package.json ./
+COPY package-lock.json ./
+
+# Install 
+RUN npm install --ignore-scripts
+
+# Copy all files 
+COPY . .
+
+CMD ["npm", "run", "dev"]

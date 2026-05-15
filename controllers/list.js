@@ -26,130 +26,388 @@ const {
   nukeConsoleLogs,
   deduplicateLogic,
 } = require("../utils/editFile");
+const {
+  CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS,
+} = require("../utils/consoleLogHighRiskPatterns");
+const {
+  CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS,
+} = require("../utils/consoleLogMediumRiskPatterns");
 const { buildContentPaths } = require("../utils/pathBuilder");
 const fg = require("fast-glob");
 
-async function getConfig() {
-  let config = {};
-  if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
-    config = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "qleaner.config.json"), "utf8"),
-    );
-  }
-  const pathToScan = config.path || process.cwd();
-  const contentPaths = buildContentPaths(pathToScan, config);
-  const files = await fg(contentPaths);
-  return files;
+const RULE = "════════════════════════════════════════════════";
+const CACHE_FILE = "unused-check-cache.json";
+const TABLE_STYLE = { head: [], border: [] };
+
+function cachePath() {
+  return path.join(process.cwd(), CACHE_FILE);
 }
 
-async function tidyUp(ora, chalk) {
+function printRule(chalk, color = "yellow") {
+  console.log(chalk[color](RULE));
+}
+
+/** Load and validate `parentGraph.graph`; log on failure. */
+function loadHydratedGraph(chalk) {
+  const file = cachePath();
+  if (!fs.existsSync(file)) {
+    console.log(
+      chalk.red(
+        '⚠️  Cache file not found. Please run "qleaner scan" first to generate the cache.',
+      ),
+    );
+    return null;
+  }
+  let cache;
+  try {
+    cache = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    console.log(
+      chalk.red(
+        '⚠️  Error reading cache file. Please run "qleaner scan" again.',
+      ),
+    );
+    return null;
+  }
+  if (!cache.parentGraph?.graph) {
+    console.log(
+      chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'),
+    );
+    return null;
+  }
+  return hydrateGraph(cache.parentGraph.graph);
+}
+
+function printSurgicalSummary(chalk, heading, stats) {
+  console.log(chalk.yellow(`${heading}:`));
+  printRule(chalk);
+  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
+  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
+  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
+  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
+  printRule(chalk);
+}
+
+/** Numeric total from a dry-run result (`nukeConsoleLogs` → `{ total, highRisk, mediumRisk, lowRisk, foundByRisk? }`). */
+function dryRunItemTotal(result) {
+  if (
+    result &&
+    typeof result === "object" &&
+    typeof result.total === "number"
+  ) {
+    return result.total;
+  }
+  return typeof result === "number" ? result : 0;
+}
+
+/** Max rows per risk tier when printing `foundByRisk` (dry-run console log pass). */
+const CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER = 100;
+
+function truncateConsolePreview(text, maxLen = 90) {
+  const s = String(text == null ? "" : text)
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length <= maxLen) {
+    return s;
+  }
+  return `${s.slice(0, maxLen)}…`;
+}
+
+/**
+ * @param {import("chalk").Chalk} chalk
+ * @param {{ high?: unknown[], medium?: unknown[], low?: unknown[] }} foundByRisk
+ */
+function printConsoleLogDryRunFoundByRisk(chalk, foundByRisk) {
+  if (!foundByRisk || typeof foundByRisk !== "object") {
+    return;
+  }
+
+  const tiers = [
+    { key: "high", title: "High-risk sensitive (file:line)", style: chalk.red },
+    { key: "medium", title: "Medium-risk (file:line)", style: chalk.yellow },
+    { key: "low", title: "Low-risk (file:line)", style: chalk.green },
+  ];
+
+  let any = false;
+  for (const { key, title, style } of tiers) {
+    const items = foundByRisk[key];
+    if (!Array.isArray(items) || items.length === 0) {
+      continue;
+    }
+    any = true;
+    const shown = items.slice(0, CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER);
+    const omitted = items.length - shown.length;
+
+    printRule(chalk);
+    console.log(style.bold(`${title} — ${items.length} hit(s)`));
+    const table = newTable(
+      chalk,
+      ["File", "Line", "Call preview"],
+      [72, 6, 72],
+    );
+    for (const row of shown) {
+      const file = typeof row.file === "string" ? row.file : "";
+      const line = row.line != null ? String(row.line) : "";
+      const preview = truncateConsolePreview(row.preview, 88);
+      table.push([
+        chalk.white(formatFilePath(path.resolve(file), 68)),
+        chalk.white(line),
+        chalk.gray(preview),
+      ]);
+    }
+    console.log(table.toString());
+    if (omitted > 0) {
+      console.log(
+        chalk.gray(
+          `… and ${omitted} more in this tier (cap ${CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER} per tier).`,
+        ),
+      );
+    }
+  }
+
+  if (any) {
+    printRule(chalk);
+  }
+}
+
+async function runSurgicalPass(chalk, pathToScan, options, transform, labels) {
+  const files = await getConfig(pathToScan);
+  const stats = await transform(files, options.dryRun, chalk, options.message);
+  if (options.dryRun) {
+    const detail =
+      stats &&
+      typeof stats === "object" &&
+      typeof stats.total === "number" &&
+      typeof stats.highRisk === "number" &&
+      typeof stats.mediumRisk === "number" &&
+      typeof stats.lowRisk === "number"
+        ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
+        : `${stats}`;
+    console.log(chalk.yellow(`${labels.dryPrefix}: ${detail}`));
+    if (
+      stats &&
+      typeof stats === "object" &&
+      stats.foundByRisk &&
+      options.listRiskCategories
+    ) {
+      printConsoleLogDryRunFoundByRisk(chalk, stats.foundByRisk);
+    }
+    return stats;
+  }
+  await updateFileAssociatedStats(new Date().toISOString(), stats);
+  printSurgicalSummary(chalk, labels.summaryHeading, stats);
+}
+
+async function getConfig(pathToScan) {
+  const configPath = path.join(pathToScan, "qleaner.config.json");
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  }
+  return fg(buildContentPaths(pathToScan, config));
+}
+
+function newTable(chalk, heads, colWidths) {
+  return new Table({
+    head: heads.map((h) => chalk.cyan(h)),
+    colWidths,
+    style: TABLE_STYLE,
+  });
+}
+
+function printLinesOrTable(chalk, rows, useTable, singleColumnLabel) {
+  if (useTable) {
+    const table = newTable(chalk, [singleColumnLabel], [100]);
+    rows.forEach((row) => table.push([chalk.white(row)]));
+    console.log(table.toString());
+  } else {
+    rows.forEach((row) => console.log(chalk.yellow(row)));
+  }
+}
+
+async function tidyUp(ora, chalk, pathToScan, options = {}) {
+  const { autoFix } = options;
   const spinner = ora("🔍 Tidying up the project...").start();
-  const stats = await pruneConsoleLogs(chalk, { dryRun: true });
-  if (stats > 0) {
-    spinner.text = "🔍 Pruning console logs...";
-    await pruneConsoleLogs(chalk);
-    spinner.succeed("Prune console logs completed");
+
+  const steps = [
+    {
+      checkLabel: "🔍 Checking for console logs...",
+      fixLabel: "🔍 Removing console logs...",
+      done: "Prune console logs completed",
+      dry: () =>
+        pruneConsoleLogs(chalk, pathToScan, {
+          dryRun: true,
+          message: "Checking for console logs",
+          listRiskCategories: options.listRiskCategories,
+          listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+        }),
+      fix: () =>
+        pruneConsoleLogs(chalk, pathToScan, {
+          message: "Removing console logs",
+          listRiskCategories: options.listRiskCategories,
+          listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+        }),
+    },
+    {
+      checkLabel: "🔍 Checking for unused code...",
+      fixLabel: "🔍 Removing unused code...",
+      done: "Prune unused code completed",
+      dry: () =>
+        pruneUnusedCode(chalk, pathToScan, {
+          dryRun: true,
+          message: "Checking for unused code",
+        }),
+      fix: () =>
+        pruneUnusedCode(chalk, pathToScan, { message: "Removing unused code" }),
+    },
+    {
+      checkLabel: "🔍 Checking for duplicate code...",
+      fixLabel: "🔍 Removing duplicate code...",
+      done: "Remove duplicate code completed",
+      dry: () =>
+        checkForDuplicates(chalk, pathToScan, {
+          dryRun: true,
+          message: "Checking for duplicate code",
+        }),
+      fix: () =>
+        checkForDuplicates(chalk, pathToScan, {
+          message: "Removing duplicate code",
+        }),
+    },
+    {
+      checkLabel: "🔍 Checking for unreferenced exports...",
+      fixLabel: "🔍 Removing unreferenced exports...",
+      done: "Remove unreferenced exports completed",
+      dry: () =>
+        unusedExports(ora, chalk, pathToScan, {
+          dryRun: true,
+          message: "Checking for unreferenced exports",
+        }),
+      fix: () =>
+        unusedExports(ora, chalk, pathToScan, {
+          fix: true,
+          message: "Removing unreferenced exports",
+        }),
+    },
+  ];
+
+  for (const step of steps) {
+    spinner.text = step.checkLabel;
+    const count = await step.dry();
+    if (dryRunItemTotal(count) > 0 && autoFix) {
+      spinner.text = step.fixLabel;
+      await step.fix();
+      spinner.succeed(step.done);
+    }
   }
-  const unusedCodeStats = await pruneUnusedCode(chalk, { dryRun: true });
-  if (unusedCodeStats > 0) {
-    spinner.text = "🔍 Pruning unused code...";
-    await pruneUnusedCode(chalk);
-    spinner.succeed("Prune unused code completed");
+
+  if (autoFix) {
+    await scan(ora, chalk, pathToScan, { dryRun: true, clearCache: false });
+    spinner.succeed("Tidy up completed");
   }
-  spinner.text = "🔍 Checking for duplicates...";
-  const duplicatesStats = await checkForDuplicates(chalk, { dryRun: true });
-  if (duplicatesStats > 0) {
-    spinner.text = "🔍 Pruning duplicates...";
-    await checkForDuplicates(chalk);
-    spinner.succeed("Check for duplicates completed");
-  }
-  await scan(ora, chalk, {
-    dryRun: true,
-    clearCache: true,
-  });
-  spinner.text = "🔍 Checking for unused exports...";
-  const unusedExportsStats = await unusedExports(chalk, { dryRun: true });
-  if (unusedExportsStats > 0) {
-    spinner.text = "🔍 Reporting unused exports...";
-    await unusedExports(chalk);
-    spinner.succeed("Unused exports step completed");
-  }
-  await scan(ora, chalk, {
-    dryRun: true,
-    clearCache: false,
-  });
   spinner.succeed("Tidy up completed");
 }
 
-async function checkForDuplicates(chalk, options = {}) {
-  const files = await getConfig();
-  const stats = await deduplicateLogic(files, options.dryRun);
-  if (options.dryRun) {
-    console.log(chalk.yellow(`Total duplicates found: ${stats}`));
-    return stats;
-  }
-  await updateFileAssociatedStats(new Date().toISOString(), stats);
-  console.log(chalk.yellow("Check for duplicates:"));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
-  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
-  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
-  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-}
-async function pruneConsoleLogs(chalk, options = {}) {
-  const files = await getConfig();
-  const stats = await nukeConsoleLogs(files, options.dryRun);
-  if (options.dryRun) {
-    console.log(chalk.yellow(`Total console logs found: ${stats}`));
-    return stats;
-  }
-  await updateFileAssociatedStats(new Date().toISOString(), stats);
-  console.log(chalk.yellow("Prune console logs:"));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
-  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
-  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
-  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
+async function checkForDuplicates(chalk, pathToScan, options = {}) {
+  return runSurgicalPass(chalk, pathToScan, options, deduplicateLogic, {
+    dryPrefix: "Total duplicates found",
+    summaryHeading: "Check for duplicates",
+  });
 }
 
-async function pruneUnusedCode(chalk, options = {}) {
-  const files = await getConfig();
-  const stats = await pruneInternal(files, options.dryRun);
-  if (options.dryRun) {
-    console.log(chalk.yellow(`Total unused code found: ${stats}`));
-    return stats;
-  }
-  updateFileAssociatedStats(new Date().toISOString(), stats);
-  console.log(chalk.yellow("Prune internal unused code:"));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  console.log(chalk.yellow(`Total items removed: ${stats.totalItemsRemoved}`));
-  console.log(chalk.yellow(`Total lines removed: ${stats.totalLinesRemoved}`));
-  console.log(chalk.yellow(`Total bytes saved: ${stats.bytesSaved}`));
-  console.log(chalk.yellow(`Total files modified: ${stats.filesModified}`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
+function printConsoleLogRiskCategoryReference(chalk) {
+  const highPath = require.resolve("../utils/consoleLogHighRiskPatterns.js");
+  const mediumPath =
+    require.resolve("../utils/consoleLogMediumRiskPatterns.js");
+  const tierPath = require.resolve("../utils/editFile.js");
+
+  printRule(chalk, "cyan");
+  console.log(chalk.cyan.bold("Console log risk tiers (dry-run & tidy)"));
+  console.log(
+    chalk.gray(
+      "Each removable console.debug/log/info/… call is classified from its argument source text: high → medium → low.",
+    ),
+  );
+  printRule(chalk, "cyan");
+
+  console.log(chalk.yellow.bold("High-risk sensitive"));
+  console.log(chalk.white(`Patterns file: ${highPath}`));
+  console.log(
+    chalk.gray(`${CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS.length} sections:`),
+  );
+  CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS.forEach((label, i) => {
+    console.log(chalk.white(`  ${i + 1}. ${label}`));
+  });
+  console.log();
+
+  console.log(chalk.yellow.bold("Medium-risk"));
+  console.log(chalk.white(`Patterns file: ${mediumPath}`));
+  console.log(
+    chalk.gray(`${CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS.length} sections:`),
+  );
+  CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS.forEach((label, i) => {
+    console.log(chalk.white(`  ${i + 1}. ${label}`));
+  });
+  console.log();
+
+  console.log(chalk.yellow.bold("Low-risk"));
+  console.log(
+    chalk.white(
+      "Removable console calls whose argument text does not match high- or medium-risk heuristics.",
+    ),
+  );
+  console.log(chalk.white(`Classification logic: ${tierPath}`));
+  console.log(
+    chalk.gray("Search for `consoleLogDryRunRiskTier` in that file."),
+  );
+  printRule(chalk, "cyan");
 }
-async function unusedExports(chalk, options = {}) {
-  const { unUsedExportsWithPath, fileAssociated } = findUnusedExports();
+
+async function pruneConsoleLogs(chalk, pathToScan, options = {}) {
+  if (options.listRiskCategoriesInfo) {
+    printConsoleLogRiskCategoryReference(chalk);
+    return;
+  }
+  return runSurgicalPass(chalk, pathToScan, options, nukeConsoleLogs, {
+    dryPrefix: "Total console logs found",
+    summaryHeading: "Prune console logs",
+  });
+}
+
+async function pruneUnusedCode(chalk, pathToScan, options = {}) {
+  return runSurgicalPass(chalk, pathToScan, options, pruneInternal, {
+    dryPrefix: "Total unused code found",
+    summaryHeading: "Prune internal unused code",
+  });
+}
+
+async function unusedExports(ora, chalk, pathToScan, options = {}) {
+  await scan(ora, chalk, pathToScan, {
+    dryRun: true,
+    clearCache: Boolean(options.freshScan),
+  });
+  const { unUsedExportsWithPath, fileAssociated } =
+    await findUnusedExports(chalk);
+
   if (options.dryRun) {
     console.log(
       chalk.yellow(`Total unused exports found: ${unUsedExportsWithPath.size}`),
     );
     return unUsedExportsWithPath.size;
   }
+
   if (unUsedExportsWithPath.size === 0) {
     console.log(
       chalk.green("✓ No unused exports found. All exports are in use."),
     );
     return;
   }
-  // print the unused exports in a table
-  const table = new Table({
-    head: [chalk.cyan("Unreferenced Exports"), chalk.cyan("File Path")],
-    colWidths: [100, 100],
-    style: { head: [], border: [] },
-  });
+
+  const table = newTable(
+    chalk,
+    ["Unreferenced Exports", "File Path"],
+    [100, 100],
+  );
   const listToRemove = combineValues(unUsedExportsWithPath);
   listToRemove.forEach((exportName, filePath) => {
     table.push([
@@ -158,84 +416,53 @@ async function unusedExports(chalk, options = {}) {
     ]);
   });
   console.log(table.toString());
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
+  printRule(chalk);
+
   if (options.fix) {
-    const stats = await editFile(listToRemove, fileAssociated);
+    const stats = await editFile(
+      listToRemove,
+      fileAssociated,
+      chalk,
+      options.message,
+    );
     await updateFileAssociatedStats(new Date().toISOString(), stats);
   }
-  // write the total number of unused exports
+
   console.log(
     chalk.yellow(`Total unused exports: ${unUsedExportsWithPath.size}`),
   );
 }
 
 async function list(ora, chalk, dependency, options = {}) {
-  // Load graph from cache
-  const cachePath = path.join(process.cwd(), "unused-check-cache.json");
-  if (!fs.existsSync(cachePath)) {
-    console.log(
-      chalk.red(
-        '⚠️  Cache file not found. Please run "qleaner scan" first to generate the cache.',
-      ),
-    );
-    return;
-  }
+  const graph = loadHydratedGraph(chalk);
+  if (!graph) return;
 
-  let cache;
-  try {
-    cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch {
-    console.log(
-      chalk.red(
-        '⚠️  Error reading cache file. Please run "qleaner scan" again.',
-      ),
-    );
-    return;
-  }
-
-  if (!cache.parentGraph || !cache.parentGraph.graph) {
-    console.log(
-      chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'),
-    );
-    return;
-  }
   const spinner = ora("🔍 Loading graph from cache...").start();
-  const graph = hydrateGraph(cache.parentGraph.graph);
-  await new Promise((resolve) => setTimeout(resolve, 500)); // simulate loading time
+  await new Promise((resolve) => setTimeout(resolve, 500));
   spinner.text = "🔍 Querying files by dependency...";
   const filesSet = query(graph, dependency);
-  await new Promise((resolve) => setTimeout(resolve, 500)); // simulate querying time
+  await new Promise((resolve) => setTimeout(resolve, 500));
   spinner.succeed("Query completed");
-  if (!filesSet || filesSet.size === 0) {
+
+  if (!filesSet?.size) {
     console.log(chalk.yellow(`No files found using ${dependency}`));
     return;
   }
 
   const files = Array.from(filesSet);
-
   console.log(chalk.yellow(`Files using ${dependency}:`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-
+  printRule(chalk);
   if (options.table) {
-    const table = new Table({
-      head: [chalk.cyan("File Path")],
-      colWidths: [100],
-      style: { head: [], border: [] },
-    });
-
-    files.forEach((file) => {
-      table.push([chalk.white(formatFilePath(file, 95))]);
-    });
-
-    console.log(table.toString());
+    printLinesOrTable(
+      chalk,
+      files.map((f) => formatFilePath(f, 95)),
+      true,
+      "File Path",
+    );
   } else {
-    files.forEach((file) => {
-      console.log(chalk.yellow(file));
-    });
+    files.forEach((file) => console.log(chalk.yellow(file)));
   }
-
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  // write the total number of files using the dependency
+  printRule(chalk);
   console.log(chalk.yellow(`Total files using ${dependency}: ${files.length}`));
 }
 
@@ -244,7 +471,6 @@ async function unusedDependencies(
   directoryPath = process.cwd(),
   options = {},
 ) {
-  // Load package.json
   const packageJsonPath = path.join(directoryPath, "package.json");
   if (!fs.existsSync(packageJsonPath)) {
     console.log(chalk.red("⚠️  Package.json not found."));
@@ -259,49 +485,16 @@ async function unusedDependencies(
     return;
   }
 
-  if (
-    !packageJson.dependencies ||
-    Object.keys(packageJson.dependencies).length === 0
-  ) {
+  const deps = packageJson.dependencies;
+  if (!deps || Object.keys(deps).length === 0) {
     console.log(chalk.yellow("No dependencies found in package.json."));
     return;
   }
 
-  const dependencies = Object.keys(packageJson.dependencies);
+  const graph = loadHydratedGraph(chalk);
+  if (!graph) return;
 
-  // Load cache and graph
-  const cachePath = path.join(process.cwd(), "unused-check-cache.json");
-  if (!fs.existsSync(cachePath)) {
-    console.log(
-      chalk.red(
-        '⚠️  Cache file not found. Please run "qleaner scan" first to generate the cache.',
-      ),
-    );
-    return;
-  }
-
-  let cache;
-  try {
-    cache = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-  } catch {
-    console.log(
-      chalk.red(
-        '⚠️  Error reading cache file. Please run "qleaner scan" again.',
-      ),
-    );
-    return;
-  }
-
-  if (!cache.parentGraph || !cache.parentGraph.graph) {
-    console.log(
-      chalk.red('⚠️  Invalid cache file. Please run "qleaner scan" again.'),
-    );
-    return;
-  }
-
-  const graph = hydrateGraph(cache.parentGraph.graph);
-  const unusedDeps = findUnusedDeps(graph, dependencies);
-
+  const unusedDeps = findUnusedDeps(graph, Object.keys(deps));
   if (unusedDeps.size === 0) {
     console.log(
       chalk.green(
@@ -312,38 +505,16 @@ async function unusedDependencies(
   }
 
   console.log(chalk.yellow(`Unused Dependencies (${unusedDeps.size}):`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-
-  if (options.table) {
-    const table = new Table({
-      head: [chalk.cyan("Dependency Name")],
-      colWidths: [100],
-      style: { head: [], border: [] },
-    });
-
-    unusedDeps.forEach((dependency) => {
-      table.push([chalk.white(dependency)]);
-    });
-
-    console.log(table.toString());
-  } else {
-    unusedDeps.forEach((dependency) => {
-      console.log(chalk.yellow(dependency));
-    });
-  }
-
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  // write the total number of unused dependencies
+  printRule(chalk);
+  printLinesOrTable(chalk, [...unusedDeps], options.table, "Dependency Name");
+  printRule(chalk);
   console.log(chalk.yellow(`Total unused dependencies: ${unusedDeps.size}`));
+
   if (options.uninstall) {
-    // uninstall unused dependencies
-    for (const dependency of unusedDeps) {
-      console.log(chalk.yellow(`Uninstalling ${dependency}...`));
-      // uninstall the dependency
-      await uninstallDependency(dependency);
-      console.log(
-        chalk.green("════════════════════════════════════════════════"),
-      );
+    for (const name of unusedDeps) {
+      console.log(chalk.yellow(`Uninstalling ${name}...`));
+      await uninstallDependency(name);
+      console.log(chalk.green(RULE));
     }
   }
 }
@@ -368,126 +539,132 @@ async function summary(chalk, options) {
   }
 }
 
-async function scan(ora, chalk, options) {
+function resolveScanPathConfig(pathToScan, options, chalk) {
   let pathConfig = {};
-  let pathToScan = options.path || process.cwd();
-  // check if qleaner.config.json exists
-  if (fs.existsSync(path.join(process.cwd(), "qleaner.config.json"))) {
-    const config = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "qleaner.config.json"), "utf8"),
-    );
-    options = {
-      ...config,
-      ...options,
-    };
+  const configPath = path.join(process.cwd(), "qleaner.config.json");
+  if (!fs.existsSync(configPath)) {
+    return { options, pathConfig };
+  }
 
-    pathToScan = options.path || config.path;
-    // config file will take precedence over the tsconfig.json file
-    if (config.paths && Object.entries(config.paths).length > 0) {
-      pathConfig = config.paths;
-    } else if (config.codeAlias) {
-      pathConfig = loadTSConfig(pathToScan, config.codeAlias).paths;
-      if (!pathConfig) {
-        console.log(
-          chalk.red(
-            '⚠️  Error reading config file. Please run "qleaner scan" again.',
-          ),
-        );
-        pathConfig = {};
-      }
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const merged = { ...config, ...options };
+
+  if (config.paths && Object.keys(config.paths).length > 0) {
+    pathConfig = config.paths;
+  } else if (config.codeAlias) {
+    const loaded = loadTSConfig(pathToScan, config.codeAlias).paths;
+    if (!loaded) {
+      console.log(
+        chalk.red(
+          '⚠️  Error reading config file. Please run "qleaner scan" again.',
+        ),
+      );
+      pathConfig = {};
+    } else {
+      pathConfig = loaded;
     }
   }
 
-  // read qleaner.config.json
-  const unusedFiles = await unUsedFiles(
-    ora,
-    chalk,
-    pathToScan,
-    pathConfig,
-    options,
-  );
+  return { options: merged, pathConfig };
+}
 
+function printUnusedFileRows(chalk, fileArray, useTable, dryRun) {
   let totalSize = 0;
-  const fileArray = Array.from(unusedFiles.values());
-
-  if (fileArray.length === 0) {
-    console.log(chalk.green.bold("\n✓ No unused files found!"));
-    console.log(
-      chalk.green("════════════════════════════════════════════════\n"),
+  if (useTable) {
+    const table = newTable(
+      chalk,
+      dryRun
+        ? ["Unused Files (Would Delete)", "Size"]
+        : ["Unused Files", "Size"],
+      [90, 15],
     );
-    return;
-  }
-
-  if (options.dryRun) {
-    console.log(chalk.cyan.bold("\n[DRY RUN MODE] No files will be deleted\n"));
-  }
-
-  if (options.table) {
-    const table = new Table({
-      head: options.dryRun
-        ? [chalk.cyan("Unused Files (Would Delete)"), chalk.cyan("Size")]
-        : [chalk.cyan("Unused Files"), chalk.cyan("Size")],
-      colWidths: [90, 15],
-      style: { head: [], border: [] },
-    });
-
-    totalSize = 0;
     for (const file of fileArray) {
       table.push([
         chalk.white(formatFilePath(file.file, 85)),
-        chalk.yellow((file.size / 1024).toFixed(2) + " KB"),
+        chalk.yellow(`${(file.size / 1024).toFixed(2)} KB`),
       ]);
       totalSize += file.size;
     }
     console.log(table.toString());
   } else {
-    totalSize = 0;
     for (const file of fileArray) {
       console.log(
         chalk.white("📄 ") +
           chalk.blue(formatFilePath(file.file, 85)) +
           " - " +
-          chalk.yellow((file.size / 1024).toFixed(2) + " KB"),
+          chalk.yellow(`${(file.size / 1024).toFixed(2)} KB`),
       );
       totalSize += file.size;
     }
   }
+  return totalSize;
+}
 
-  // Summary section
-  console.log(
-    chalk.green("\n════════════════════════════════════════════════"),
+async function scan(ora, chalk, pathToScan, options) {
+  const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
+    pathToScan,
+    options,
+    chalk,
   );
+
+  const unusedFiles = await unUsedFiles(
+    ora,
+    chalk,
+    pathToScan,
+    pathConfig,
+    mergedOpts,
+  );
+
+  const fileArray = Array.from(unusedFiles);
+
+  if (fileArray.length === 0) {
+    console.log(chalk.green.bold("\n✓ No unused files found!"));
+    console.log(chalk.green(`${RULE}\n`));
+    return;
+  }
+
+  if (mergedOpts.dryRun) {
+    console.log(chalk.cyan.bold("\n[DRY RUN MODE] No files will be deleted\n"));
+  }
+
+  const totalSize = printUnusedFileRows(
+    chalk,
+    fileArray,
+    mergedOpts.table,
+    mergedOpts.dryRun,
+  );
+
+  console.log(chalk.green(`\n${RULE}`));
   console.log(
     chalk.yellow.bold("Total Size: ") +
-      chalk.yellow((totalSize / (1024 * 1024)).toFixed(2) + " MB"),
+      chalk.yellow(`${(totalSize / (1024 * 1024)).toFixed(2)} MB`),
   );
   console.log(
     chalk.magenta.bold("Total Files: ") +
-      chalk.magenta(fileArray.length.toString()),
+      chalk.magenta(String(fileArray.length)),
   );
-  console.log(chalk.green("════════════════════════════════════════════════"));
+  console.log(chalk.green(RULE));
 
-  // Cache information
   console.log(chalk.cyan("\n💾 Cache Information"));
-  console.log(chalk.cyan("════════════════════════════════════════════════"));
+  console.log(chalk.cyan(RULE));
   console.log(
     chalk.cyan(
       "Run with --clear-cache or -C to clear the cache for a new scan",
     ),
   );
-  console.log(chalk.cyan("════════════════════════════════════════════════"));
+  console.log(chalk.cyan(RULE));
 
-  if (options.dryRun && unusedFiles.size > 0) {
+  if (mergedOpts.dryRun) {
     console.log(
       chalk.cyan(`\n[DRY RUN] Would delete ${unusedFiles.size} file(s)`),
     );
     console.log(chalk.cyan("Run without --dry-run to actually delete files\n"));
-  } else if (!options.dryRun && unusedFiles.size > 0) {
-    if (options.autoFix) {
-      const listOfFiles = [];
-      for (const file of unusedFiles) {
-        listOfFiles.push({ file: file.file, size: file.size });
-      }
+  } else {
+    if (mergedOpts.autoFix) {
+      const listOfFiles = Array.from(unusedFiles, (entry) => ({
+        file: entry.file,
+        size: entry.size,
+      }));
       await moveToTrash(listOfFiles, unusedFiles, true);
     } else {
       askDeleteFiles(unusedFiles);
@@ -497,13 +674,14 @@ async function scan(ora, chalk, options) {
 
 async function undoDeletions(chalk, type) {
   console.log(chalk.yellow(`Undoing deletions for ${type}`));
-  console.log(chalk.yellow("════════════════════════════════════════════════"));
-  await moveFromTrash(type === "code" ? true : false);
+  printRule(chalk);
+  await moveFromTrash(type === "code");
   console.log(chalk.green(`Undone deletions for ${type}`));
-  console.log(chalk.green("════════════════════════════════════════════════"));
+  console.log(chalk.green(RULE));
 }
 
 module.exports = {
+  resolveScanPathConfig,
   summary,
   scan,
   list,

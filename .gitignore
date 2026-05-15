@@ -1,4 +1,4 @@
-src/infisical-main
+# src/infisical-main
 src/info-portal-development
 unused-check-cache.json
 # Dependencies
@@ -84,3 +84,6 @@ Desktop.ini
 
 # dotenv environment variable files
 .env.test
+
+# Qleaner
+.trash/

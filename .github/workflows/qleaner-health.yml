@@ -1,25 +1,25 @@
 name: "Qleaner Health Guardian"
 
+# Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
+# Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
+# If a required check stays "Expected — Waiting for status to be reported", the workflow did not run
+# (e.g. wrong base branch, draft PR awaiting approval for first-time contributors, or workflow file not on default branch).
+
 on:
   pull_request:
-    branches: [ main, master, develop, staging ]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 jobs:
   hygiene-check:
-    name: "Repository Hygiene and Stats"
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required for pushing code changes
-      pull-requests: write # Required for posting PR comments
+      contents: read
+      pull-requests: write
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
-        with:
-          # We explicitly check out the branch to avoid 'detached HEAD' errors
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. Setup Node.js & Yarn
         uses: actions/setup-node@v4
@@ -28,74 +28,60 @@ jobs:
           cache: 'yarn'
 
       - name: 3. Install Local Dependencies
-        # Essential for running Qleaner from source via 'yarn start'
         run: yarn install
 
       - name: 4. Restore Qleaner Smart Cache
-        # Uses unused-check-cache.json to ensure fast, incremental PR analysis
+        # unused-check-cache.json: dependency graph, unused-file lists, image graph, parentGraph.fixes (surgical-pass fingerprints)
         uses: actions/cache@v4
         with:
           path: unused-check-cache.json
-          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock', '**/qleaner.config.json') }}
           restore-keys: |
             qleaner-cache-${{ runner.os }}-
 
-      - name: 5. Execute Cleanup and Summary
-        # Runs the full 'tidy' sequence and generates dependency hotspots
+      - name: 5. Tidy (dry-run), image scan, and summary (read-only)
+        # Order: tidy (-r includes console-log dry-run with per-tier hit tables when foundByRisk exists) → image → summary.
+        # No --auto-fix: surgical steps are dry-run only. No code commits. Job succeeds when every command exits 0.
+        env:
+          NO_COLOR: "1"
         run: |
-          yarn start tidy
-          yarn start summary --dependencies > health_summary.txt
+          yarn start tidy src/infisical-main/frontend -r > tidy_report.txt 2>&1
+          yarn start image src/infisical-main/frontend/public src/infisical-main/frontend -d -T 1 > image_report.txt 2>&1
+          yarn start summary > health_summary.txt
+          node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
-      - name: 6. Commit and Push Cleaned Code
-        # This saves the changes back to the PR branch correctly
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add .
-          # Check if tidy actually changed any files in stats or code
-          if ! git diff --cached --exit-code; then
-            git commit -m "chore: automated qleaner repository hygiene"
-            # Explicitly push to the PR branch to resolve detached HEAD issue
-            git push origin HEAD:${{ github.head_ref }}
-          else
-            echo "No hygiene issues detected. Code is pristine."
-          fi
-
-      - name: 7. Post PR Health Report
-        if: always() # Post report even if git push was skipped
+      - name: 6. Post PR Health Report
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            
-            if (fs.existsSync('qleaner.stats.json')) {
-              const stats = JSON.parse(fs.readFileSync('qleaner.stats.json', 'utf8'));
-              const summaryText = fs.existsSync('health_summary.txt') ? fs.readFileSync('health_summary.txt', 'utf8') : 'Summary not available.';
-              
-              // Get the most recent surgical impact metrics
-              const sessions = Object.values(stats.fileAssociatedStats || {});
-              const lastSession = sessions[sessions.length - 1] || {};
-              
-              const body = `### 🧹 Qleaner Health Guardian Report
-              **Surgical Fixes Applied:**
-              - **Items Removed:** ${lastSession.totalItemsRemoved || 0}
-              - **Lines Pruned:** ${lastSession.totalLinesRemoved || 0}
-              - **Size Saved:** ${lastSession.bytesSaved || 0} bytes
-              
-              **🚀 Time Reclaimed: ${lastSession.estimatedDeveloperHoursSaved || 0} hrs**
-              
-              **Repository Hotspots:**
-              \`\`\`
-              ${summaryText}
-              \`\`\`
-              
-              *Codebase health maintained by Qleaner v1.3.3.*`;
-              
-              github.rest.issues.createComment({
+            if (!fs.existsSync('pr_report.md')) { return; }
+
+            const body = fs.readFileSync('pr_report.md', 'utf8');
+            const marker = '<!-- qleaner-report -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: body
+                body,
               });
             }

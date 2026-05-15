@@ -1,0 +1,61 @@
+---
+title: "SDKs"
+sidebarTitle: "Introduction"
+---
+
+
+
+From local development to production, Infisical SDKs provide the easiest way for your app to fetch back secrets from Infisical on demand.
+
+-   Install and initialize a language-specific client SDK into your application
+-   Provision the client scoped-access to a project and environment in Infisical
+-   Fetch secrets on demand
+
+<CardGroup cols={2}>
+    <Card title="Node.js" href="/sdks/languages/node" icon="/images/sdks/languages/node.svg">
+      Manage secrets for your Node application on demand
+    </Card>
+    <Card href="/sdks/languages/python" title="Python" icon="/images/sdks/languages/python.svg">
+      Manage secrets for your Python application on demand
+    </Card>
+    <Card href="/sdks/languages/java" title="Java" icon="/images/sdks/languages/java.svg">
+      Manage secrets for your Java application on demand
+    </Card>
+    <Card href="/sdks/languages/dotnet" title=".NET" icon="/images/sdks/languages/dotnet.svg">
+      Manage secrets for your .NET application on demand
+    </Card>
+    <Card href="/sdks/languages/cpp" title="C++" icon="/images/sdks/languages/cpp.svg">
+      Manage secrets for your C++ application on demand
+    </Card>
+    <Card href="/sdks/languages/rust" title="Rust" icon="/images/sdks/languages/rust.svg">
+      Manage secrets for your Rust application on demand
+    </Card>
+     <Card href="/sdks/languages/go" title="Go" icon="/images/sdks/languages/go.svg">
+      Manage secrets for your Go application on demand
+    </Card>
+      <Card href="/sdks/languages/php" title="PHP" icon="/images/sdks/languages/php.svg">
+      Manage secrets for your PHP application on demand
+    </Card>
+    <Card href="/sdks/languages/ruby" title="Ruby" icon="/images/sdks/languages/ruby.svg">
+      Manage secrets for your Ruby application on demand
+    </Card>
+</CardGroup>
+
+<Card title="Did we miss your favorite language?">
+  We're always looking for new languages to support. If you'd like to see a new language added, please let us know by opening an issue on our [GitHub repository](https://github.com/Infisical/infisical/issues).
+</Card>
+
+## FAQ
+
+<AccordionGroup>
+    <Accordion title="What if a request for a secret fails?">
+        The SDK caches every secret and falls back to the cached value if a request fails. If no cached
+        value ever-existed, the SDK falls back to whatever value is on the process environment.
+    </Accordion>
+    <Accordion title="Can I attach the environment variables to my process environment?">
+        Yes you can! The client SDK provides a method to attach the secrets to your process environment. When using the `listSecrets()` method, you
+        can pass a `attachToProcessEnv` parameter, which tells the SDK to attach all the found secrets to your process environment.
+        
+        Note: The exact parameter name may differ depending on the language.
+    </Accordion>
+</AccordionGroup>

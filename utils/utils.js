@@ -63,9 +63,21 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
     file.sessionID = sessionID;
     stats.bytesSaved += file.size;
     if (isCode) {
-      stats.exportsStripped += cache.parentGraph.graph[file.file].exports.size;
+      const codeNode = cache.parentGraph.graph[file.file];
+      const exportsField = codeNode?.exports;
+      if (Array.isArray(exportsField)) {
+        stats.exportsStripped += exportsField.length;
+      } else if (exportsField && typeof exportsField.size === "number") {
+        stats.exportsStripped += exportsField.size;
+      }
     } else {
-      stats.exportsStripped += cache.imageParentGraph.imageGraph[file.file].exports.size;
+      const imageNode = cache.imageParentGraph.imageGraph[file.file];
+      const exportsField = imageNode?.exports;
+      if (Array.isArray(exportsField)) {
+        stats.exportsStripped += exportsField.length;
+      } else if (exportsField && typeof exportsField.size === "number") {
+        stats.exportsStripped += exportsField.size;
+      }
     }
     stats.estimatedDeveloperHoursSaved += 0.25;
   }
@@ -89,8 +101,6 @@ async function moveToTrash(files, unusedFiles, isCode = true) {
     bytesSaved: stats.bytesSaved,
     exportsStripped: stats.exportsStripped,
   });
-
-  console.log(`Moved ${files.length} files to .trash directory`);
 }
 
 async function moveFromTrash(isCode = true) {
@@ -214,7 +224,6 @@ async function deleteFiles(files, unusedFiles, isCode = true) {
     bytesSaved: stats.bytesSaved,
     exportsStripped: stats.exportsStripped,
   });
-  console.log(`Deleted ${files.length} files`);
 }
 
 function isExcludedFile(file, excludeFiles) {

@@ -1,0 +1,742 @@
+---
+title: "Infisical Python SDK"
+sidebarTitle: "Python"
+icon: "/images/sdks/languages/python.svg"
+---
+
+If you're working with Python, the official Infisical Python SDK package is the easiest way to fetch and work with secrets for your application. 
+
+### Migrating to version 1.0.3 or above
+
+We have recently rolled out our first stable version of the SDK, version `1.0.3` and above.
+
+The 1.0.3 version comes with a few key changes that may change how you're using the SDK.
+1. **Removal of `rest`**: The SDK no longer exposes the entire Infisical API. This was nessecary as we have moved away from using an OpenAPI generator approach. We aim to add support for more API resources in the near future. If you have any specific requests, please [open an issue](https://github.com/Infisical/python-sdk-official/issues).
+
+2. **New response types**: The 1.0.3 release uses return types that differ from the older versions. The new return types such as `BaseSecret`, are all exported from the Infisical SDK.
+
+3. **Property renaming**: Some properties on the responses have been slightly renamed. An example of this would be that the `secret_key` property on the `get_secret_by_name()` method, that has been renamed to `secretKey`.
+
+With this in mind, you're ready to upgrade your SDK version to `1.0.3` or above. 
+
+You can refer to our [legacy documentation](https://github.com/Infisical/python-sdk-official/tree/9b0403938ee5ae599d42c5f1fdf9158671a15606?tab=readme-ov-file#infisical-python-sdk) if need be.
+
+## Requirements
+
+Python 3.7+
+
+## Installation
+
+```bash
+pip install infisicalsdk
+```
+
+## Getting Started
+
+```python
+from infisical_sdk import InfisicalSDKClient
+
+# Initialize the client
+client = InfisicalSDKClient(host="https://app.infisical.com")
+
+# Authenticate (example using Universal Auth)
+client.auth.universal_auth.login(
+    client_id="<machine-identity-client-id>", 
+    client_secret="<machine-identity-client-secret>"
+)
+
+# Use the SDK to interact with Infisical
+secrets = client.secrets.list_secrets(project_id="<project-id>", environment_slug="dev", secret_path="/")
+```
+
+## InfisicalSDKClient Parameters
+
+The `InfisicalSDKClient` takes the following parameters, which are used as a global configuration for the lifetime of the SDK instance.
+
+- **host** (`str`, _Optional_): The host URL for your Infisical instance. Defaults to `https://app.infisical.com`.
+- **token** (`str`, _Optional_): Specify an authentication token to use for all requests. If provided, you will not need to call any of the `auth` methods. Defaults to `None`
+- **cache_ttl** (`int`, _Optional_): The SDK has built-in client-side caching for secrets, greatly improving response times. By default, secrets are cached for 1 minute (60 seconds). You can disable caching by setting `cache_ttl` to `None`, or adjust the duration in seconds as needed.
+
+```python
+client = InfisicalSDKClient(
+  host="https://app.infisical.com", # Defaults to https://app.infisical.com
+  token="<optional-auth-token>", # If not set, use the client.auth() methods.
+  cache_ttl = 300 # `None` to disable caching
+)
+```
+
+## Core Methods
+
+The SDK methods are organized into the following high-level categories:
+
+1. `auth`: Handles authentication methods.
+2. `secrets`: Manages CRUD operations for secrets.
+3. `dynamic_secrets`: Manages dynamic secrets and leases.
+4. `kms`: Perform cryptographic operations with Infisical KMS.
+5. `folders`: Manages folder-related operations.
+
+### `auth`
+
+The `Auth` component provides methods for authentication:
+
+#### Universal Auth
+
+```python
+response = client.auth.universal_auth.login(
+    client_id="<machine-identity-client-id>", 
+    client_secret="<machine-identity-client-secret>"
+)
+```
+
+#### AWS Auth
+
+```python
+response = client.auth.aws_auth.login(identity_id="<machine-identity-id>")
+```
+
+#### OIDC Auth
+
+```python
+response = client.auth.oidc_auth.login(
+    identity_id="<oidc-identity-id>",
+    jwt="<your-oidc-jwt-token>"
+)
+```
+
+**Parameters:**
+- `identity_id` (str): The ID of the OIDC identity configuration in Infisical.
+- `jwt` (str): The OIDC JWT token obtained from your identity provider.
+
+This authentication method is useful when integrating with OIDC-compliant identity providers like Okta, Auth0, or any service that issues OIDC tokens.
+
+#### Token Auth
+
+```python
+response = client.auth.token_auth.login(token="<your-token>")
+```
+
+**Parameters:**
+- `token` (str): The access token to authenticate with. This can be a [machine identity token](/documentation/platform/identities/token-auth) or a user access token.
+
+### `secrets`
+
+This sub-class handles operations related to secrets:
+
+#### List Secrets
+
+```python
+secrets = client.secrets.list_secrets(
+    project_id="<project-id>",
+    environment_slug="dev",
+    secret_path="/",
+    expand_secret_references=True, # Optional
+    view_secret_value=True, # Optional 
+    recursive=False, # Optional
+    include_imports=True, # Optional
+    tag_filters=[] # Optional
+)
+```
+
+**Parameters:**
+- `project_id` (str): The ID of your project.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to list secrets (e.g., "dev").
+- `secret_path` (str): The path to the secrets.
+- `expand_secret_references` (bool): Whether to expand secret references.
+- `view_secret_value` (bool): Whether or not to include the secret value in the response. If set to false, the `secretValue` will be masked with `<hidden-by-infisical>`. Defaults to true.
+- `recursive` (bool): Whether to list secrets recursively.
+- `include_imports` (bool): Whether to include imported secrets.
+- `tag_filters` (List[str]): Tags to filter secrets.
+
+**Note:** Exactly one of `project_id` or `project_slug` is required. If both are provided, `project_id` takes precedence.
+
+**Returns:**
+- `ListSecretsResponse`: The response containing the list of secrets.
+
+#### Create Secret
+
+```python
+new_secret = client.secrets.create_secret_by_name(
+    secret_name="NEW_SECRET",
+    project_id="<project-id>",
+    secret_path="/",
+    environment_slug="dev",
+    secret_value="secret_value",
+    secret_comment="Optional comment",
+    skip_multiline_encoding=False,
+    secret_reminder_repeat_days=30,  # Optional
+    secret_reminder_note="Remember to update this secret",  # Optional
+    secret_metadata=[{"key": "metadata_key", "value": "metadata_value"}], # Optional
+    tags_ids=["tag_id_1", "tag_id_2"] # Optional
+)
+```
+
+**Parameters:**
+- `secret_name` (str): The name of the secret.
+- `project_id` (str): The ID of your project.
+- `project_slug` (str): The slug of your project.
+- `secret_path` (str): The path to the secret.
+- `environment_slug` (str): The environment in which to create the secret.
+- `secret_value` (str): The value of the secret.
+- `secret_comment` (str, optional): A comment associated with the secret.
+- `skip_multiline_encoding` (bool, optional): Whether to skip encoding for multiline secrets.
+- `secret_reminder_repeat_days` (Union[float, int], optional): Number of days after which to repeat secret reminders.
+- `secret_reminder_note` (str, optional): A note for the secret reminder.
+- `secret_metadata` (List[Dict[str, Any]], optional): Metadata associated with the secret.
+- `tags_ids` (List[str], optional): IDs of tags to associate with the secret.
+
+**Note:** Exactly one of `project_id` or `project_slug` is required. If both are provided, `project_id` takes precedence.
+
+**Returns:**
+- `BaseSecret`: The response after creating the secret.
+
+#### Update Secret
+
+```python
+updated_secret = client.secrets.update_secret_by_name(
+    current_secret_name="EXISTING_SECRET",
+    project_id="<project-id>",
+    project_slug="<project-slug>",
+    secret_path="/",
+    environment_slug="dev",
+    secret_value="new_secret_value",
+    secret_comment="Updated comment",  # Optional
+    skip_multiline_encoding=False,
+    secret_reminder_repeat_days=30,  # Optional
+    secret_reminder_note="Updated reminder note",  # Optional
+    new_secret_name="NEW_NAME",  # Optional
+    secret_metadata=[{"key": "metadata_key", "value": "metadata_value"}], # Optional
+    tags_ids=["tag_id_1", "tag_id_2"] # Optional
+)
+```
+
+**Parameters:**
+- `current_secret_name` (str): The current name of the secret.
+- `project_id` (str): The ID of your project.
+- `project_slug` (str): The slug of your project.
+- `secret_path` (str): The path to the secret.
+- `environment_slug` (str): The environment in which to update the secret.
+- `secret_value` (str, optional): The new value of the secret.
+- `secret_comment` (str, optional): An updated comment associated with the secret.
+- `skip_multiline_encoding` (bool, optional): Whether to skip encoding for multiline secrets.
+- `secret_reminder_repeat_days` (Union[float, int], optional): Updated number of days after which to repeat secret reminders.
+- `secret_reminder_note` (str, optional): An updated note for the secret reminder.
+- `new_secret_name` (str, optional): A new name for the secret.
+- `secret_metadata` (List[Dict[str, Any]], optional): Metadata associated with the secret.
+- `tags_ids` (List[str], optional): IDs of tags to associate with the secret.
+
+**Note:** Exactly one of `project_id` or `project_slug` is required. If both are provided, `project_id` takes precedence.
+
+**Returns:**
+- `BaseSecret`: The response after updating the secret.
+
+#### Get Secret by Name
+
+```python
+secret = client.secrets.get_secret_by_name(
+    secret_name="EXISTING_SECRET",
+    project_id="<project-id>",
+    environment_slug="dev",
+    secret_path="/",
+    expand_secret_references=True, # Optional
+    view_secret_value=True, # Optional
+    include_imports=True, # Optional
+    version=None # Optional
+)
+```
+
+**Parameters:**
+- `secret_name` (str): The name of the secret.
+- `project_id` (str): The ID of your project.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to retrieve the secret.
+- `secret_path` (str): The path to the secret.
+- `expand_secret_references` (bool): Whether to expand secret references.
+- `view_secret_value` (bool): Whether or not to include the secret value in the response. If set to false, the `secretValue` will be masked with `<hidden-by-infisical>`. Defaults to true.
+- `include_imports` (bool): Whether to include imported secrets.
+- `version` (str, optional): The version of the secret to retrieve. Fetches the latest by default.
+
+**Note:** Exactly one of `project_id` or `project_slug` is required. If both are provided, `project_id` takes precedence.
+
+**Returns:**
+- `BaseSecret`: The response containing the secret.
+
+#### Delete Secret by Name
+
+```python
+deleted_secret = client.secrets.delete_secret_by_name(
+    secret_name="EXISTING_SECRET",
+    project_id="<project-id>",
+    environment_slug="dev",
+    secret_path="/"
+)
+```
+
+**Parameters:**
+- `secret_name` (str): The name of the secret to delete.
+- `project_id` (str): The ID of your project.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to delete the secret.
+- `secret_path` (str): The path to the secret.
+
+**Note:** Exactly one of `project_id` or `project_slug` is required. If both are provided, `project_id` takes precedence.
+
+**Returns:**
+- `BaseSecret`: The response after deleting the secret.
+
+### `dynamic_secrets`
+
+This sub-class handles operations related to dynamic secrets. Dynamic secrets generate credentials on-demand with automatic expiration. For more information, see the [Dynamic Secrets documentation](/documentation/platform/dynamic-secrets/overview).
+
+#### Create Dynamic Secret
+
+```python
+from infisical_sdk import DynamicSecretProviders
+
+dynamic_secret = client.dynamic_secrets.create(
+    name="postgres-dev",
+    provider_type=DynamicSecretProviders.SQL_DATABASE,
+    inputs={
+        "client": "postgres",
+        "host": "localhost",
+        "port": 5432,
+        "database": "mydb",
+        "username": "admin",
+        "password": "admin-password",
+        "creationStatement": "CREATE USER \"{{username}}\" WITH PASSWORD '{{password}}';",
+        "revocationStatement": "DROP USER \"{{username}}\";"
+    },
+    default_ttl="1h",
+    max_ttl="24h",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    metadata=[{"key": "team", "value": "backend"}]  # Optional
+)
+```
+
+**Parameters:**
+- `name` (str): The name of the dynamic secret.
+- `provider_type` (Union[DynamicSecretProviders, str]): The provider type (e.g., `DynamicSecretProviders.SQL_DATABASE`).
+- `inputs` (Dict[str, Any]): The provider-specific configuration inputs. See the [Dynamic Secrets API documentation](/api-reference/endpoints/dynamic-secrets/create) for provider-specific inputs.
+- `default_ttl` (str): The default time to live for leases (e.g., "1h", "30m").
+- `max_ttl` (str): The maximum time to live for leases (e.g., "24h").
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to create the dynamic secret.
+- `path` (str, optional): The path where the dynamic secret will be created. Defaults to "/".
+- `metadata` (List[Dict[str, str]], optional): Optional list of metadata items with 'key' and 'value'.
+
+**Returns:**
+- `DynamicSecret`: The created dynamic secret.
+
+#### Supported Provider Types
+
+The `DynamicSecretProviders` enum includes the following providers:
+
+| Provider | Enum Value |
+| -------- | ---------- |
+| AWS ElastiCache | `DynamicSecretProviders.AWS_ELASTICACHE` |
+| AWS IAM | `DynamicSecretProviders.AWS_IAM` |
+| Azure Entra ID | `DynamicSecretProviders.AZURE_ENTRA_ID` |
+| Azure SQL Database | `DynamicSecretProviders.AZURE_SQL_DATABASE` |
+| Cassandra | `DynamicSecretProviders.CASSANDRA` |
+| Couchbase | `DynamicSecretProviders.COUCHBASE` |
+| Elasticsearch | `DynamicSecretProviders.ELASTICSEARCH` |
+| GCP IAM | `DynamicSecretProviders.GCP_IAM` |
+| GitHub | `DynamicSecretProviders.GITHUB` |
+| Kubernetes | `DynamicSecretProviders.KUBERNETES` |
+| LDAP | `DynamicSecretProviders.LDAP` |
+| MongoDB Atlas | `DynamicSecretProviders.MONGO_ATLAS` |
+| MongoDB | `DynamicSecretProviders.MONGODB` |
+| RabbitMQ | `DynamicSecretProviders.RABBITMQ` |
+| Redis | `DynamicSecretProviders.REDIS` |
+| SAP ASE | `DynamicSecretProviders.SAP_ASE` |
+| SAP HANA | `DynamicSecretProviders.SAP_HANA` |
+| Snowflake | `DynamicSecretProviders.SNOWFLAKE` |
+| SQL Database | `DynamicSecretProviders.SQL_DATABASE` |
+| TOTP | `DynamicSecretProviders.TOTP` |
+| Vertica | `DynamicSecretProviders.VERTICA` |
+
+#### Get Dynamic Secret by Name
+
+```python
+dynamic_secret = client.dynamic_secrets.get_by_name(
+    name="postgres-dev",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/"
+)
+```
+
+**Parameters:**
+- `name` (str): The name of the dynamic secret.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to retrieve the dynamic secret.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+
+**Returns:**
+- `DynamicSecret`: The dynamic secret.
+
+#### Update Dynamic Secret
+
+```python
+updated_secret = client.dynamic_secrets.update(
+    name="postgres-dev",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    default_ttl="2h",  # Optional
+    max_ttl="48h",  # Optional
+    new_name="postgres-dev-updated",  # Optional
+    inputs={"port": 5433},  # Optional - updated provider inputs
+    metadata=[{"key": "team", "value": "platform"}],  # Optional
+    username_template="dev-{{identity.name}}"  # Optional
+)
+```
+
+**Parameters:**
+- `name` (str): The current name of the dynamic secret.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to update the dynamic secret.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+- `default_ttl` (str, optional): The new default time to live for leases.
+- `max_ttl` (str, optional): The new maximum time to live for leases.
+- `new_name` (str, optional): The new name for the dynamic secret.
+- `inputs` (Dict[str, Any], optional): Updated provider-specific configuration inputs.
+- `metadata` (List[Dict[str, str]], optional): Updated metadata list with 'key' and 'value' items.
+- `username_template` (str, optional): The new username template for the dynamic secret.
+
+**Returns:**
+- `DynamicSecret`: The updated dynamic secret.
+
+#### Delete Dynamic Secret
+
+```python
+deleted_secret = client.dynamic_secrets.delete(
+    name="postgres-dev",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    is_forced=False  # Optional
+)
+```
+
+**Parameters:**
+- `name` (str): The name of the dynamic secret to delete.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to delete the dynamic secret.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+- `is_forced` (bool, optional): A boolean flag to delete the dynamic secret from Infisical without trying to remove it from the external provider. Defaults to `False`.
+
+**Returns:**
+- `DynamicSecret`: The deleted dynamic secret.
+
+### `dynamic_secrets.leases`
+
+This sub-class handles operations related to dynamic secret leases. A lease represents a set of generated credentials with a specific TTL.
+
+#### Create Lease
+
+Create a lease to generate credentials from a dynamic secret:
+
+```python
+lease_response = client.dynamic_secrets.leases.create(
+    dynamic_secret_name="postgres-dev",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    ttl="30m"  # Optional
+)
+
+# Access the generated credentials
+username = lease_response.data["DB_USERNAME"]
+password = lease_response.data["DB_PASSWORD"]
+lease_id = lease_response.lease.id
+```
+
+**Parameters:**
+- `dynamic_secret_name` (str): The name of the dynamic secret to create a lease for.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to create the lease.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+- `ttl` (str, optional): The time to live for the lease (e.g., "1h", "30m").
+
+**Returns:**
+- `CreateLeaseResponse`: Response containing:
+  - `lease`: The lease object with ID, expiration, and metadata.
+  - `dynamicSecret`: The associated dynamic secret.
+  - `data`: The generated credentials. The structure depends on the dynamic secret provider.
+
+#### Get Lease
+
+```python
+lease = client.dynamic_secrets.leases.get(
+    lease_id="<lease-id>",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/"
+)
+```
+
+**Parameters:**
+- `lease_id` (str): The ID of the lease to retrieve.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to retrieve the lease.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+
+**Returns:**
+- `DynamicSecretLease`: The lease with dynamicSecret included.
+
+#### Renew Lease
+
+Extend the TTL of an existing lease:
+
+```python
+renewed_lease = client.dynamic_secrets.leases.renew(
+    lease_id="<lease-id>",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    ttl="2h"  # Optional - new TTL
+)
+```
+
+**Parameters:**
+- `lease_id` (str): The ID of the lease to renew.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to renew the lease.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+- `ttl` (str, optional): The new time to live for the lease.
+
+**Returns:**
+- `DynamicSecretLease`: The renewed lease.
+
+#### Revoke Lease
+
+Revoke a lease and its associated credentials:
+
+```python
+revoked_lease = client.dynamic_secrets.leases.revoke(
+    lease_id="<lease-id>",
+    project_slug="my-project",
+    environment_slug="dev",
+    path="/",
+    is_forced=False  # Optional
+)
+```
+
+**Parameters:**
+- `lease_id` (str): The ID of the lease to revoke.
+- `project_slug` (str): The slug of your project.
+- `environment_slug` (str): The environment in which to revoke the lease.
+- `path` (str, optional): The path to the dynamic secret. Defaults to "/".
+- `is_forced` (bool, optional): A boolean flag to revoke the lease from Infisical without trying to remove it from the external provider. Defaults to `False`.
+
+**Returns:**
+- `DynamicSecretLease`: The revoked lease.
+
+### `kms`
+
+This sub-class handles KMS related operations:
+
+#### List KMS Keys
+
+```python
+kms_keys = client.kms.list_keys(
+    project_id="<project-id>",
+    offset=0, # Optional
+    limit=100, # Optional
+    order_by=KmsKeysOrderBy.NAME, # Optional
+    order_direction=OrderDirection.ASC, # Optional
+    search=None # Optional
+)
+```
+
+**Parameters:**
+- `project_id` (str): The ID of your project.
+- `offset` (int, optional): The offset to paginate from.
+- `limit` (int, optional): The page size for paginating.
+- `order_by` (KmsKeysOrderBy, optional): The key property to order the list response by.
+- `order_direction` (OrderDirection, optional): The direction to order the list response in.
+- `search` (str, optional): The text value to filter key names by.
+
+**Returns:**
+- `ListKmsKeysResponse`: The response containing the list of KMS keys.
+
+#### Get KMS Key by ID
+
+```python
+kms_key = client.kms.get_key_by_id(
+    key_id="<key-id>"
+)
+```
+
+**Parameters:**
+- `key_id` (str): The ID of the key to retrieve.
+
+**Returns:**
+- `KmsKey`: The specified key.
+
+#### Get KMS Key by Name
+
+```python
+kms_key = client.kms.get_key_by_name(
+    key_name="my-key",
+    project_id="<project-id>"
+)
+```
+
+**Parameters:**
+- `key_name` (str): The name of the key to retrieve.
+- `project_id` (str): The ID of your project.
+
+**Returns:**
+- `KmsKey`: The specified key.
+
+#### Create KMS Key
+
+```python
+kms_key = client.kms.create_key(
+    name="my-key",
+    project_id="<project-id>",
+    encryption_algorithm=SymmetricEncryption.AES_GCM_256,
+    description=None # Optional
+)
+```
+
+**Parameters:**
+- `name` (str): The name of the key (must be slug-friendly).
+- `project_id` (str): The ID of your project.
+- `encryption_algorithm` (SymmetricEncryption): The encryption algorithm this key should use.
+- `description` (str, optional): A description of your key.
+
+**Returns:**
+- `KmsKey`: The newly created key.
+
+#### Update KMS Key
+
+```python
+updated_key = client.kms.update_key(
+    key_id="<key-id>",
+    name="my-updated-key", # Optional
+    description="Updated description", # Optional
+    is_disabled=True # Optional
+)
+```
+
+**Parameters:**
+- `key_id` (str): The ID of the key to be updated.
+- `name` (str, optional): The updated name of the key (must be slug-friendly).
+- `description` (str): The updated description of the key.
+- `is_disabled` (str): The flag to disable operations with this key.
+
+**Returns:**
+- `KmsKey`: The updated key.
+
+#### Delete KMS Key
+
+```python
+deleted_key = client.kms.delete_key(
+    key_id="<key-id>"
+)
+```
+
+**Parameters:**
+- `key_id` (str): The ID of the key to be deleted.
+
+**Returns:**
+- `KmsKey`: The deleted key.
+
+#### Encrypt Data with KMS Key
+
+```python
+encrypted_data = client.kms.encrypt_data(
+    key_id="<key-id>",
+    base64EncodedPlaintext="TXkgc2VjcmV0IG1lc3NhZ2U=" # must be base64 encoded
+)
+```
+
+**Parameters:**
+- `key_id` (str): The ID of the key to encrypt the data with.
+- `base64EncodedPlaintext` (str): The plaintext data to encrypt (must be base64 encoded).
+
+**Returns:**
+- `str`: The encrypted ciphertext.
+
+#### Decrypt Data with KMS Key
+
+```python
+decrypted_data = client.kms.decrypt_data(
+    key_id="<key-id>",
+    ciphertext="Aq96Ry7sMH3k/ogaIB5MiSfH+LblQRBu69lcJe0GfIvI48ZvbWY+9JulyoQYdjAx"
+)
+```
+
+**Parameters:**
+- `key_id` (str): The ID of the key to decrypt the data with.
+- `ciphertext` (str): The ciphertext returned from the encrypt operation.
+
+**Returns:**
+- `str`: The base64 encoded plaintext.
+
+### `folders`
+
+This sub-class handles operations related to folders:
+
+#### List Folders
+
+```python
+folders = client.folders.list_folders(
+    project_id="<project-id>",
+    environment_slug="dev",
+    path="/",
+    recursive=False, # Optional
+    last_secret_modified=None # Optional
+)
+```
+
+**Parameters:**
+- `project_id` (str): The ID of your project.
+- `environment_slug` (str): The environment in which to list folders.
+- `path` (str): The path to list folders from.
+- `recursive` (bool, optional): Whether to list folders recursively from the specified path and downwards. Defaults to `False`.
+- `last_secret_modified` (datetime, optional): The timestamp used to filter folders with secrets modified after the specified date. Defaults to `None`.
+
+**Returns:**
+- `ListFoldersResponse`: The response containing the list of folders.
+
+#### Create Folder
+
+```python
+new_folder = client.folders.create_folder(
+    name="my-folder",
+    environment_slug="dev",
+    project_id="<project-id>",
+    path="/", # Optional
+    description=None # Optional
+)
+```
+
+**Parameters:**
+- `name` (str): The name of the folder to create.
+- `environment_slug` (str): The slug of the environment to create the folder in.
+- `project_id` (str): The ID of your project to create the folder in.
+- `path` (str, optional): The path to create the folder in. Defaults to `/`.
+- `description` (str, optional): An optional description label for the folder. Defaults to `None`.
+
+**Returns:**
+- `CreateFolderResponseItem`: The response containing the created folder.
+
+#### Get Folder by ID
+
+```python
+folder = client.folders.get_folder_by_id(
+    id="<folder-id>"
+)
+```
+
+**Parameters:**
+- `id` (str): The ID of the folder to retrieve.
+
+**Returns:**
+- `SingleFolderResponseItem`: The response containing the folder details.

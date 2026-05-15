@@ -1,0 +1,29 @@
+import { z } from "zod";
+
+import { BaseSecretSyncSchema } from "@app/components/secret-syncs/forms/schemas/base-secret-sync-schema";
+import { SecretSync } from "@app/hooks/api/secretSyncs";
+import { RenderSyncScope, RenderSyncType } from "@app/hooks/api/secretSyncs/types/render-sync";
+
+export const RenderSyncDestinationSchema = BaseSecretSyncSchema(
+  z.object({
+    autoRedeployServices: z.boolean().optional()
+  })
+).merge(
+  z.object({
+    destination: z.literal(SecretSync.Render),
+    destinationConfig: z.discriminatedUnion("scope", [
+      z.object({
+        scope: z.literal(RenderSyncScope.Service),
+        serviceId: z.string().trim().min(1, "Service is required"),
+        serviceName: z.string().trim().optional(),
+        type: z.nativeEnum(RenderSyncType)
+      }),
+      z.object({
+        scope: z.literal(RenderSyncScope.EnvironmentGroup),
+        environmentGroupId: z.string().trim().min(1, "Environment Group ID is required"),
+        environmentGroupName: z.string().trim().optional(),
+        type: z.nativeEnum(RenderSyncType)
+      })
+    ])
+  })
+);

@@ -1,0 +1,1 @@
+export { useServerConfig } from "./ServerConfigContext";
