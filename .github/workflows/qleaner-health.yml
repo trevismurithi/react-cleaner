@@ -1,5 +1,8 @@
 name: "Qleaner Health Guardian"
 
+# Installs the published `qleaner` package from npm (see action.yml) and runs the global
+# `qleaner` CLI — not `yarn start`. PR report version is resolved from the installed package in pr-report.js.
+
 # Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
 # Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
 # If a required check stays "Expected — Waiting for status to be reported", the workflow did not run
@@ -21,36 +24,23 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js & Yarn
-        uses: actions/setup-node@v4
+      - name: 2. Run Qleaner from npm
+        uses: ./
         with:
-          node-version: '20'
-          cache: 'yarn'
+          qleaner-version: "1.4.0"
+          scan-path: src/infisical-main/frontend
+          image-assets-path: src/infisical-main/frontend/public
+          image-code-path: src/infisical-main/frontend
+          tidy-extra-args: "-r"
+          image-extra-args: "-d -T 0.1"
 
-      - name: 3. Install Local Dependencies
-        run: yarn install
-
-      - name: 4. Restore Qleaner Smart Cache
-        # unused-check-cache.json: dependency graph, unused-file lists, image graph, parentGraph.fixes (surgical-pass fingerprints)
-        uses: actions/cache@v4
-        with:
-          path: unused-check-cache.json
-          key: qleaner-cache-${{ runner.os }}-${{ hashFiles('**/yarn.lock', '**/qleaner.config.json') }}
-          restore-keys: |
-            qleaner-cache-${{ runner.os }}-
-
-      - name: 5. Tidy (dry-run), image scan, and summary (read-only)
-        # Order: tidy (-r includes console-log dry-run with per-tier hit tables when foundByRisk exists) → image → summary.
-        # No --auto-fix: surgical steps are dry-run only. No code commits. Job succeeds when every command exits 0.
+      - name: 3. Build PR health report
         env:
           NO_COLOR: "1"
         run: |
-          yarn start tidy src/infisical-main/frontend -r > tidy_report.txt 2>&1
-          yarn start image src/infisical-main/frontend/public src/infisical-main/frontend -d -T 1 > image_report.txt 2>&1
-          yarn start summary > health_summary.txt
           node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
-      - name: 6. Post PR Health Report
+      - name: 4. Post PR Health Report
         if: always()
         uses: actions/github-script@v7
         with:

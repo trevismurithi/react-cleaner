@@ -1,32 +1,66 @@
 #!/usr/bin/env node
 /**
  * Generates the PR health report body from qleaner.stats.json.
- * Called by the CI workflow; writes report.md to stdout or a file.
+ * Called by the CI workflow after the published `qleaner` npm CLI runs (not `yarn start`).
  *
  * Usage: node .github/scripts/pr-report.js <stats-file> <summary-file> [tidy-report-file] [image-report-file]
  * CI / default: argv[2]=qleaner.stats.json, argv[3]=health_summary.txt, argv[4]=tidy_report.txt, argv[5]=image_report.txt
- * Legacy 3-file form (no tidy path): ... <stats> <summary> <image-report-file> (argv[4] only)
+ * Missing inputs: creates a minimal `qleaner.stats.json` (and optional placeholder `.txt`
+ * captures) so the PR report always renders. Diagnostics go to **stderr** so `> pr_report.md` stays clean.
  */
 
 const fs = require("fs");
 const path = require("path");
-const { FIX_PASS_KEYS } = require(path.join(__dirname, "../../utils/cache"));
 
-const statsPath = process.argv[2] || "qleaner.stats.json";
-const summaryPath = process.argv[3] || "health_summary.txt";
+const FIX_PASS_KEYS_FALLBACK = [
+  "pruneInternal",
+  "nukeConsoleLogs",
+  "deduplicateLogic",
+];
+
+/** Installed npm package root, or this repo root when developing locally. */
+function resolveQleanerPackageRoot() {
+  try {
+    return path.dirname(require.resolve("qleaner/package.json"));
+  } catch {
+    return path.join(__dirname, "../..");
+  }
+}
+
+function loadFixPassKeys() {
+  const pkgRoot = resolveQleanerPackageRoot();
+  try {
+    return require(path.join(pkgRoot, "utils/cache")).FIX_PASS_KEYS;
+  } catch {
+    return FIX_PASS_KEYS_FALLBACK;
+  }
+}
+
+const FIX_PASS_KEYS = loadFixPassKeys();
+
+const PKG_VERSION = (() => {
+  try {
+    return require(path.join(resolveQleanerPackageRoot(), "package.json")).version;
+  } catch {
+    return "unknown";
+  }
+})();
+
+const statsPath = path.resolve(process.cwd(), process.argv[2] || "qleaner.stats.json");
+const summaryPath = path.resolve(process.cwd(), process.argv[3] || "health_summary.txt");
 
 /** When argv has both tidy + image paths (length >= 6), argv[4]=tidy, argv[5]=image. Else argv[4] is image only. */
 let tidyReportPath;
 let imageReportPath;
 if (process.argv.length >= 6) {
-  tidyReportPath = process.argv[4];
-  imageReportPath = process.argv[5];
+  tidyReportPath = path.resolve(process.cwd(), process.argv[4]);
+  imageReportPath = path.resolve(process.cwd(), process.argv[5]);
 } else if (process.argv.length === 5) {
-  tidyReportPath = "tidy_report.txt";
-  imageReportPath = process.argv[4];
+  tidyReportPath = path.resolve(process.cwd(), "tidy_report.txt");
+  imageReportPath = path.resolve(process.cwd(), process.argv[4]);
 } else {
-  tidyReportPath = "tidy_report.txt";
-  imageReportPath = "image_report.txt";
+  tidyReportPath = path.resolve(process.cwd(), "tidy_report.txt");
+  imageReportPath = path.resolve(process.cwd(), "image_report.txt");
 }
 
 /** Max chars of captured CLI output in the PR body (GitHub comment size limits). */
@@ -55,12 +89,57 @@ function fmt(n) {
   return n.toLocaleString("en-US");
 }
 
-// ── load data ─────────────────────────────────────────────────────────────────
+/** Same shape as `utils/utils.js` when no surgical runs have written stats yet. */
+const DEFAULT_STATS = {
+  fileAssociatedStats: {},
+  statistics: {},
+};
 
-if (!fs.existsSync(statsPath)) {
-  console.log("Stats file not found — skipping report.");
-  process.exit(0);
+/**
+ * @param {string} filePath
+ * @param {string} label Human label for placeholder text
+ */
+function ensureTextCaptureFile(filePath, label) {
+  if (fs.existsSync(filePath)) {
+    return;
+  }
+  const dir = path.dirname(filePath);
+  if (dir && dir !== "." && !fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const text = `(No ${label} capture yet — pr-report created this placeholder. Run the corresponding qleaner command first.)\n`;
+  fs.writeFileSync(filePath, text, "utf8");
+  console.error(`pr-report: created placeholder ${filePath}`);
 }
+
+function ensureStatsFile(filePath) {
+  let needWrite = false;
+  if (!fs.existsSync(filePath)) {
+    needWrite = true;
+    console.error(`pr-report: stats missing — creating default at ${filePath}`);
+  } else {
+    try {
+      JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch {
+      needWrite = true;
+      console.error(`pr-report: invalid stats JSON — resetting ${filePath}`);
+    }
+  }
+  if (needWrite) {
+    const dir = path.dirname(filePath);
+    if (dir && dir !== "." && !fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(DEFAULT_STATS, null, 2), "utf8");
+  }
+}
+
+ensureStatsFile(statsPath);
+ensureTextCaptureFile(summaryPath, "summary");
+ensureTextCaptureFile(tidyReportPath, "tidy");
+ensureTextCaptureFile(imageReportPath, "image scan");
+
+// ── load data ─────────────────────────────────────────────────────────────────
 
 const stats = JSON.parse(fs.readFileSync(statsPath, "utf8"));
 const raw = stats.fileAssociatedStats || {};
@@ -205,7 +284,7 @@ const imageReportSection = buildCliCaptureSection(
 const noChanges = thisRun.items === 0 && thisRun.lines === 0;
 
 const runBlock = noChanges
-  ? "> No code changes were needed — the codebase is already clean."
+  ? "> No code changes were made on this PR."
   : `| Metric | This PR |
 | --- | --- |
 | Items removed | **${fmt(thisRun.items)}** |
@@ -221,7 +300,7 @@ const sparkLines = last7
 const body = `<!-- qleaner-report -->
 ### Qleaner Health Guardian
 
-${noChanges ? "**No changes needed** — code is clean." : `**${fmt(thisRun.items)} items** cleaned up on this PR.`}
+${noChanges ? "**No changes Made** on this PR." : `**${fmt(thisRun.items)} items** cleaned up on this PR.`}
 
 #### This PR run
 ${runBlock}
@@ -240,7 +319,7 @@ ${sparkLines}
 ${cacheSnapshotSection}
 
 #### Tidy pipeline (dry-run only, no --auto-fix)
-_Console log dry-run lines and per-tier hit tables (when \`foundByRisk\` is present) appear in this block when CI captures \`tidy … -r\` (see \`controllers/list.js\`)._
+_Captured from \`qleaner tidy … -r\` (global npm CLI). Console log dry-run lines and per-tier hit tables appear when \`foundByRisk\` is present._
 
 ${tidyReportSection}
 
@@ -252,6 +331,6 @@ ${imageReportSection}
 ${summaryText}
 \`\`\`
 
-<sub>Maintained by [Qleaner](https://github.com/trevis/react-cleaner) v1.3.3</sub>`;
+<sub>Maintained by [Qleaner](https://github.com/trevis/react-cleaner) v${PKG_VERSION}</sub>`;
 
 process.stdout.write(body);

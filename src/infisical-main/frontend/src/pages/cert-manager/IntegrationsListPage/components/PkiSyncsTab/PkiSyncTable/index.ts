@@ -1,1 +1,0 @@
-export { PkiSyncsTable } from "./PkiSyncsTable";

@@ -1,1 +1,0 @@
-export { PersonalSettingsLayout } from "./PersonalSettingsLayout";

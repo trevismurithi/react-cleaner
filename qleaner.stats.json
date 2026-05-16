@@ -1,0 +1,34 @@
+{
+  "statistics": {
+    "2026-05-15T13:28:58.558Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    },
+    "2026-05-15T14:08:02.857Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    },
+    "2026-05-15T14:41:43.821Z": {
+      "filesDeleted": 60,
+      "bytesSaved": 203960,
+      "exportsStripped": 91,
+      "estimatedDeveloperHoursSaved": 15
+    },
+    "2026-05-16T11:43:11.424Z": {
+      "filesDeleted": 96,
+      "bytesSaved": 4364465,
+      "exportsStripped": 0,
+      "estimatedDeveloperHoursSaved": 24
+    },
+    "2026-05-16T12:08:15.173Z": {
+      "filesDeleted": 96,
+      "bytesSaved": 4364465,
+      "exportsStripped": 0,
+      "estimatedDeveloperHoursSaved": 24
+    }
+  }
+}

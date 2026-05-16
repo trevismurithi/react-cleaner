@@ -1,6 +1,6 @@
 # Qleaner
 
-**Qleaner** (v1.3.3) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
+**Qleaner** (v1.4.0) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
 
 ## Features
 
@@ -47,13 +47,99 @@ npm install qleaner --save-dev
 
 ## GitHub Actions
 
-This repo includes **[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)** (“Qleaner Health Guardian”).
+Qleaner ships a **composite GitHub Action** at the repo root: **[`action.yml`](action.yml)** (“Qleaner Health Guardian”). It installs the published **`qleaner`** package from npm and runs the global **`qleaner`** CLI — not `yarn start` from a cloned dev checkout.
 
-**Required status checks:** In GitHub → *Settings* → *Branches* → branch protection, if you require a status check, use the **job id** shown on PRs after this workflow has run at least once — **`hygiene-check`** (the workflow does not set a custom job `name`, so the check name matches the job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run for that PR (e.g. workflow file missing on the base branch, Actions disabled, or a fork PR waiting for maintainer approval to run workflows).
+Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.4.0`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
 
-1. Restores **`unused-check-cache.json`** (Actions cache; key includes `yarn.lock` and `qleaner.config.json`).
-2. Runs, in order: **`yarn start tidy <path> -r`** (no **`--auto-fix` / `-u`** — dry-run pipeline only; **`-r`** adds per-tier console-log hit tables in the tidy capture when `foundByRisk` is present), **`yarn start image <assets> <code> -d -T 1`**, **`yarn start summary`**, then **`node .github/scripts/pr-report.js …`** (stats, sparkline, cache snapshot, **tidy**, **image**, **summary**). The **job succeeds** when every command exits **0**. Paths match this repo’s Infisical sample tree—edit the workflow for your layout.
-3. Posts or updates a single sticky PR comment (no automatic code commits).
+### What the action does
+
+1. Sets up Node.js (default 20).
+2. Runs `npm install -g qleaner@<version>` (default **1.4.0**).
+3. Restores **`unused-check-cache.json`** from the Actions cache (key uses `qleaner.config.json` and `package-lock.json`).
+4. Runs read-only captures in the job workspace:
+   - `qleaner tidy <scan-path> …` → `tidy_report.txt`
+   - `qleaner image <assets> <code> …` → `image_report.txt` (skipped if image paths are empty)
+   - `qleaner summary` → `health_summary.txt`
+
+No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command exits **0**.
+
+### Use in your repository
+
+**Prerequisites**
+
+- Commit **`qleaner.config.json`** at the repo root (run `qleaner init` locally once; do **not** run `init` in CI — it is interactive).
+- Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` ( `init` can do this).
+- Set **`with:`** paths to match **your** app layout (not this repo’s Infisical sample tree).
+
+**Minimal workflow** (check only):
+
+```yaml
+name: Qleaner Health Guardian
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hygiene-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: trevismurithi/react-cleaner@v1.4.0
+        with:
+          qleaner-version: "1.4.0"
+          scan-path: src
+          image-assets-path: public
+          image-code-path: src
+          tidy-extra-args: "-r"
+          image-extra-args: "-d -T 0.1"
+```
+
+**Action inputs** (all optional except you should set paths for your project):
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `qleaner-version` | `1.4.0` | npm version of `qleaner` to install |
+| `node-version` | `20` | Node.js for `setup-node` |
+| `scan-path` | `.` | First argument to `qleaner tidy` |
+| `image-assets-path` | *(empty)* | First argument to `qleaner image` |
+| `image-code-path` | *(empty)* | Second argument to `qleaner image` |
+| `tidy-extra-args` | `-r` | Extra tidy flags (console-log risk tables in dry-run output) |
+| `image-extra-args` | `-d -T 0.1` | Extra image flags (dry-run + similarity threshold) |
+| `skip-image` | `false` | Set `true` to skip image scan |
+| `skip-summary` | `false` | Set `true` to skip summary |
+| `restore-cache` | `true` | Restore `unused-check-cache.json` before the run |
+
+**Outputs:** `tidy-report-file`, `image-report-file`, `summary-file` (filenames in the workspace).
+
+### PR comment report (optional)
+
+The action does **not** post to GitHub by itself. To get the same sticky PR comment as this repo, add steps **after** the action in the same job (the action already ran `npm install -g qleaner`, so the script is on the runner):
+
+```yaml
+- name: Build PR health report
+  run: |
+    REPORT_SCRIPT="$(npm root -g)/qleaner/.github/scripts/pr-report.js"
+    node "$REPORT_SCRIPT" \
+      qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt \
+      > pr_report.md
+
+- name: Post PR comment
+  if: always()
+  uses: actions/github-script@v7
+  # … upsert comment from pr_report.md (see .github/workflows/qleaner-health.yml)
+```
+
+You do **not** need to copy [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) into your repo; it ships inside the published npm package. The script reads stats and captures from the workspace and resolves the installed `qleaner` version from npm.
+
+**This repo’s workflow** uses `node .github/scripts/pr-report.js` because `actions/checkout` already provides that file from the git tree (equivalent path, easier for dogfooding).
+
+### This repository (dogfooding)
+
+[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.4.0` from npm**. Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the workflow pattern, not those paths, for your own project.
+
+**Branch protection:** After the workflow runs on a PR, you can require status check **`hygiene-check`** (job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run (workflow missing on the base branch, Actions disabled, or fork PR awaiting approval).
 
 ## Quick Start
 
