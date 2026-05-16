@@ -1,1 +1,0 @@
-export { PamLayout } from "./PamLayout";

@@ -269,17 +269,13 @@ function findUnusedImages(imageParentGraph, imageFiles, options) {
       imageParentGraph.unusedImages.add({
         file: filePath,
         size: fs.statSync(imageFile).size,
-        hash: getFileHash(fs.readFileSync(imageFile, "utf8")),
         isImage: true,
-        imports: new Set(),
-        importedBy: new Set(),
-        lastModified: fs.statSync(imageFile).mtime.getTime(),
       });
     } else if (image && image.importedBy.size === 0 && image.isImage) {
       imageParentGraph.unusedImages.add({
-        ...image,
-        imports: new Set(image.imports),
-        importedBy: new Set(image.importedBy),
+        file: filePath,
+        size: fs.statSync(imageFile).size,
+        isImage: image.isImage,
       });
     }
   }
@@ -288,11 +284,12 @@ function findUnusedImages(imageParentGraph, imageFiles, options) {
   }
   // find unused images in imageGraph
   for (const [, image] of imageParentGraph.imageGraph) {
-    if ((image.importedBy.size === 0 || image.size === 0) && image.isImage) {
+    if (image.size === 0 && image.isImage) {
       imageParentGraph.unusedImages.add({
-        ...image,
-        imports: new Set(image.imports),
-        importedBy: new Set(image.importedBy),
+        file: image.file,
+        size: image.size,
+        isImage: image.isImage,
+        deadLink: true,
       });
     }
   }
@@ -379,6 +376,8 @@ async function getUnusedImages(
   // save cache
   saveCache(process.cwd(), { parentGraph, imageParentGraph }, false);
   // Handle deletion / move to trash
+  // filter out images with deadLink
+  imageParentGraph.unusedImages = new Set([...imageParentGraph.unusedImages].filter((image) => !image.deadLink));
   await handleImageDeletion(imageParentGraph.unusedImages, mergedOpts, chalk);
   spinner.succeed(
     `Handled deletion of ${imageParentGraph.unusedImages.size} unused images`,

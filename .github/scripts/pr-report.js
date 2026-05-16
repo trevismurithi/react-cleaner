@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates the PR health report body from qleaner.stats.json.
- * Called by the CI workflow; writes report.md to stdout or a file.
+ * Called by the CI workflow after the published `qleaner` npm CLI runs (not `yarn start`).
  *
  * Usage: node .github/scripts/pr-report.js <stats-file> <summary-file> [tidy-report-file] [image-report-file]
  * CI / default: argv[2]=qleaner.stats.json, argv[3]=health_summary.txt, argv[4]=tidy_report.txt, argv[5]=image_report.txt
@@ -11,11 +11,36 @@
 
 const fs = require("fs");
 const path = require("path");
-const { FIX_PASS_KEYS } = require(path.join(__dirname, "../../utils/cache"));
+
+const FIX_PASS_KEYS_FALLBACK = [
+  "pruneInternal",
+  "nukeConsoleLogs",
+  "deduplicateLogic",
+];
+
+/** Installed npm package root, or this repo root when developing locally. */
+function resolveQleanerPackageRoot() {
+  try {
+    return path.dirname(require.resolve("qleaner/package.json"));
+  } catch {
+    return path.join(__dirname, "../..");
+  }
+}
+
+function loadFixPassKeys() {
+  const pkgRoot = resolveQleanerPackageRoot();
+  try {
+    return require(path.join(pkgRoot, "utils/cache")).FIX_PASS_KEYS;
+  } catch {
+    return FIX_PASS_KEYS_FALLBACK;
+  }
+}
+
+const FIX_PASS_KEYS = loadFixPassKeys();
 
 const PKG_VERSION = (() => {
   try {
-    return require(path.join(__dirname, "../../package.json")).version;
+    return require(path.join(resolveQleanerPackageRoot(), "package.json")).version;
   } catch {
     return "unknown";
   }
@@ -294,7 +319,7 @@ ${sparkLines}
 ${cacheSnapshotSection}
 
 #### Tidy pipeline (dry-run only, no --auto-fix)
-_Console log dry-run lines and per-tier hit tables (when \`foundByRisk\` is present) appear in this block when CI captures \`tidy … -r\` (see \`controllers/list.js\`)._
+_Captured from \`qleaner tidy … -r\` (global npm CLI). Console log dry-run lines and per-tier hit tables appear when \`foundByRisk\` is present._
 
 ${tidyReportSection}
 

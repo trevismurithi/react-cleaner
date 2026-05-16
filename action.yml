@@ -1,0 +1,118 @@
+name: Qleaner Health Guardian
+description: Install Qleaner from npm and run read-only tidy, image scan, and summary captures.
+author: trevismurithi
+
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  qleaner-version:
+    description: npm version tag for the published `qleaner` package (e.g. 1.4.0 or latest).
+    required: false
+    default: "1.4.0"
+  node-version:
+    description: Node.js version for setup-node.
+    required: false
+    default: "20"
+  scan-path:
+    description: Code directory passed to `qleaner tidy`.
+    required: true
+    default: "."
+  image-assets-path:
+    description: Image assets directory passed to `qleaner image` (first argument).
+    required: false
+    default: ""
+  image-code-path:
+    description: Code root for image reference resolution (second `qleaner image` argument).
+    required: false
+    default: ""
+  tidy-extra-args:
+    description: Extra arguments appended to `qleaner tidy` (default `-r` for console-log risk tables in dry-run output).
+    required: false
+    default: "-r"
+  image-extra-args:
+    description: Extra arguments appended to `qleaner image` (default dry-run table with similarity threshold).
+    required: false
+    default: "-d -T 0.1"
+  skip-image:
+    description: Skip the image scan step when true.
+    required: false
+    default: "false"
+  skip-summary:
+    description: Skip `qleaner summary` when true.
+    required: false
+    default: "false"
+  restore-cache:
+    description: Restore `unused-check-cache.json` from the Actions cache before running.
+    required: false
+    default: "true"
+
+outputs:
+  tidy-report-file:
+    description: Path to the captured tidy stdout/stderr log.
+    value: ${{ steps.run.outputs.tidy-report-file }}
+  image-report-file:
+    description: Path to the captured image scan log.
+    value: ${{ steps.run.outputs.image-report-file }}
+  summary-file:
+    description: Path to the captured summary log.
+    value: ${{ steps.run.outputs.summary-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Qleaner from npm
+      shell: bash
+      run: npm install -g "qleaner@${{ inputs.qleaner-version }}"
+
+    - name: Restore Qleaner smart cache
+      if: inputs.restore-cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: unused-check-cache.json
+        key: qleaner-cache-${{ runner.os }}-${{ hashFiles('qleaner.config.json', 'package-lock.json') }}
+        restore-keys: |
+          qleaner-cache-${{ runner.os }}-
+
+    - name: Run Qleaner (npm CLI, not yarn start)
+      id: run
+      shell: bash
+      env:
+        NO_COLOR: "1"
+        SCAN_PATH: ${{ inputs.scan-path }}
+        IMAGE_ASSETS: ${{ inputs.image-assets-path }}
+        IMAGE_CODE: ${{ inputs.image-code-path }}
+        TIDY_EXTRA: ${{ inputs.tidy-extra-args }}
+        IMAGE_EXTRA: ${{ inputs.image-extra-args }}
+        SKIP_IMAGE: ${{ inputs.skip-image }}
+        SKIP_SUMMARY: ${{ inputs.skip-summary }}
+      run: |
+        set -euo pipefail
+        TIDY_REPORT="tidy_report.txt"
+        IMAGE_REPORT="image_report.txt"
+        SUMMARY_REPORT="health_summary.txt"
+
+        echo "tidy-report-file=${TIDY_REPORT}" >> "$GITHUB_OUTPUT"
+        echo "image-report-file=${IMAGE_REPORT}" >> "$GITHUB_OUTPUT"
+        echo "summary-file=${SUMMARY_REPORT}" >> "$GITHUB_OUTPUT"
+
+        qleaner --version
+        qleaner tidy "${SCAN_PATH}" ${TIDY_EXTRA} > "${TIDY_REPORT}" 2>&1
+
+        if [ "${SKIP_IMAGE}" != "true" ] && [ -n "${IMAGE_ASSETS}" ] && [ -n "${IMAGE_CODE}" ]; then
+          qleaner image "${IMAGE_ASSETS}" "${IMAGE_CODE}" ${IMAGE_EXTRA} > "${IMAGE_REPORT}" 2>&1
+        else
+          echo "(Image scan skipped — set image-assets-path and image-code-path inputs.)" > "${IMAGE_REPORT}"
+        fi
+
+        if [ "${SKIP_SUMMARY}" != "true" ]; then
+          qleaner summary > "${SUMMARY_REPORT}" 2>&1
+        else
+          echo "(Summary skipped.)" > "${SUMMARY_REPORT}"
+        fi

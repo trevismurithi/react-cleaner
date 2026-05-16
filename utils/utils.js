@@ -47,9 +47,13 @@ function removeEmptyTrashSubdir(trashDir, destinationPath) {
     return;
   }
   try {
-    if (fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
-      fs.rmdirSync(parentDir);
+    if (!fs.existsSync(parentDir)) {
+      return;
     }
+    if (fs.readdirSync(parentDir).length > 0) {
+      return;
+    }
+    fs.rmdirSync(parentDir);
   } catch {
     // Best-effort cleanup only.
   }

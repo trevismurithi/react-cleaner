@@ -1,1 +1,0 @@
-export { SecretScanningLayout } from "./SecretScanningLayout";
