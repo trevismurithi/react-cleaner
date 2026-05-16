@@ -8,9 +8,9 @@ branding:
 
 inputs:
   qleaner-version:
-    description: npm version tag for the published `qleaner` package (e.g. 1.4.0 or latest).
+    description: npm version tag for the published `qleaner` package (e.g. 1.4.1 or latest).
     required: false
-    default: "1.4.0"
+    default: "1.4.1"
   node-version:
     description: Node.js version for setup-node.
     required: false
