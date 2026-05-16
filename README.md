@@ -1,6 +1,6 @@
 # Qleaner
 
-**Qleaner** (v1.4.1) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
+**Qleaner** (v1.4.2) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
 
 ## Features
 
@@ -49,12 +49,12 @@ npm install qleaner --save-dev
 
 Qleaner ships a **composite GitHub Action** at the repo root: **[`action.yml`](action.yml)** (“Qleaner Health Guardian”). It installs the published **`qleaner`** package from npm and runs the global **`qleaner`** CLI — not `yarn start` from a cloned dev checkout.
 
-Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.4.1`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
+Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.4.2`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
 
 ### What the action does
 
 1. Sets up Node.js (default 20).
-2. Runs `npm install -g qleaner@<version>` (default **1.4.1**).
+2. Runs `npm install -g qleaner@<version>` (default **1.4.2**).
 3. Restores **`unused-check-cache.json`** from the Actions cache (key uses `qleaner.config.json` and `package-lock.json`).
 4. Runs read-only captures in the job workspace:
    - `qleaner tidy <scan-path> …` → `tidy_report.txt`
@@ -70,37 +70,100 @@ No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command 
 - Commit **`qleaner.config.json`** at the repo root (run `qleaner init` locally once; do **not** run `init` in CI — it is interactive).
 - Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` ( `init` can do this).
 - Set **`with:`** paths to match **your** app layout (not this repo’s Infisical sample tree).
+- Push a **git tag** on this repo that matches the Action ref (e.g. tag `v1.4.2` → `uses: trevismurithi/react-cleaner@v1.4.2`). npm publish alone does not create the tag.
 
-**Minimal workflow** (check only):
+**Full workflow** (status check + PR health report comment):
+
+Create **`.github/workflows/qleaner-health.yml`** in your project and adjust paths. The Action runs Qleaner; the following steps build `pr_report.md` from the npm-bundled script and post (or update) one sticky PR comment.
 
 ```yaml
 name: Qleaner Health Guardian
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 jobs:
   hygiene-check:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    permissions:
+      contents: read
+      pull-requests: write
 
-      - uses: trevismurithi/react-cleaner@v1.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Qleaner
+        uses: trevismurithi/react-cleaner@v1.4.2
         with:
-          qleaner-version: "1.4.1"
+          qleaner-version: "1.4.2"
           scan-path: src
           image-assets-path: public
           image-code-path: src
           tidy-extra-args: "-r"
           image-extra-args: "-d -T 0.1"
+
+      - name: Build PR health report
+        if: github.event_name == 'pull_request'
+        env:
+          NO_COLOR: "1"
+        run: |
+          REPORT_SCRIPT="$(npm root -g)/qleaner/.github/scripts/pr-report.js"
+          node "$REPORT_SCRIPT" \
+            qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt \
+            > pr_report.md
+
+      - name: Post PR Health Report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('pr_report.md')) return;
+
+            const body = fs.readFileSync('pr_report.md', 'utf8');
+            const marker = '<!-- qleaner-report -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
 ```
+
+- **`uses: …@v1.4.2`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v1.4.2` or `1.4.2` — the ref is exact).
+- **No image scan:** set `image-assets-path` and `image-code-path` to `""` (or omit and rely on defaults).
+- **Report only on PRs:** `workflow_dispatch` runs Qleaner but skips the comment steps (`if: github.event_name == 'pull_request'`).
+- You do **not** copy [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) into your repo; it ships in the published **`qleaner`** npm package. The Action step installs that package globally first.
+
+**Check-only workflow** (no PR comment — omit the last two steps and `pull-requests: write`).
 
 **Action inputs** (all optional except you should set paths for your project):
 
 | Input | Default | Purpose |
 | --- | --- | --- |
-| `qleaner-version` | `1.4.1` | npm version of `qleaner` to install |
+| `qleaner-version` | `1.4.2` | npm version of `qleaner` to install |
 | `node-version` | `20` | Node.js for `setup-node` |
 | `scan-path` | `.` | First argument to `qleaner tidy` |
 | `image-assets-path` | *(empty)* | First argument to `qleaner image` |
@@ -113,31 +176,11 @@ jobs:
 
 **Outputs:** `tidy-report-file`, `image-report-file`, `summary-file` (filenames in the workspace).
 
-### PR comment report (optional)
-
-The action does **not** post to GitHub by itself. To get the same sticky PR comment as this repo, add steps **after** the action in the same job (the action already ran `npm install -g qleaner`, so the script is on the runner):
-
-```yaml
-- name: Build PR health report
-  run: |
-    REPORT_SCRIPT="$(npm root -g)/qleaner/.github/scripts/pr-report.js"
-    node "$REPORT_SCRIPT" \
-      qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt \
-      > pr_report.md
-
-- name: Post PR comment
-  if: always()
-  uses: actions/github-script@v7
-  # … upsert comment from pr_report.md (see .github/workflows/qleaner-health.yml)
-```
-
-You do **not** need to copy [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) into your repo; it ships inside the published npm package. The script reads stats and captures from the workspace and resolves the installed `qleaner` version from npm.
-
-**This repo’s workflow** uses `node .github/scripts/pr-report.js` because `actions/checkout` already provides that file from the git tree (equivalent path, easier for dogfooding).
+The composite Action does **not** post to GitHub by itself — use the **full workflow** above for the PR comment.
 
 ### This repository (dogfooding)
 
-[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.4.1` from npm**. Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the workflow pattern, not those paths, for your own project.
+[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.4.2` from npm**. It uses `node .github/scripts/pr-report.js` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
 
 **Branch protection:** After the workflow runs on a PR, you can require status check **`hygiene-check`** (job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run (workflow missing on the base branch, Actions disabled, or fork PR awaiting approval).
 
