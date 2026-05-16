@@ -1,7 +1,7 @@
 {
   "name": "qleaner",
   "description": "A CLI tool for analyzing and identifying unused files, images, imports, and dead code in React, TypeScript, and JavaScript projects to help optimize bundle size and maintain clean codebases",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "license": "MIT",
   "main": "command.js",
   "bin": "bin/cli.js",
