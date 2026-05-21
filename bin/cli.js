@@ -181,7 +181,11 @@ async function loadOra() {
     .option("-f, --fix", "Remove unused exports from source files")
     .option(
       "-d, --dry-run",
-      "Only print how many unused exports were found (no table, no edits)",
+      "Only print how many unused exports were found (no table unless --report)",
+    )
+    .option(
+      "--report",
+      "Print a table of unreferenced exports (export name and file); works with or without --dry-run",
     )
     .action(async (pathToScan, options) => {
       await unusedExports(ora, chalk, pathToScan, {...options, message: "Removing unreferenced exports"});
@@ -196,6 +200,10 @@ async function loadOra() {
       DEFAULT_SCAN_PATH,
     )
     .option("-d, --dry-run", "Show what would be deleted without actually deleting (skips prompt)")
+    .option(
+      "-r, --report",
+      "Print a table of unused variables, functions, and classes (file, line, name, kind)",
+    )
     .action(async (pathToScan, options) => {
       await pruneUnusedCode(chalk, pathToScan, {...options, message: "Removing unused code"});
     });
@@ -249,6 +257,10 @@ async function loadOra() {
       "-d, --dry-run",
       "Report duplicates only; do not modify files",
     )
+    .option(
+      "-r, --report",
+      "Print a table of duplicate functions and classes (file, line, name, kind)",
+    )
     .action(async (pathToScan, options) => {
       await checkForDuplicates(chalk, pathToScan, {...options, message: "Removing duplicate code"});
     });
@@ -263,12 +275,16 @@ async function loadOra() {
     )
     .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
     .option(
-      "-r, --list-risk-categories",
-      "Print risk tier docs (category headings + pattern file paths); then exit (no tidy pipeline)",
+      "-r, --report",
+      "During each tidy step’s dry-run, print detail tables (console log tiers, unused code, duplicates, exports)",
+    )
+    .option(
+      "--list-risk-categories",
+      "Console-log step only: per-tier hit tables when dry-run returns foundByRisk (also on when -r is set)",
     )
     .option(
       "-i, --list-risk-categories-info",
-      "Same as -r / --list-risk-categories; then exit (no tidy pipeline)",
+      "Print console-log risk tier docs (category index); tidy continues with remaining steps",
     )
     .action(async (pathToScan, options) => {
       await tidyUp(ora, chalk, pathToScan, options);

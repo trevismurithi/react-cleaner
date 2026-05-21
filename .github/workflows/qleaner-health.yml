@@ -1,7 +1,8 @@
 name: "Qleaner Health Guardian"
 
 # Installs the published `qleaner` package from npm (see action.yml) and runs the global
-# `qleaner` CLI — not `yarn start`. PR report version is resolved from the installed package in pr-report.js.
+# `qleaner` CLI — not `yarn start`. `tidy-extra-args: "-r"` captures per-step report tables in tidy_report.txt.
+# PR report version is resolved from the installed package in pr-report.js.
 
 # Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
 # Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
@@ -27,7 +28,7 @@ jobs:
       - name: 2. Run Qleaner from npm
         uses: ./
         with:
-          qleaner-version: "1.4.2"
+          qleaner-version: "1.5.0"
           scan-path: src/infisical-main/frontend
           image-assets-path: src/infisical-main/frontend/public
           image-code-path: src/infisical-main/frontend

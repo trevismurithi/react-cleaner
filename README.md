@@ -1,6 +1,6 @@
 # Qleaner
 
-**Qleaner** (v1.4.2) is a powerful CLI tool for analyzing and cleaning up React, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
+**Qleaner** (v1.5.0) is a powerful CLI tool for analyzing and cleaning up **React**, **Vue**, **Nuxt**, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
 
 ## Features
 
@@ -9,10 +9,11 @@
 - **Unused Dependencies** - Discover npm/yarn/pnpm packages that are installed but not used; optionally uninstall them in one step
 - **Dead Image Links** - Find image references in code that point to non-existent files
 - **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them
-- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run)
+- **Vue & Nuxt** - Scan `.vue` single-file components (`@vue/compiler-sfc`); choose **Vue** during `qleaner init` for `pages` / `layouts` exclusions and `.vue` globs (typical for Nuxt apps)
+- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table
 - **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.js` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.js`](utils/consoleLogHighRiskPatterns.js) and [`utils/consoleLogMediumRiskPatterns.js`](utils/consoleLogMediumRiskPatterns.js)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
-- **Duplicate Detection** - Find and clean duplicate constructs across the project
-- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. The first step forwards **`--list-risk-categories` / `-r`** and **`-i` / `--list-risk-categories-info`** into the console-log check: **`-i`** prints the risk index and that step returns immediately; **`-r`** toggles extra dry-run hit tables when combined with the step’s built-in dry run. The **rest of the tidy pipeline still runs** unless you only need the index (use **`prune-logs -i`** for a single quick print).
+- **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table
+- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
 - **Project Summary** - Get comprehensive statistics about your codebase
 - **File Size Analysis** - Identify the largest files and potential optimization targets
@@ -49,12 +50,12 @@ npm install qleaner --save-dev
 
 Qleaner ships a **composite GitHub Action** at the repo root: **[`action.yml`](action.yml)** (“Qleaner Health Guardian”). It installs the published **`qleaner`** package from npm and runs the global **`qleaner`** CLI — not `yarn start` from a cloned dev checkout.
 
-Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.4.2`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
+Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.5.0`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
 
 ### What the action does
 
 1. Sets up Node.js (default 20).
-2. Runs `npm install -g qleaner@<version>` (default **1.4.2**).
+2. Runs `npm install -g qleaner@<version>` (default **1.5.0**).
 3. Restores **`unused-check-cache.json`** from the Actions cache (key uses `qleaner.config.json` and `package-lock.json`).
 4. Runs read-only captures in the job workspace:
    - `qleaner tidy <scan-path> …` → `tidy_report.txt`
@@ -70,7 +71,7 @@ No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command 
 - Commit **`qleaner.config.json`** at the repo root (run `qleaner init` locally once; do **not** run `init` in CI — it is interactive).
 - Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` ( `init` can do this).
 - Set **`with:`** paths to match **your** app layout (not this repo’s Infisical sample tree).
-- Push a **git tag** on this repo that matches the Action ref (e.g. tag `v1.4.2` → `uses: trevismurithi/react-cleaner@v1.4.2`). npm publish alone does not create the tag.
+- Push a **git tag** on this repo that matches the Action ref (e.g. tag `v1.5.0` → `uses: trevismurithi/react-cleaner@v1.5.0`). npm publish alone does not create the tag.
 
 **Full workflow** (status check + PR health report comment):
 
@@ -96,9 +97,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Qleaner
-        uses: trevismurithi/react-cleaner@v1.4.2
+        uses: trevismurithi/react-cleaner@v1.5.0
         with:
-          qleaner-version: "1.4.2"
+          qleaner-version: "1.5.0"
           scan-path: src
           image-assets-path: public
           image-code-path: src
@@ -152,7 +153,7 @@ jobs:
             }
 ```
 
-- **`uses: …@v1.4.2`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v1.4.2` or `1.4.2` — the ref is exact).
+- **`uses: …@v1.5.0`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v1.5.0` or `1.5.0` — the ref is exact).
 - **No image scan:** set `image-assets-path` and `image-code-path` to `""` (or omit and rely on defaults).
 - **Report only on PRs:** `workflow_dispatch` runs Qleaner but skips the comment steps (`if: github.event_name == 'pull_request'`).
 - You do **not** copy [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) into your repo; it ships in the published **`qleaner`** npm package. The Action step installs that package globally first.
@@ -163,12 +164,12 @@ jobs:
 
 | Input | Default | Purpose |
 | --- | --- | --- |
-| `qleaner-version` | `1.4.2` | npm version of `qleaner` to install |
+| `qleaner-version` | `1.5.0` | npm version of `qleaner` to install |
 | `node-version` | `20` | Node.js for `setup-node` |
 | `scan-path` | `.` | First argument to `qleaner tidy` |
 | `image-assets-path` | *(empty)* | First argument to `qleaner image` |
 | `image-code-path` | *(empty)* | Second argument to `qleaner image` |
-| `tidy-extra-args` | `-r` | Extra tidy flags (console-log risk tables in dry-run output) |
+| `tidy-extra-args` | `-r` | Extra tidy flags (default **`-r`** = per-step dry-run detail tables) |
 | `image-extra-args` | `-d -T 0.1` | Extra image flags (dry-run + similarity threshold) |
 | `skip-image` | `false` | Set `true` to skip image scan |
 | `skip-summary` | `false` | Set `true` to skip summary |
@@ -180,7 +181,7 @@ The composite Action does **not** post to GitHub by itself — use the **full wo
 
 ### This repository (dogfooding)
 
-[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.4.2` from npm**. It uses `node .github/scripts/pr-report.js` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
+[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.5.0` from npm**. It uses `node .github/scripts/pr-report.js` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
 
 **Branch protection:** After the workflow runs on a PR, you can require status check **`hygiene-check`** (job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run (workflow missing on the base branch, Actions disabled, or fork PR awaiting approval).
 
@@ -268,7 +269,7 @@ After writing the config, init updates **`.gitignore`**: it adds **`unused-check
    - `tsconfig.base.json` - Base config (common in monorepos)
    - `none` - No config file (use manual path configuration)
 
-**Vue:** Choosing Vue sets `excludeDirPrint` to `layouts` and `pages` by default (paths under those directories are not reported as unused for the scan). Entry `excludeFilePrint` is framework-specific (React/Next.js use the usual entry filenames).
+**Vue & Nuxt:** Choosing **Vue** during init sets `excludeDirPrint` to `layouts` and `pages` by default (route files under those directories are not reported as unused). Globs include `**/*.{ts,js,jsx,vue}`. **Nuxt 3** apps typically use the same layout—select Vue, point `path` at your source tree, and run `qleaner scan` before `tidy` or `exports`.
 
 **Why the config file matters:**
 - Qleaner reads path aliases from your `jsconfig.json` or `tsconfig.json` to resolve imports like `@/components/Button` or `~/utils/helpers`
@@ -470,12 +471,14 @@ List **unused exports** (symbols exported from a file that nothing imports, foll
 **Options:**
 - `-r, --fresh-scan` - Clear graph-related state before analyzing (via `scan` with `clearCache` as implemented in `unusedExports`)
 - `-f, --fix` - Fix (remove) the unused exports
-- `-d, --dry-run` - Only print how many unused exports were found (no table, no edits)
+- `-d, --dry-run` - Only print how many unused exports were found (no table unless `--report`)
+- `--report` - Print a table of unreferenced exports (export name and file); works with or without `--dry-run` (`-r` on this command is **`--fresh-scan`**)
 
 **Examples:**
 ```bash
 qleaner exports . --dry-run
-qleaner exports . --fix
+qleaner exports . --dry-run --report
+qleaner exports . --fix --report
 ```
 
 **Note:** Requires `unused-check-cache.json` from `qleaner scan` over the same project tree you care about. With `--fix`, files are edited in place—use version control.
@@ -489,10 +492,12 @@ Remove **unused internal declarations** (unused variables, functions, classes, e
 
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-r, --report` - Print a table of unused symbols (file, line, name, kind); works with or without `--dry-run`
 
 **Examples:**
 ```bash
-qleaner prune . --dry-run
+qleaner prune . --dry-run -r
+qleaner prune . -r
 qleaner prune .
 ```
 
@@ -536,10 +541,12 @@ Detect and clean **duplicate** code patterns across files under the configured `
 
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
+- `-r, --report` - Print a table of duplicate functions and classes (file, line, name, kind); works with or without `--dry-run`
 
 **Examples:**
 ```bash
-qleaner duplicates . --dry-run
+qleaner duplicates . --dry-run -r
+qleaner duplicates . -r
 qleaner duplicates .
 ```
 
@@ -560,36 +567,35 @@ qleaner undo images
 
 **Tidy up the project** — runs a pipeline of checks; each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work.
 
-> **Note:** `qleaner tidy --help` may describe **`-r` / `-i`** differently; **runtime behavior** matches [`controllers/list.js`](controllers/list.js) (`tidyUp`) as summarized below.
-
 **Arguments:**
 - `[pathToScan]` - Project root or source directory for globs (default **`.`**)
 
 **Options:**
 - `-u, --auto-fix` - After a successful dry-run count for a step, run the real pass (console logs, internal unused code, duplicates, **unused exports with `--fix`**). Finishes with a **dry-run `scan`** (unused files listed, not moved).
-- **`-r` / `--list-risk-categories`** - Forwarded to the **console logs** step as `listRiskCategories` (with that step’s **`dryRun: true`**, toggles per-tier hit tables when the dry-run returns `foundByRisk`). Does **not** abort the rest of the tidy pipeline.
-- **`-i` / `--list-risk-categories-info`** - Forwarded to the console-log step; that step prints the **risk category index** and returns, then tidy **continues** with unused code, duplicates, and exports.
+- **`-r` / `--report`** - During each step’s dry-run, print detail tables: console log tiers, unused code, duplicates, and exports (also enables console-log tier tables; same as passing **`--list-risk-categories`** for that step).
+- **`--list-risk-categories`** - Console-log step only: per-tier hit tables when `foundByRisk` is present (also enabled when **`-r`** is set).
+- **`-i` / `--list-risk-categories-info`** - Print the console-log risk category index; tidy **continues** with remaining steps.
 
 Sequence (see `controllers/list.js`):
 
-1. **Console logs** — `prune-logs` dry-run (counts; hit tables when **`--list-risk-categories` / `-r`** is set and `foundByRisk` is present) → apply if **`--auto-fix`**  
-2. **Unused internal code** — `prune` dry-run → apply if needed  
-3. **Duplicates** — `duplicates` dry-run → apply if needed  
-4. **Unused exports** — `exports` dry-run → apply with **fix** if needed  
+1. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply if **`--auto-fix`**  
+2. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
+3. **Duplicates** — dry-run (detail table with **`-r`**) → apply if needed  
+4. **Unused exports** — dry-run (detail table with **`-r`**) → apply with **fix** if needed  
 5. **Unused files scan** — `scan` with `dryRun: true` only when **`--auto-fix`** ran (reports unused files; does not move them)
 
-Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with `--dry-run` until you trust the behavior.
+Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with **`--dry-run`** and **`-r`** until you trust the behavior.
 
 **Examples:**
 ```bash
-# Report-only (dry-runs each step; no edits)
+# Dry-run each step; no edits
 qleaner tidy
 
-# Same risk index as prune-logs -i (first step only; pipeline continues)
-qleaner tidy -i
-
-# Dry-run console step includes hit tables when matches exist
+# Per-step detail tables (CI default: tidy-extra-args "-r")
 qleaner tidy -r
+
+# Risk index for console logs (pipeline continues)
+qleaner tidy -i
 
 # Apply safe code cleanups when issues are found
 qleaner tidy . --auto-fix
@@ -681,7 +687,7 @@ Qleaner can be configured via `qleaner.config.json` or CLI flags. For **`qleaner
 | `autoFix` | boolean | When `true` (and not overridden), `qleaner scan` without `--dry-run` moves all reported unused files to `.trash` via `moveToTrash` instead of opening the interactive delete prompt (same effect as `--auto-fix` / `-u` on the scan command). |
 | `autoPrune` | boolean | When `true`, `qleaner image` without `--dry-run` moves all reported unused images to `.trash` without a prompt (same as `--auto-prune` / `-u` on the image command). |
 | `sizeThresholdMb` | number \| null | Optional default for highlighting large unused images in the image report (same semantics as `--size-threshold-mb` / `-T`). |
-| `framework` | string | One of `react`, `nextjs`, or `vue`. Sets default `excludeFilePrint` and, for Vue, default `excludeDirPrint`. |
+| `framework` | string | One of `react`, `nextjs`, or `vue` (use **`vue`** for Vue and **Nuxt** apps). Sets default `excludeFilePrint` and, for Vue, default `excludeDirPrint` (`layouts`, `pages`). |
 | `codeAlias` | string \| null | **Critical!** Config file to use for path alias resolution. Options: `"tsconfig.json"`, `"jsconfig.json"`, `"tsconfig.app.json"`, `"tsconfig.base.json"`, or `null` for manual configuration. Qleaner reads path aliases from this file to resolve imports (e.g., `@/components`, `~/utils`). |
 | `paths` | object | **Manual path aliases** (only used if `codeAlias` is `null`). Object mapping alias patterns to file paths. Example: `{ "@/*": ["./src/*"], "~/*": ["./src/*"] }`. If `codeAlias` is set, this field is ignored and paths are read from the config file instead. |
 | `packageManager` | string | Package manager used: `npm`, `yarn`, or `pnpm` |
@@ -794,7 +800,7 @@ When you run **`qleaner scan`** without `--dry-run`:
 ### Code Analysis
 1. **File Discovery** - Uses `fast-glob` to find all code files matching patterns with intelligent exclusion handling
 2. **Path Alias Resolution** - Reads path aliases from your `jsconfig.json` or `tsconfig.json` (or manual `paths` config) to understand how imports are resolved. This enables accurate file finding even in large codebases with complex import structures.
-3. **AST Parsing** - Parses JavaScript/TypeScript with Babel; **`.ts` / `.mts` / `.cts`** are parsed without the JSX plugin so TypeScript angle-bracket assertions (e.g. `<Type>expr`) are valid, while **`.tsx` / `.js` / `.jsx`** keep JSX parsing. Vue SFC scripts use **`lang`** to pick the same split. Used for dependency and image-reference scanning (`utils/astParser.js`, `utils/fileProcessing.js`, `controllers/image.js`).
+3. **AST Parsing** - Parses JavaScript/TypeScript with Babel; **`.ts` / `.mts` / `.cts`** are parsed without the JSX plugin so TypeScript angle-bracket assertions (e.g. `<Type>expr`) are valid, while **`.tsx` / `.js` / `.jsx`** keep JSX parsing. **Vue & Nuxt:** `.vue` SFCs are compiled with **`@vue/compiler-sfc`**; script blocks use **`lang`** for the TS/JSX split. Image and dependency scanning understand `.vue` files (`utils/astParser.js`, `utils/fileProcessing.js`, `controllers/image.js`). For **Nuxt**, run `qleaner init`, choose **Vue**, and set `path` to your app root (e.g. `src/` or project root).
 4. **Module Resolution** - Uses `enhanced-resolve` with your project's path aliases to resolve import paths accurately. Supports:
    - Path aliases (e.g., `@/components`, `~/utils`)
    - Relative imports (`./component`, `../utils`)

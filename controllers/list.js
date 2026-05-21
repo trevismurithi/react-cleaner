@@ -103,6 +103,9 @@ function dryRunItemTotal(result) {
 /** Max rows per risk tier when printing `foundByRisk` (dry-run console log pass). */
 const CONSOLE_LOG_DRY_RUN_PRINT_MAX_PER_TIER = 100;
 
+/** Max rows when printing `prune` dry-run report (`-r` / `--report`). */
+const PRUNE_INTERNAL_DRY_RUN_PRINT_MAX = 500;
+
 function truncateConsolePreview(text, maxLen = 90) {
   const s = String(text == null ? "" : text)
     .replace(/\s+/g, " ")
@@ -170,6 +173,113 @@ function printConsoleLogDryRunFoundByRisk(chalk, foundByRisk) {
   }
 }
 
+/**
+ * @param {import("chalk").Chalk} chalk
+ * @param {Array<{ file?: string, line?: number, name?: string, kind?: string }>} found
+ * @param {boolean} [isDryRun]
+ * @param {string} [subject]
+ */
+function printFoundItemsReport(
+  chalk,
+  found,
+  isDryRun = true,
+  subject = "Unused code",
+) {
+  if (!Array.isArray(found) || found.length === 0) {
+    return;
+  }
+
+  const shown = found.slice(0, PRUNE_INTERNAL_DRY_RUN_PRINT_MAX);
+  const omitted = found.length - shown.length;
+  const modeLabel = isDryRun ? "would be removed" : "removed";
+
+  printRule(chalk);
+  console.log(
+    chalk.cyan.bold(
+      `${subject} (${modeLabel}) — ${found.length} item(s) in ${new Set(found.map((r) => r.file)).size} file(s)`,
+    ),
+  );
+  const table = newTable(
+    chalk,
+    ["File", "Line", "Name", "Kind"],
+    [68, 6, 28, 12],
+  );
+  for (const row of shown) {
+    const file = typeof row.file === "string" ? row.file : "";
+    const line = row.line != null ? String(row.line) : "";
+    const name = typeof row.name === "string" ? row.name : "";
+    const kind = typeof row.kind === "string" ? row.kind : "";
+    table.push([
+      chalk.white(formatFilePath(path.resolve(file), 64)),
+      chalk.white(line),
+      chalk.white(name),
+      chalk.gray(kind),
+    ]);
+  }
+  console.log(table.toString());
+  if (omitted > 0) {
+    console.log(
+      chalk.gray(
+        `… and ${omitted} more (cap ${PRUNE_INTERNAL_DRY_RUN_PRINT_MAX} rows).`,
+      ),
+    );
+  }
+  printRule(chalk);
+}
+
+/**
+ * @param {import("chalk").Chalk} chalk
+ * @param {Array<{ file?: string, name?: string }>} found
+ * @param {boolean} [isDryRun]
+ */
+function printUnusedExportsReport(chalk, found, isDryRun = true) {
+  if (!Array.isArray(found) || found.length === 0) {
+    return;
+  }
+
+  const shown = found.slice(0, PRUNE_INTERNAL_DRY_RUN_PRINT_MAX);
+  const omitted = found.length - shown.length;
+  const modeLabel = isDryRun ? "would be removed" : "removed";
+
+  printRule(chalk);
+  console.log(
+    chalk.cyan.bold(
+      `Unreferenced exports (${modeLabel}) — ${found.length} export(s) in ${new Set(found.map((r) => r.file)).size} file(s)`,
+    ),
+  );
+  const table = newTable(
+    chalk,
+    ["Export", "File"],
+    [36, 72],
+  );
+  for (const row of shown) {
+    const file = typeof row.file === "string" ? row.file : "";
+    const name = typeof row.name === "string" ? row.name : "";
+    table.push([
+      chalk.white(name),
+      chalk.white(formatFilePath(path.resolve(file), 68)),
+    ]);
+  }
+  console.log(table.toString());
+  if (omitted > 0) {
+    console.log(
+      chalk.gray(
+        `… and ${omitted} more (cap ${PRUNE_INTERNAL_DRY_RUN_PRINT_MAX} rows).`,
+      ),
+    );
+  }
+  printRule(chalk);
+}
+
+/** @param {Map<string, string>} unUsedExportsWithPath export name → file path */
+function buildUnusedExportsFound(unUsedExportsWithPath) {
+  const found = [];
+  for (const [name, file] of unUsedExportsWithPath.entries()) {
+    found.push({ file, name, kind: "export" });
+  }
+  return found;
+}
+
 async function runSurgicalPass(chalk, pathToScan, options, transform, labels) {
   const files = await getConfig(pathToScan);
   const stats = await transform(files, options.dryRun, chalk, options.message);
@@ -182,7 +292,12 @@ async function runSurgicalPass(chalk, pathToScan, options, transform, labels) {
       typeof stats.mediumRisk === "number" &&
       typeof stats.lowRisk === "number"
         ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
-        : `${stats}`;
+        : stats &&
+            typeof stats === "object" &&
+            typeof stats.total === "number" &&
+            Array.isArray(stats.found)
+          ? `${stats.total} symbol(s)`
+          : `${stats}`;
     console.log(chalk.yellow(`${labels.dryPrefix}: ${detail}`));
     if (
       stats &&
@@ -192,14 +307,58 @@ async function runSurgicalPass(chalk, pathToScan, options, transform, labels) {
     ) {
       printConsoleLogDryRunFoundByRisk(chalk, stats.foundByRisk);
     }
+    if (options.report) {
+      maybePrintSurgicalFoundReport(chalk, stats, true);
+    }
     return stats;
   }
-  await updateFileAssociatedStats(new Date().toISOString(), stats);
-  printSurgicalSummary(chalk, labels.summaryHeading, stats);
+
+  const statsForSave = stripFoundFromStats(stats);
+  await updateFileAssociatedStats(new Date().toISOString(), statsForSave);
+  printSurgicalSummary(chalk, labels.summaryHeading, statsForSave);
+  if (options.report) {
+    maybePrintSurgicalFoundReport(chalk, stats, false);
+  }
+}
+
+/** @param {unknown} stats */
+function stripFoundFromStats(stats) {
+  if (!stats || typeof stats !== "object" || !Array.isArray(stats.found)) {
+    return stats;
+  }
+  const copy = { ...stats };
+  delete copy.found;
+  return copy;
+}
+
+/**
+ * @param {import("chalk").Chalk} chalk
+ * @param {unknown} stats
+ * @param {boolean} isDryRun
+ */
+function maybePrintSurgicalFoundReport(chalk, stats, isDryRun) {
+  if (
+    !stats ||
+    typeof stats !== "object" ||
+    !Array.isArray(stats.found) ||
+    stats.found.length === 0
+  ) {
+    return;
+  }
+  const first = stats.found[0];
+  if (first && first.kind === "export") {
+    printUnusedExportsReport(chalk, stats.found, isDryRun);
+    return;
+  }
+  const subject =
+    first && (first.kind === "function" || first.kind === "class")
+      ? "Duplicate code"
+      : "Unused code";
+  printFoundItemsReport(chalk, stats.found, isDryRun, subject);
 }
 
 async function getConfig(pathToScan) {
-  const configPath = path.join(pathToScan, "qleaner.config.json");
+  const configPath = path.join(process.cwd(), "qleaner.config.json");
   let config = {};
   if (fs.existsSync(configPath)) {
     config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -227,10 +386,13 @@ function printLinesOrTable(chalk, rows, useTable, singleColumnLabel) {
 
 async function tidyUp(ora, chalk, pathToScan, options = {}) {
   const { autoFix } = options;
-  const spinner = ora("🔍 Tidying up the project...").start();
+  const report = Boolean(options.report);
+  const listRiskCategories =
+    Boolean(options.listRiskCategories) || report;
 
   const steps = [
     {
+      reportTitle: "Console logs",
       checkLabel: "🔍 Checking for console logs...",
       fixLabel: "🔍 Removing console logs...",
       done: "Prune console logs completed",
@@ -238,17 +400,20 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
         pruneConsoleLogs(chalk, pathToScan, {
           dryRun: true,
           message: "Checking for console logs",
-          listRiskCategories: options.listRiskCategories,
+          report,
+          listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
         }),
       fix: () =>
         pruneConsoleLogs(chalk, pathToScan, {
           message: "Removing console logs",
-          listRiskCategories: options.listRiskCategories,
+          report,
+          listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
         }),
     },
     {
+      reportTitle: "Unused code",
       checkLabel: "🔍 Checking for unused code...",
       fixLabel: "🔍 Removing unused code...",
       done: "Prune unused code completed",
@@ -256,11 +421,16 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
         pruneUnusedCode(chalk, pathToScan, {
           dryRun: true,
           message: "Checking for unused code",
+          report,
         }),
       fix: () =>
-        pruneUnusedCode(chalk, pathToScan, { message: "Removing unused code" }),
+        pruneUnusedCode(chalk, pathToScan, {
+          message: "Removing unused code",
+          report,
+        }),
     },
     {
+      reportTitle: "Duplicate code",
       checkLabel: "🔍 Checking for duplicate code...",
       fixLabel: "🔍 Removing duplicate code...",
       done: "Remove duplicate code completed",
@@ -268,13 +438,16 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
         checkForDuplicates(chalk, pathToScan, {
           dryRun: true,
           message: "Checking for duplicate code",
+          report,
         }),
       fix: () =>
         checkForDuplicates(chalk, pathToScan, {
           message: "Removing duplicate code",
+          report,
         }),
     },
     {
+      reportTitle: "Unreferenced exports",
       checkLabel: "🔍 Checking for unreferenced exports...",
       fixLabel: "🔍 Removing unreferenced exports...",
       done: "Remove unreferenced exports completed",
@@ -282,30 +455,31 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
         unusedExports(ora, chalk, pathToScan, {
           dryRun: true,
           message: "Checking for unreferenced exports",
+          report,
         }),
       fix: () =>
         unusedExports(ora, chalk, pathToScan, {
           fix: true,
           message: "Removing unreferenced exports",
+          report,
         }),
     },
   ];
 
   for (const step of steps) {
-    spinner.text = step.checkLabel;
+    if (report && step.reportTitle) {
+      printRule(chalk, "cyan");
+      console.log(chalk.cyan.bold(`Tidy — ${step.reportTitle}`));
+    }
     const count = await step.dry();
     if (dryRunItemTotal(count) > 0 && autoFix) {
-      spinner.text = step.fixLabel;
       await step.fix();
-      spinner.succeed(step.done);
     }
   }
 
   if (autoFix) {
     await scan(ora, chalk, pathToScan, { dryRun: true, clearCache: false });
-    spinner.succeed("Tidy up completed");
   }
-  spinner.succeed("Tidy up completed");
 }
 
 async function checkForDuplicates(chalk, pathToScan, options = {}) {
@@ -388,35 +562,29 @@ async function unusedExports(ora, chalk, pathToScan, options = {}) {
   });
   const { unUsedExportsWithPath, fileAssociated } =
     await findUnusedExports(chalk);
+  const found = buildUnusedExportsFound(unUsedExportsWithPath);
+  const listToRemove = combineValues(unUsedExportsWithPath);
 
-  if (options.dryRun) {
-    console.log(
-      chalk.yellow(`Total unused exports found: ${unUsedExportsWithPath.size}`),
-    );
-    return unUsedExportsWithPath.size;
-  }
-
-  if (unUsedExportsWithPath.size === 0) {
+  if (found.length === 0) {
     console.log(
       chalk.green("✓ No unused exports found. All exports are in use."),
     );
-    return;
+    return 0;
   }
 
-  const table = newTable(
-    chalk,
-    ["Unreferenced Exports", "File Path"],
-    [100, 100],
-  );
-  const listToRemove = combineValues(unUsedExportsWithPath);
-  listToRemove.forEach((exportName, filePath) => {
-    table.push([
-      chalk.white(exportName),
-      chalk.white(formatFilePath(filePath, 95)),
-    ]);
-  });
-  console.log(table.toString());
-  printRule(chalk);
+  if (options.dryRun) {
+    console.log(
+      chalk.yellow(`Total unused exports found: ${found.length}`),
+    );
+    if (options.report) {
+      printUnusedExportsReport(chalk, found, true);
+    }
+    return found.length;
+  }
+
+  if (!options.fix || options.report) {
+    printUnusedExportsReport(chalk, found, true);
+  }
 
   if (options.fix) {
     const stats = await editFile(
@@ -426,11 +594,13 @@ async function unusedExports(ora, chalk, pathToScan, options = {}) {
       options.message,
     );
     await updateFileAssociatedStats(new Date().toISOString(), stats);
+    if (options.report) {
+      printUnusedExportsReport(chalk, found, false);
+    }
   }
 
-  console.log(
-    chalk.yellow(`Total unused exports: ${unUsedExportsWithPath.size}`),
-  );
+  console.log(chalk.yellow(`Total unused exports: ${found.length}`));
+  return found.length;
 }
 
 async function list(ora, chalk, dependency, options = {}) {
