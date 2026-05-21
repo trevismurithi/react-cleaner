@@ -405,10 +405,41 @@ function generateSavingsReport(stats) {
 }
 
 /**
- * Removes all unused variables, functions, and classes from the source file.
- * @param {import('ts-morph').Graph} graph
- * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
- * @returns {number} The number of console.log statements removed
+ * @param {import("ts-morph").Node} node
+ * @returns {string}
+ */
+function getPruneCandidateName(node) {
+  if (typeof node.getName === "function") {
+    const name = node.getName();
+    if (name) {
+      return name;
+    }
+  }
+  return "(anonymous)";
+}
+
+/**
+ * @param {import("ts-morph").Node} node
+ * @returns {"variable" | "function" | "class" | "symbol"}
+ */
+function getPruneCandidateKind(node) {
+  const kind = node.getKind();
+  if (kind === SyntaxKind.VariableDeclaration) {
+    return "variable";
+  }
+  if (kind === SyntaxKind.FunctionDeclaration) {
+    return "function";
+  }
+  if (kind === SyntaxKind.ClassDeclaration) {
+    return "class";
+  }
+  return "symbol";
+}
+
+/**
+ * @param {string[]} files
+ * @param {boolean} isDryRun
+ * @returns {Promise<object | { total: number, found: Array<{ file: string, line: number, name: string, kind: string }> }>}
  */
 async function pruneInternal(files, isDryRun = false, chalk, message = "Removing unused code") {
   const cwd = process.cwd();
@@ -419,7 +450,8 @@ async function pruneInternal(files, isDryRun = false, chalk, message = "Removing
     message,
     chalk
   );
-  let unusedCodeFound = 0;
+  /** @type {Array<{ file: string, line: number, name: string, kind: string }>} */
+  const found = [];
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -443,10 +475,13 @@ async function pruneInternal(files, isDryRun = false, chalk, message = "Removing
     const sourceFile = project.addSourceFileAtPath(resolved);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
-    const isAffected = pruneInternalUnused(sourceFile, stats, isDryRun);
-    if (isAffected) {
-      unusedCodeFound++;
-    }
+    const isAffected = pruneInternalUnused(
+      sourceFile,
+      filePath,
+      stats,
+      isDryRun,
+      found,
+    );
     if (isAffected && !isDryRun) {
       await sourceFile.save();
       const finalLoc = sourceFile.getEndLineNumber();
@@ -468,18 +503,26 @@ async function pruneInternal(files, isDryRun = false, chalk, message = "Removing
   }
   scanBar.stop();
   if (!isDryRun) {
-    return generateSavingsReport(stats);
+    return {
+      ...generateSavingsReport(stats),
+      found,
+    };
   }
-  return unusedCodeFound;
+  return {
+    total: stats.totalItemsRemoved,
+    found,
+  };
 }
 
 /**
- * Removes all unused variables, functions, and classes from the source file.
  * @param {import('ts-morph').SourceFile} sourceFile
+ * @param {string} filePath Display path for dry-run rows
  * @param {{ totalItemsRemoved: number, totalLinesRemoved: number, bytesSaved: number, filesModified: number }} stats
- * @returns {boolean} True if the file was affected, false otherwise
+ * @param {boolean} isDryRun
+ * @param {Array<{ file: string, line: number, name: string, kind: string }>} found
+ * @returns {boolean} True if the file had at least one unused symbol
  */
-function pruneInternalUnused(sourceFile, stats, isDryRun) {
+function pruneInternalUnused(sourceFile, filePath, stats, isDryRun, found) {
   let isAffected = false;
   // Check Variables, Functions, and Classes
   const candidates = [
@@ -506,6 +549,12 @@ function pruneInternalUnused(sourceFile, stats, isDryRun) {
     // so we check if references are only within the declaration's own range.
     if (references.length === 0) {
       isAffected = true;
+      found.push({
+        file: filePath,
+        line: node.getStartLineNumber(),
+        name: getPruneCandidateName(node),
+        kind: getPruneCandidateKind(node),
+      });
       if (!isDryRun) {
         node.remove();
       }
@@ -679,7 +728,8 @@ async function deduplicateLogic(files, isDryRun = false, chalk, message = "Remov
     message,
     chalk
   );
-  let duplicatesFound = 0;
+  /** @type {Array<{ file: string, line: number, name: string, kind: string }>} */
+  const found = [];
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -715,15 +765,23 @@ async function deduplicateLogic(files, isDryRun = false, chalk, message = "Remov
       const codeBody = node.getText(); // The actual source code of the function/class
 
       if (seenCode.has(codeBody)) {
+        found.push({
+          file: filePath,
+          line: node.getStartLineNumber(),
+          name: getPruneCandidateName(node),
+          kind: getPruneCandidateKind(node),
+        });
         if (!isDryRun) {
           node.remove();
         }
         duplicatesRemoved++;
-        duplicatesFound++;
       } else {
         seenCode.add(codeBody);
       }
     });
+    if (isDryRun && duplicatesRemoved > 0) {
+      stats.totalItemsRemoved += duplicatesRemoved;
+    }
     if (!isDryRun && duplicatesRemoved > 0) {
       await sourceFile.save();
       const finalLoc = sourceFile.getEndLineNumber();
@@ -750,9 +808,15 @@ async function deduplicateLogic(files, isDryRun = false, chalk, message = "Remov
   }
   scanBar.stop();
   if (!isDryRun) {
-    return generateSavingsReport(stats);
+    return {
+      ...generateSavingsReport(stats),
+      found,
+    };
   }
-  return duplicatesFound;
+  return {
+    total: found.length,
+    found,
+  };
 }
 module.exports = {
   editFile,

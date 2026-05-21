@@ -2,7 +2,7 @@
 /**
  * Generates the PR health report body from qleaner.stats.json.
  * Called by the CI workflow after the published `qleaner` npm CLI runs (not `yarn start`).
- * Report footer version is read from the installed package (e.g. 1.4.2).
+ * Report footer version is read from the installed package (e.g. 1.5.0).
  *
  * Usage: node .github/scripts/pr-report.js <stats-file> <summary-file> [tidy-report-file] [image-report-file]
  * CI / default: argv[2]=qleaner.stats.json, argv[3]=health_summary.txt, argv[4]=tidy_report.txt, argv[5]=image_report.txt
@@ -320,7 +320,7 @@ ${sparkLines}
 ${cacheSnapshotSection}
 
 #### Tidy pipeline (dry-run only, no --auto-fix)
-_Captured from \`qleaner tidy … -r\` (global npm CLI). Console log dry-run lines and per-tier hit tables appear when \`foundByRisk\` is present._
+_Captured from \`qleaner tidy … -r\` (global npm CLI). With **\`-r\` / \`--report\`**, each step prints detail tables: **console logs** (tier hit tables when matches exist), **unused code** (file, line, name, kind), **duplicates**, and **unreferenced exports**. Supports **React**, **Vue**, and **Nuxt** (including \`.vue\` SFCs)._
 
 ${tidyReportSection}
 
@@ -332,6 +332,6 @@ ${imageReportSection}
 ${summaryText}
 \`\`\`
 
-<sub>Maintained by [Qleaner](https://github.com/trevismurithi/react-cleaner) v${PKG_VERSION}</sub>`;
+<sub>Maintained by [Qleaner](https://github.com/trevismurithi/react-cleaner) v${PKG_VERSION} · React, Vue, Nuxt, TypeScript, JavaScript</sub>`;
 
 process.stdout.write(body);

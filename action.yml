@@ -1,5 +1,5 @@
 name: Qleaner Health Guardian
-description: Install Qleaner from npm and run read-only tidy, image scan, and summary captures.
+description: Install Qleaner from npm and run read-only tidy (with per-step -r reports), image scan, and summary. React, Vue, and Nuxt.
 author: trevismurithi
 
 branding:
@@ -8,9 +8,9 @@ branding:
 
 inputs:
   qleaner-version:
-    description: npm version tag for the published `qleaner` package (e.g. 1.4.2 or latest).
+    description: npm version tag for the published `qleaner` package (e.g. 1.5.0 or latest).
     required: false
-    default: "1.4.2"
+    default: "1.5.0"
   node-version:
     description: Node.js version for setup-node.
     required: false
@@ -28,7 +28,7 @@ inputs:
     required: false
     default: ""
   tidy-extra-args:
-    description: Extra arguments appended to `qleaner tidy` (default `-r` for console-log risk tables in dry-run output).
+    description: Extra arguments for `qleaner tidy` (default `-r` prints per-step dry-run tables — console log tiers, unused code, duplicates, exports).
     required: false
     default: "-r"
   image-extra-args:
