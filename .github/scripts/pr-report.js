@@ -2,7 +2,7 @@
 /**
  * Generates the PR health report body from qleaner.stats.json.
  * Called by the CI workflow after the published `qleaner` npm CLI runs (not `yarn start`).
- * Report footer version is read from the installed package (e.g. 1.5.0).
+ * Report footer version is read from the installed package (e.g. 1.5.1).
  *
  * Usage: node .github/scripts/pr-report.js <stats-file> <summary-file> [tidy-report-file] [image-report-file]
  * CI / default: argv[2]=qleaner.stats.json, argv[3]=health_summary.txt, argv[4]=tidy_report.txt, argv[5]=image_report.txt

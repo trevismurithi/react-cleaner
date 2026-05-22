@@ -61,7 +61,7 @@ function findUnusedFlags(
     for (const importedByFile of node.importedBy) {
       const importedNode = graph.get(importedByFile);
       const components = importedNode.imported.get(node.file);
-      if (components.size === 0) {
+      if (!components || (components && components.size === 0)) {
         return;
       }
       exportedNames.forEach((exportComponentName) => {
