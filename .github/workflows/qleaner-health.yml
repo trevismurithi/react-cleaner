@@ -28,7 +28,7 @@ jobs:
       - name: 2. Run Qleaner from npm
         uses: ./
         with:
-          qleaner-version: "1.5.0"
+          qleaner-version: "1.5.1"
           scan-path: src/infisical-main/frontend
           image-assets-path: src/infisical-main/frontend/public
           image-code-path: src/infisical-main/frontend
