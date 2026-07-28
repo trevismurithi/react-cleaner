@@ -377,7 +377,6 @@ async function editFile(listToRemove, fileAssociated, chalk, message = "Editing 
     stats.totalLinesRemoved += linesRemoved;
     stats.bytesSaved += bytesSaved;
     stats.filesModified++;
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
   }
   scanBar.stop();
@@ -467,7 +466,6 @@ async function pruneInternal(files, isDryRun = false, chalk, message = "Removing
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
     if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
       scanBar.increment();
       continue;
     }
@@ -498,7 +496,6 @@ async function pruneInternal(files, isDryRun = false, chalk, message = "Removing
         passHashes.set(resolved, hash);
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
   }
   scanBar.stop();
@@ -602,7 +599,6 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
     if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
       scanBar.increment();
       continue;
     }
@@ -698,7 +694,6 @@ async function nukeConsoleLogs(files, isDryRun = false, chalk, message = "Removi
         passHashes.set(resolved, hash);
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
   }
   scanBar.stop();
@@ -744,7 +739,6 @@ async function deduplicateLogic(files, isDryRun = false, chalk, message = "Remov
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
     if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
       scanBar.increment();
       continue;
     }
@@ -803,7 +797,6 @@ async function deduplicateLogic(files, isDryRun = false, chalk, message = "Remov
         passHashes.set(resolved, hash);
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
   }
   scanBar.stop();

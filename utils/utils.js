@@ -1,7 +1,6 @@
 const prompts = require("prompts");
 const fs = require("fs");
 const path = require("path");
-const cliProgress = require("cli-progress");
 const ts = require("typescript");
 const { exec } = require("child_process");
 const { promisify } = require("util");
@@ -271,16 +270,83 @@ function compareFiles(filePath, importPath) {
   return filePath === importPath;
 }
 
-function createStepBar(step, total, label, chalk) {
-  const bar = new cliProgress.SingleBar({
-    format: `${chalk.cyan(`[${step}]`)} ${label} |{bar}| {value}/{total}`,
-    barCompleteChar: "█",
-    barIncompleteChar: "░",
-    hideCursor: true,
-  });
+function chalkOrPlain(chalk) {
+  if (chalk && typeof chalk.cyan === "function") {
+    return chalk;
+  }
+  const id = (s) => s;
+  return { cyan: id, green: id, yellow: id, red: id, dim: id, bold: id, blue: id, magenta: id };
+}
 
-  bar.start(total, 0);
-  return bar;
+/**
+ * Stage logger used in place of progress bars.
+ * Same API as the old cli-progress bar (increment/stop) so call sites stay unchanged.
+ */
+function createStepBar(step, total, label, chalk) {
+  const c = chalkOrPlain(chalk);
+  const start = Date.now();
+  const countLabel = total != null ? c.dim(` (${total})`) : "";
+  console.log(`${c.cyan("→")} ${c.bold(label)}${countLabel}`);
+  return {
+    increment() {},
+    update() {},
+    stop(detail) {
+      const ms = Date.now() - start;
+      const extra = detail ? ` — ${detail}` : "";
+      console.log(
+        `${c.green("✓")} ${label}${extra} ${c.dim(`(${formatMs(ms)})`)}`
+      );
+    },
+  };
+}
+
+function formatMs(ms) {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+/** @deprecated Delays removed — kept as no-op for any leftover callers. */
+function stepDelay() {
+  return Promise.resolve();
+}
+
+function logStage(chalk, message, status = "start") {
+  const c = chalkOrPlain(chalk);
+  if (status === "done") {
+    console.log(`${c.green("✓")} ${message}`);
+  } else if (status === "fail") {
+    console.log(`${c.red("✗")} ${message}`);
+  } else if (status === "info") {
+    console.log(`${c.blue("·")} ${message}`);
+  } else {
+    console.log(`${c.cyan("→")} ${c.bold(message)}`);
+  }
+}
+
+async function timed(label, fn, chalk) {
+  const c = chalkOrPlain(chalk);
+  const start = Date.now();
+  console.log(`${c.cyan("→")} ${c.bold(label)}`);
+  try {
+    return await fn();
+  } finally {
+    console.log(
+      `${c.green("✓")} ${label} ${c.dim(`(${formatMs(Date.now() - start)})`)}`
+    );
+  }
+}
+
+/** Wraps a full CLI command and logs total elapsed time when it finishes. */
+async function runTimedCommand(chalk, commandName, fn) {
+  const c = chalkOrPlain(chalk);
+  const start = Date.now();
+  try {
+    return await fn();
+  } finally {
+    console.log(
+      `${c.green("✓")} ${c.bold(commandName)} ${c.dim(`completed in ${formatMs(Date.now() - start)}`)}`
+    );
+  }
 }
 
 function loadTSConfig(projectRoot, configName = "tsconfig.json") {
@@ -358,6 +424,11 @@ module.exports = {
   isExcludedFile,
   compareFiles,
   createStepBar,
+  stepDelay,
+  timed,
+  runTimedCommand,
+  logStage,
+  formatMs,
   loadTSConfig,
   moveFromTrash,
   uninstallDependency,

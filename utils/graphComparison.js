@@ -22,7 +22,6 @@ async function compareAndRemoveOldImports(oldPaths, graph, chalk) {
   let removedFilesCount = 0;
 
   for (const [filePath, oldFiles] of oldPaths) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
     compareBar.increment();
 
     if (graph.has(filePath)) {
@@ -67,7 +66,6 @@ async function compareAndRemoveOldReExports(oldReExported, graph, chalk) {
   let removedReExportedCount = 0;
 
   for (const [filePath, oldReExportedFiles] of oldReExported) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
     reExportedCompareBar.increment();
 
     if (graph.has(filePath)) {
@@ -114,7 +112,6 @@ async function compareAndRemoveOldExports(oldExports, graph, chalk) {
   let removedExportsCount = 0;
 
   for (const [filePath, oldExportsNames] of oldExports) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
     exportsCompareBar.increment();
 
     if (graph.has(filePath)) {

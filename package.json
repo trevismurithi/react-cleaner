@@ -65,18 +65,16 @@
   "dependencies": {
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",
+    "@swc/core": "^1.15.46",
     "@vue/compiler-sfc": "^3.5.32",
     "chalk": "^5.6.2",
-    "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
     "enhanced-resolve": "^5.18.3",
     "fast-glob": "^3.3.3",
-    "ora": "^9.0.0",
     "prompts": "^2.4.2",
     "ts-morph": "^28.0.0",
-    "typescript": "^5.9.3",
-    "zod": "^4.3.6"
+    "typescript": "^5.9.3"
   }
 }

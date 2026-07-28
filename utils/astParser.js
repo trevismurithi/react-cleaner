@@ -1,6 +1,8 @@
 const path = require("path");
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+const { parseSync } = require("@swc/core");
+const { Visitor } = require("@swc/core/Visitor");
 
 const defaultParsePlugins = ["jsx", "typescript", "decorators-legacy"];
 const typescriptNoJsxPlugins = ["typescript", "decorators-legacy"];
@@ -248,7 +250,272 @@ function extractImportsAndExports(ast, filePath) {
   return { imports, exports };
 }
 
+
+class ExtractImportsExportsVisitor extends Visitor {
+  constructor(filePath) {
+    super();
+    this.filePath = filePath;
+    this.imports = [];
+    this.exports = [];
+  }
+
+  // Skip TS type subtrees — faster and avoids visitor edge cases.
+  visitTsType(node) {
+    return node;
+  }
+
+  visitTsTypeAnnotation(node) {
+    return node;
+  }
+
+  /**
+   * SWC puts `export function/class/const` on ExportDeclaration,
+   * not ExportNamedDeclaration (unlike Babel).
+   */
+  visitExportDeclaration(node) {
+    const decl = node.declaration;
+    if (decl) {
+      if (decl.type === "FunctionDeclaration") {
+        this.exports.push({
+          file: this.filePath,
+          source: null,
+          names: [decl.identifier.value],
+          type: "function",
+        });
+      } else if (decl.type === "ClassDeclaration") {
+        this.exports.push({
+          file: this.filePath,
+          source: null,
+          names: [decl.identifier.value],
+          type: "class",
+        });
+      } else if (decl.type === "VariableDeclaration") {
+        for (const d of decl.declarations) {
+          if (d.id.type === "Identifier") {
+            this.exports.push({
+              file: this.filePath,
+              source: null,
+              names: [d.id.value],
+              type: "variable",
+            });
+          }
+        }
+      }
+    }
+
+    // Must continue traversal — e.g. export const x = () => import("./mod")
+    return super.visitExportDeclaration(node);
+  }
+
+  // export { Foo } / export { Foo } from './mod'
+  visitExportNamedDeclaration(node) {
+    if (node.source) {
+      this.exports.push({
+        file: this.filePath,
+        source: node.source.value,
+        names: (node.specifiers || []).map(
+          (spec) => spec.exported?.value || spec.orig.value
+        ),
+        type: "re-export",
+      });
+    } else {
+      for (const spec of node.specifiers || []) {
+        const localName = spec.orig.value;
+        const exportedName = spec.exported ? spec.exported.value : localName;
+        this.exports.push({
+          file: this.filePath,
+          source: null,
+          names: [exportedName, localName],
+          type: "export",
+        });
+      }
+
+      // Match Babel extractor: also record a combined "local" entry
+      this.exports.push({
+        file: this.filePath,
+        source: null,
+        names: (node.specifiers || []).map(
+          (spec) => (spec.exported ? spec.exported.value : spec.orig.value)
+        ),
+        type: "local",
+      });
+    }
+
+    return super.visitExportNamedDeclaration(node);
+  }
+
+  visitExportAllDeclaration(node) {
+    this.exports.push({
+      file: this.filePath,
+      source: node.source.value,
+      names: ["*"],
+      type: "all",
+    });
+    return super.visitExportAllDeclaration(node);
+  }
+
+  // export default function Foo() {} / export default class Foo {}
+  visitExportDefaultDeclaration(node) {
+    const declName =
+      node.decl?.identifier?.value ||
+      node.decl?.value ||
+      "default";
+    this.exports.push({
+      file: this.filePath,
+      source: null,
+      names: [declName],
+      type: "default",
+    });
+    return super.visitExportDefaultDeclaration(node);
+  }
+
+  // export default <expression>  (e.g. export default 42)
+  visitExportDefaultExpression(node) {
+    this.exports.push({
+      file: this.filePath,
+      source: null,
+      names: ["default"],
+      type: "default",
+    });
+    return super.visitExportDefaultExpression(node);
+  }
+
+  visitImportDeclaration(node) {
+    const source = node.source.value;
+
+    if (!node.specifiers || node.specifiers.length === 0) {
+      this.imports.push({
+        file: this.filePath,
+        source,
+        type: "side-effect",
+        imported: null,
+        local: null,
+      });
+    } else {
+      for (const spec of node.specifiers) {
+        // SWC uses ImportSpecifier (not NamedImportSpecifier) for named imports
+        if (spec.type === "ImportSpecifier" || spec.type === "NamedImportSpecifier") {
+          this.imports.push({
+            file: this.filePath,
+            source,
+            imported: spec.imported ? spec.imported.value : spec.local.value,
+            local: spec.local.value,
+            type: "named",
+          });
+        } else if (spec.type === "ImportDefaultSpecifier") {
+          this.imports.push({
+            file: this.filePath,
+            source,
+            imported: "default",
+            local: spec.local.value,
+            type: "default",
+          });
+        } else if (spec.type === "ImportNamespaceSpecifier") {
+          this.imports.push({
+            file: this.filePath,
+            source,
+            imported: "*",
+            local: spec.local.value,
+            type: "namespace",
+          });
+        }
+      }
+    }
+    return super.visitImportDeclaration(node);
+  }
+
+  visitCallExpression(node) {
+    if (node.callee.type === "Import") {
+      const arg = node.arguments[0]?.expression;
+      if (arg?.type === "StringLiteral") {
+        this.imports.push({
+          file: this.filePath,
+          source: arg.value,
+          type: "dynamic",
+          imported: null,
+          local: null,
+        });
+      } else {
+        this.imports.push({
+          file: this.filePath,
+          source: null,
+          type: "dynamic-variable",
+          imported: null,
+          local: null,
+        });
+      }
+    }
+
+    if (
+      node.callee.type === "Identifier" &&
+      node.callee.value === "require"
+    ) {
+      const arg = node.arguments[0]?.expression;
+      if (arg?.type === "StringLiteral") {
+        this.imports.push({
+          file: this.filePath,
+          source: arg.value,
+          type: "cjs",
+          imported: null,
+          local: null,
+        });
+      }
+    }
+
+    return super.visitCallExpression(node);
+  }
+
+  visitTsImportEqualsDeclaration(node) {
+    if (
+      node.moduleReference?.type === "TsExternalModuleReference" &&
+      node.moduleReference.expression?.type === "StringLiteral"
+    ) {
+      this.imports.push({
+        file: this.filePath,
+        source: node.moduleReference.expression.value,
+        type: "ts-require",
+        imported: null,
+        local: null,
+      });
+    }
+    return super.visitTsImportEqualsDeclaration(node);
+  }
+}
+
+function analyzeFileWithSWC(code, filePath) {
+  const ext = path.extname(filePath || "").toLowerCase();
+  const isTypeScript = [".ts", ".tsx", ".mts", ".cts"].includes(ext);
+  // Match Babel: no JSX for plain .ts (angle-bracket assertions); enable for .tsx/.jsx/.js
+  const isTsx = ext === ".tsx";
+  const isJsx = [".jsx", ".js", ".mjs", ".cjs"].includes(ext) || !ext;
+
+  const options = isTypeScript
+    ? {
+        syntax: "typescript",
+        tsx: isTsx,
+        decorators: true,
+        dynamicImport: true,
+      }
+    : {
+        syntax: "ecmascript",
+        jsx: isJsx,
+        decorators: true,
+        dynamicImport: true,
+      };
+
+  const ast = parseSync(code, options);
+
+  const visitor = new ExtractImportsExportsVisitor(filePath);
+  visitor.visitModule(ast);
+
+  return {
+    imports: visitor.imports,
+    exports: visitor.exports,
+  };
+}
+
 module.exports = {
   parseCode,
   extractImportsAndExports,
+  analyzeFileWithSWC,
 };

@@ -25,7 +25,6 @@ async function findUnusedExports(chalk) {
 
   for (const [, node] of graph.entries()) {
     if (node.exports.size === 0) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
       scanBar.increment();
       continue;
     }
@@ -40,7 +39,6 @@ async function findUnusedExports(chalk) {
       node.file,
       fileAssociated,
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
   }
   scanBar.stop();

@@ -102,7 +102,6 @@ async function scanCssFiles(
   );
 
   for (const file of cssFiles) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
     const filePath = path.resolve(file);
     const css = fs.readFileSync(filePath, "utf-8");
@@ -146,7 +145,6 @@ async function compareCssPaths(oldPaths, createStepBar, imageGraph, chalk) {
   // compare old paths with new path
   for (const [filePath, oldFiles] of oldPaths) {
     if (compareBar) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
       compareBar.increment();
     }
     const resolvedFilePath = path.resolve(filePath);

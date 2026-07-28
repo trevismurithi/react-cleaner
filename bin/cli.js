@@ -15,6 +15,7 @@ const {
 } = require("../controllers/list");
 const { getUnusedImages } = require("../controllers/image");
 const { init } = require("../controllers/initialize");
+const { runTimedCommand } = require("../utils/utils");
 
 /** When omitted, commands resolve paths from the current working directory. */
 const DEFAULT_SCAN_PATH = ".";
@@ -23,13 +24,8 @@ async function loadChalk() {
   return (await import("chalk")).default;
 }
 
-async function loadOra() {
-  return (await import("ora")).default;
-}
-
 (async () => {
   const chalk = await loadChalk();
-  const ora = await loadOra();
 
   const program = new Command();
 
@@ -42,7 +38,7 @@ async function loadOra() {
     .command("init")
     .description("Initialize the project for Qleaner")
     .action(async () => {
-      await init(chalk);
+      await runTimedCommand(chalk, "init", () => init(chalk));
     });
 
   program
@@ -51,7 +47,9 @@ async function loadOra() {
     .argument("<dependency>", "The dependency to list the files by")
     .option("-t, --table", "Display results in a table format")
     .action(async (dependency, options) => {
-      await list(ora, chalk, dependency, options);
+      await runTimedCommand(chalk, "list", () =>
+        list(chalk, dependency, options)
+      );
     });
 
   program
@@ -64,10 +62,12 @@ async function loadOra() {
     .option("-t, --table", "Display results in a table format")
     .option("-u, --uninstall", "Uninstall the unused dependencies")
     .action(async (options) => {
-      await unusedDependencies(
-        chalk,
-        options.directory || process.cwd(),
-        options,
+      await runTimedCommand(chalk, "dep", () =>
+        unusedDependencies(
+          chalk,
+          options.directory || process.cwd(),
+          options,
+        )
       );
     });
 
@@ -77,7 +77,7 @@ async function loadOra() {
     .option("-l, --largest-files", "List the largest files in the project")
     .option("-d, --dependencies", "List the dependencies in the project")
     .action(async (options) => {
-      await summary(chalk, options);
+      await runTimedCommand(chalk, "summary", () => summary(chalk, options));
     });
 
   program
@@ -109,7 +109,9 @@ async function loadOra() {
       "Clear the cache recommended after making code changes",
     )
     .action(async (pathToScan, options) => {
-      await scan(ora, chalk, pathToScan, options);
+      await runTimedCommand(chalk, "scan", () =>
+        scan(chalk, pathToScan, options)
+      );
     });
 
   program
@@ -166,7 +168,9 @@ async function loadOra() {
       "Show what would be deleted without actually deleting (skips prompt)",
     )
     .action(async (directory, rootPath, options) => {
-      await getUnusedImages(ora, chalk, directory, rootPath, options);
+      await runTimedCommand(chalk, "image", () =>
+        getUnusedImages(chalk, directory, rootPath, options)
+      );
     });
 
   program
@@ -188,7 +192,12 @@ async function loadOra() {
       "Print a table of unreferenced exports (export name and file); works with or without --dry-run",
     )
     .action(async (pathToScan, options) => {
-      await unusedExports(ora, chalk, pathToScan, {...options, message: "Removing unreferenced exports"});
+      await runTimedCommand(chalk, "exports", () =>
+        unusedExports(chalk, pathToScan, {
+          ...options,
+          message: "Removing unreferenced exports",
+        })
+      );
     });
 
   program
@@ -205,7 +214,12 @@ async function loadOra() {
       "Print a table of unused variables, functions, and classes (file, line, name, kind)",
     )
     .action(async (pathToScan, options) => {
-      await pruneUnusedCode(chalk, pathToScan, {...options, message: "Removing unused code"});
+      await runTimedCommand(chalk, "prune", () =>
+        pruneUnusedCode(chalk, pathToScan, {
+          ...options,
+          message: "Removing unused code",
+        })
+      );
     });
 
   program
@@ -228,10 +242,12 @@ async function loadOra() {
       "Same as --list-risk-categories (short alias); then exit (no scan)",
     )
     .action(async (pathToScan, options) => {
-      await pruneConsoleLogs(chalk, pathToScan, {
-        ...options,
-        message: "Removing console logs",
-      });
+      await runTimedCommand(chalk, "prune-logs", () =>
+        pruneConsoleLogs(chalk, pathToScan, {
+          ...options,
+          message: "Removing console logs",
+        })
+      );
     });
 
   program
@@ -242,7 +258,7 @@ async function loadOra() {
       "The type of deletions to undo images or code (images or code)",
     )
     .action(async (type) => {
-      await undoDeletions(chalk, type);
+      await runTimedCommand(chalk, "undo", () => undoDeletions(chalk, type));
     });
 
   program
@@ -262,7 +278,12 @@ async function loadOra() {
       "Print a table of duplicate functions and classes (file, line, name, kind)",
     )
     .action(async (pathToScan, options) => {
-      await checkForDuplicates(chalk, pathToScan, {...options, message: "Removing duplicate code"});
+      await runTimedCommand(chalk, "duplicates", () =>
+        checkForDuplicates(chalk, pathToScan, {
+          ...options,
+          message: "Removing duplicate code",
+        })
+      );
     });
 
   program
@@ -287,7 +308,9 @@ async function loadOra() {
       "Print console-log risk tier docs (category index); tidy continues with remaining steps",
     )
     .action(async (pathToScan, options) => {
-      await tidyUp(ora, chalk, pathToScan, options);
+      await runTimedCommand(chalk, "tidy", () =>
+        tidyUp(chalk, pathToScan, options)
+      );
     });
 
   program.parse(process.argv);

@@ -10,6 +10,7 @@ const {
   combineValues,
   updateFileAssociatedStats,
   moveToTrash,
+  logStage,
 } = require("../utils/utils");
 const fs = require("fs");
 const path = require("path");
@@ -384,17 +385,19 @@ function printLinesOrTable(chalk, rows, useTable, singleColumnLabel) {
   }
 }
 
-async function tidyUp(ora, chalk, pathToScan, options = {}) {
+async function tidyUp(chalk, pathToScan, options = {}) {
   const { autoFix } = options;
   const report = Boolean(options.report);
   const listRiskCategories =
     Boolean(options.listRiskCategories) || report;
 
+  logStage(chalk, "Start Qleaner tidy");
+
   const steps = [
     {
       reportTitle: "Console logs",
-      checkLabel: "🔍 Checking for console logs...",
-      fixLabel: "🔍 Removing console logs...",
+      checkLabel: "Checking for console logs",
+      fixLabel: "Removing console logs",
       done: "Prune console logs completed",
       dry: () =>
         pruneConsoleLogs(chalk, pathToScan, {
@@ -414,8 +417,8 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
     },
     {
       reportTitle: "Unused code",
-      checkLabel: "🔍 Checking for unused code...",
-      fixLabel: "🔍 Removing unused code...",
+      checkLabel: "Checking for unused code",
+      fixLabel: "Removing unused code",
       done: "Prune unused code completed",
       dry: () =>
         pruneUnusedCode(chalk, pathToScan, {
@@ -431,8 +434,8 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
     },
     {
       reportTitle: "Duplicate code",
-      checkLabel: "🔍 Checking for duplicate code...",
-      fixLabel: "🔍 Removing duplicate code...",
+      checkLabel: "Checking for duplicate code",
+      fixLabel: "Removing duplicate code",
       done: "Remove duplicate code completed",
       dry: () =>
         checkForDuplicates(chalk, pathToScan, {
@@ -448,17 +451,17 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
     },
     {
       reportTitle: "Unreferenced exports",
-      checkLabel: "🔍 Checking for unreferenced exports...",
-      fixLabel: "🔍 Removing unreferenced exports...",
+      checkLabel: "Checking for unreferenced exports",
+      fixLabel: "Removing unreferenced exports",
       done: "Remove unreferenced exports completed",
       dry: () =>
-        unusedExports(ora, chalk, pathToScan, {
+        unusedExports(chalk, pathToScan, {
           dryRun: true,
           message: "Checking for unreferenced exports",
           report,
         }),
       fix: () =>
-        unusedExports(ora, chalk, pathToScan, {
+        unusedExports(chalk, pathToScan, {
           fix: true,
           message: "Removing unreferenced exports",
           report,
@@ -471,15 +474,22 @@ async function tidyUp(ora, chalk, pathToScan, options = {}) {
       printRule(chalk, "cyan");
       console.log(chalk.cyan.bold(`Tidy — ${step.reportTitle}`));
     }
+    logStage(chalk, step.checkLabel);
     const count = await step.dry();
+    logStage(chalk, step.done, "done");
     if (dryRunItemTotal(count) > 0 && autoFix) {
+      logStage(chalk, step.fixLabel);
       await step.fix();
+      logStage(chalk, step.fixLabel, "done");
     }
   }
 
   if (autoFix) {
-    await scan(ora, chalk, pathToScan, { dryRun: true, clearCache: false });
+    logStage(chalk, "Rescanning unused files after tidy fixes");
+    await scan(chalk, pathToScan, { dryRun: true, clearCache: false });
   }
+
+  logStage(chalk, "Tidy completed", "done");
 }
 
 async function checkForDuplicates(chalk, pathToScan, options = {}) {
@@ -555,8 +565,8 @@ async function pruneUnusedCode(chalk, pathToScan, options = {}) {
   });
 }
 
-async function unusedExports(ora, chalk, pathToScan, options = {}) {
-  await scan(ora, chalk, pathToScan, {
+async function unusedExports(chalk, pathToScan, options = {}) {
+  await scan(chalk, pathToScan, {
     dryRun: true,
     clearCache: Boolean(options.freshScan),
   });
@@ -603,16 +613,13 @@ async function unusedExports(ora, chalk, pathToScan, options = {}) {
   return found.length;
 }
 
-async function list(ora, chalk, dependency, options = {}) {
+async function list(chalk, dependency, options = {}) {
   const graph = loadHydratedGraph(chalk);
   if (!graph) return;
 
-  const spinner = ora("🔍 Loading graph from cache...").start();
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  spinner.text = "🔍 Querying files by dependency...";
+  logStage(chalk, `Querying files using ${dependency}`);
   const filesSet = query(graph, dependency);
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  spinner.succeed("Query completed");
+  logStage(chalk, "Query completed", "done");
 
   if (!filesSet?.size) {
     console.log(chalk.yellow(`No files found using ${dependency}`));
@@ -770,7 +777,7 @@ function printUnusedFileRows(chalk, fileArray, useTable, dryRun) {
   return totalSize;
 }
 
-async function scan(ora, chalk, pathToScan, options) {
+async function scan(chalk, pathToScan, options) {
   const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
     pathToScan,
     options,
@@ -778,7 +785,6 @@ async function scan(ora, chalk, pathToScan, options) {
   );
 
   const unusedFiles = await unUsedFiles(
-    ora,
     chalk,
     pathToScan,
     pathConfig,

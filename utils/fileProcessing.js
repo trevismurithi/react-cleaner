@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { needsRebuild } = require("./cache");
-const { parseCode, extractImportsAndExports } = require("./astParser");
+const { parseCode, extractImportsAndExports, analyzeFileWithSWC } = require("./astParser");
 const {
   createFileNode,
   createModuleNode,
@@ -36,7 +36,6 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
 
   for (const file of files) {
     try {
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
 
     const filePath = path.resolve(file);
@@ -78,10 +77,10 @@ async function scanFilesForImportsAndExports(files, graph, chalk) {
         exports.push(...fileExports);
       }
       }else {
-        const ast = parseCode(code, filePath);
+        // const ast = parseCode(code, filePath);
         // Extract imports and exports from AST
         const { imports: fileImports, exports: fileExports } =
-          extractImportsAndExports(ast, filePath);
+          analyzeFileWithSWC(code, filePath);
           imports.push(...fileImports);
           exports.push(...fileExports);
       }
@@ -115,7 +114,6 @@ async function processImports(imports, graph, resolver, chalk) {
   );
 
   for (const info of imports) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
     packingBar.increment();
 
     const { importPath, isMightBeModule } = await resolver(
@@ -163,7 +161,6 @@ async function processExports(exports, graph, resolver, chalk) {
   );
 
   for (const exportInfo of exports) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
     packingBarExports.increment();
 
     let exportPath = null;

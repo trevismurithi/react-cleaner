@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "codeAlias": "tsconfig.json",
   "paths": {},
-  "packageManager": "npm",
+  "packageManager": "yarn",
   "excludeDir": [
     "node_modules",
     "dist",

@@ -4,7 +4,7 @@ const path = require("path");
 const { parseCode } = require("../utils/astParser");
 const traverse = require("@babel/traverse").default;
 const { getCssImages } = require("../utils/cssImages");
-const { createStepBar } = require("../utils/utils");
+const { createStepBar, logStage, timed } = require("../utils/utils");
 const { initializeCache } = require("../command");
 const { needsRebuild, getFileHash, saveCache } = require("../utils/cache");
 const { normalize, createResolver } = require("../utils/resolver");
@@ -99,7 +99,6 @@ async function processImageImports(
 
   for (const importInfo of imports) {
     if (packingBar) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
       packingBar.increment();
     }
     processImageImport(importInfo, imageDirectory, imageGraph, options, resolver);
@@ -133,7 +132,6 @@ async function compareCodePaths(oldPaths, createStepBar, imageGraph, chalk) {
 
   for (const [filePath, oldFiles] of oldPaths) {
     if (compareBar) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
       compareBar.increment();
     }
     const resolvedFilePath = path.resolve(filePath);
@@ -188,7 +186,6 @@ async function scanCodeFilesForImages(
   );
 
   for (const file of codeFiles) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
     scanBar.increment();
     const filePath = path.resolve(file);
     const code = fs.readFileSync(filePath, "utf8");
@@ -301,7 +298,6 @@ function findUnusedImages(imageParentGraph, imageFiles, options) {
  * MAIN FUNCTION
  */
 async function getUnusedImages(
-  ora,
   chalk,
   imageDirectory,
   codeDirectory,
@@ -321,71 +317,73 @@ async function getUnusedImages(
     }
   }
   // read qleaner.config.json
-  // Start spinner
-  const spinner = ora("Start Qleaner scan...").start();
+  logStage(chalk, "Start Qleaner image scan");
   const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
     codeDirectory,
     options,
-    chalk,
+    chalk
   );
   const resolver = createResolver(codeDirectory, pathConfig);
-  // Build paths and collect files
-  spinner.text = "🔍 Discovering image files...";
+
   const imagePaths = buildImagePaths(imageDirectory, mergedOpts);
   const codePaths = buildCodePaths(codeDirectory, mergedOpts);
-  const imageFiles = await fg(imagePaths);
-  const codeFiles = await fg(codePaths);
-  spinner.succeed(
-    `Found ${imageFiles.length} image files and ${codeFiles.length} code files`
+
+  const discovered = await timed(
+    "Discovering image & code files",
+    async () => ({
+      imageFiles: await fg(imagePaths),
+      codeFiles: await fg(codePaths),
+    }),
+    chalk
   );
+  const imageFiles = discovered.imageFiles;
+  const codeFiles = discovered.codeFiles;
+  logStage(
+    chalk,
+    `Found ${imageFiles.length} image files and ${codeFiles.length} code files`,
+    "info"
+  );
+
   const { parentGraph, imageParentGraph } = initializeCache(
-    spinner,
     mergedOpts,
+    chalk,
     false
   );
 
-  const LOG_PREFIX = "Qleaner scan";
-  console.time(LOG_PREFIX);
-  // Scan code files for image references
-  spinner.text = "🔍 Scanning code files for image references...";
-  const numberOfCodeFiles = await scanCodeFilesForImages(
-    chalk,
-    codeFiles,
-    codeDirectory,
-    imageDirectory,
-    imageParentGraph.imageGraph,
-    mergedOpts,
-    resolver
+  const numberOfCodeFiles = await timed(
+    "Scanning code files for image references",
+    () =>
+      scanCodeFilesForImages(
+        chalk,
+        codeFiles,
+        codeDirectory,
+        imageDirectory,
+        imageParentGraph.imageGraph,
+        mergedOpts,
+        resolver
+      ),
+    chalk
   );
-  spinner.succeed(`Scanned ${codeFiles.length} code files`);
-  console.log('unused images', imageParentGraph.unusedImages.size);
-  console.log('numberOfCodeFiles', numberOfCodeFiles);
+
   if (imageParentGraph.unusedImages.size === 0 || numberOfCodeFiles > 0) {
-    // Find unused images
     imageParentGraph.unusedImages = new Set();
     findUnusedImages(imageParentGraph, imageFiles, mergedOpts);
   }
 
-  spinner.succeed(`Found ${imageParentGraph.unusedImages.size} unused images`);
-  // Display results
+  logStage(
+    chalk,
+    `Found ${imageParentGraph.unusedImages.size} unused images`,
+    "done"
+  );
   displayUnusedImages(imageParentGraph.unusedImages, mergedOpts, chalk);
-  spinner.succeed(
-    `Displayed ${imageParentGraph.unusedImages.size} unused images`
-  );
-  console.timeEnd(LOG_PREFIX);
-  // save cache
+
   saveCache(process.cwd(), { parentGraph, imageParentGraph }, false);
-  // Handle deletion / move to trash
-  // filter out images with deadLink
-  imageParentGraph.unusedImages = new Set([...imageParentGraph.unusedImages].filter((image) => !image.deadLink));
-  await handleImageDeletion(imageParentGraph.unusedImages, mergedOpts, chalk);
-  spinner.succeed(
-    `Handled deletion of ${imageParentGraph.unusedImages.size} unused images`,
+  imageParentGraph.unusedImages = new Set(
+    [...imageParentGraph.unusedImages].filter((image) => !image.deadLink)
   );
-  spinner.succeed(`Completed Qleaner scan`);
+  await handleImageDeletion(imageParentGraph.unusedImages, mergedOpts, chalk);
+  logStage(chalk, "Completed Qleaner image scan", "done");
 }
-
-
 
 module.exports = {
   getUnusedImages,
