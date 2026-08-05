@@ -1,6 +1,21 @@
-# Qleaner
+# Qleaner — unused code & asset cleaner for React / Next / Vue
 
-**Qleaner** (v1.5.1) is a powerful CLI tool for analyzing and cleaning up **React**, **Vue**, **Nuxt**, TypeScript, and JavaScript projects. It helps you identify unused files, images, dependencies, and dead code to optimize your bundle size and maintain a clean codebase.
+**Qleaner** (v2.0.0) finds unused files, images, dependencies, and dead code in **React**, **Next.js**, **Vue**, **Nuxt**, TypeScript, and JavaScript projects so you can shrink bundles and keep the codebase clean.
+
+## What’s new in 2.0
+
+- **Zero-prompt `init`** — auto-detects framework, path aliases, and package manager. Optional `[projectPath]` and `--force` to overwrite. Safe in CI: `qleaner init <path> --force`.
+- **Single-path `image`** — `qleaner image [projectPath]` (no `-a`/`-r` or separate assets/code roots). Path styles resolve automatically (imports, `public`/`static`, `@/` aliases).
+- **Stage-only logging** — stage timings instead of per-file progress bars; quieter, faster-feeling runs.
+- **TypeScript source** — npm publishes compiled `dist/` (`prepublishOnly` runs `tsc`).
+
+**Breaking (migrate from 1.x):**
+
+- Replace `qleaner image <assetsDir> <codeRoot>` (and `-a`/`-r`) with `qleaner image [projectPath]`.
+- Action input is **`image-project-path`** (not separate asset/code path inputs).
+- `init` is non-interactive; use `--force` to overwrite an existing config.
+
+**Speed:** Scans report stage timings and skip per-file progress bars, so large trees stay readable in CI and feel snappier locally. Smart cache (`unused-check-cache.json`) still speeds incremental runs.
 
 ## Features
 
@@ -9,9 +24,9 @@
 - **Unused Dependencies** - Discover npm/yarn/pnpm packages that are installed but not used; optionally uninstall them in one step
 - **Dead Image Links** - Find image references in code that point to non-existent files
 - **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them
-- **Vue & Nuxt** - Scan `.vue` single-file components (`@vue/compiler-sfc`); choose **Vue** during `qleaner init` for `pages` / `layouts` exclusions and `.vue` globs (typical for Nuxt apps)
+- **Vue & Nuxt** - Scan `.vue` single-file components (`@vue/compiler-sfc`); Vue/Nuxt detection during `qleaner init` sets `pages` / `layouts` exclusions and `.vue` globs
 - **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table
-- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.js` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.js`](utils/consoleLogHighRiskPatterns.js) and [`utils/consoleLogMediumRiskPatterns.js`](utils/consoleLogMediumRiskPatterns.js)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
+- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.ts` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.ts`](utils/consoleLogHighRiskPatterns.ts) and [`utils/consoleLogMediumRiskPatterns.ts`](utils/consoleLogMediumRiskPatterns.ts)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
 - **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table
 - **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
@@ -50,16 +65,16 @@ npm install qleaner --save-dev
 
 Qleaner ships a **composite GitHub Action** at the repo root: **[`action.yml`](action.yml)** (“Qleaner Health Guardian”). It installs the published **`qleaner`** package from npm and runs the global **`qleaner`** CLI — not `yarn start` from a cloned dev checkout.
 
-Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v1.5.1`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
+Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v2.0.0`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
 
 ### What the action does
 
 1. Sets up Node.js (default 20).
-2. Runs `npm install -g qleaner@<version>` (default **1.5.1**).
+2. Runs `npm install -g qleaner@<version>` (default **2.0.0**).
 3. Restores **`unused-check-cache.json`** from the Actions cache (key uses `qleaner.config.json` and `package-lock.json`).
 4. Runs read-only captures in the job workspace:
-   - `qleaner tidy <scan-path> …` → `tidy_report.txt`
-   - `qleaner image <assets> <code> …` → `image_report.txt` (skipped if image paths are empty)
+   - `qleaner tidy <scan-path> …` → `tidy_report.txt` (quiet by default; pass `tidy-extra-args: "-r"` for per-step detail tables)
+   - `qleaner image <projectPath> …` → `image_report.txt` (skipped if `image-project-path` is empty)
    - `qleaner summary` → `health_summary.txt`
 
 No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command exits **0**.
@@ -68,10 +83,10 @@ No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command 
 
 **Prerequisites**
 
-- Commit **`qleaner.config.json`** at the repo root (run `qleaner init` locally once; do **not** run `init` in CI — it is interactive).
-- Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` ( `init` can do this).
+- Commit **`qleaner.config.json`** (run `qleaner init` locally, or in CI: `qleaner init <path> --force`).
+- Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` (`init` can do this).
 - Set **`with:`** paths to match **your** app layout (not this repo’s Infisical sample tree).
-- Push a **git tag** on this repo that matches the Action ref (e.g. tag `v1.5.1` → `uses: trevismurithi/react-cleaner@v1.5.1`). npm publish alone does not create the tag.
+- Pin the Action ref to a tag on this repo (e.g. `uses: trevismurithi/react-cleaner@v2.0.0`). Creating a GitHub Release publishes npm via [`.github/workflows/release.yml`](.github/workflows/release.yml) when `NPM_TOKEN` is set.
 
 **Full workflow** (status check + PR health report comment):
 
@@ -97,13 +112,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Qleaner
-        uses: trevismurithi/react-cleaner@v1.5.1
+        uses: trevismurithi/react-cleaner@v2.0.0
         with:
-          qleaner-version: "1.5.1"
+          qleaner-version: "2.0.0"
           scan-path: src
-          image-assets-path: public
-          image-code-path: src
-          tidy-extra-args: "-r"
+          image-project-path: src
+          # Optional: per-step detail tables (off by default)
+          # tidy-extra-args: "-r"
           image-extra-args: "-d -T 0.1"
 
       - name: Build PR health report
@@ -111,7 +126,7 @@ jobs:
         env:
           NO_COLOR: "1"
         run: |
-          REPORT_SCRIPT="$(npm root -g)/qleaner/.github/scripts/pr-report.js"
+          REPORT_SCRIPT="$(npm root -g)/qleaner/dist/.github/scripts/pr-report.js"
           node "$REPORT_SCRIPT" \
             qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt \
             > pr_report.md
@@ -153,10 +168,11 @@ jobs:
             }
 ```
 
-- **`uses: …@v1.5.1`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v1.5.1` or `1.5.1` — the ref is exact).
-- **No image scan:** set `image-assets-path` and `image-code-path` to `""` (or omit and rely on defaults).
+- **`uses: …@v2.0.0`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v2.0.0` — the ref is exact).
+- **No image scan:** set `image-project-path` to `""` (or omit and rely on the default).
+- **Quieter tidy:** leave `tidy-extra-args` unset; set `tidy-extra-args: "-r"` only when you want per-step dry-run detail tables.
 - **Report only on PRs:** `workflow_dispatch` runs Qleaner but skips the comment steps (`if: github.event_name == 'pull_request'`).
-- You do **not** copy [`.github/scripts/pr-report.js`](.github/scripts/pr-report.js) into your repo; it ships in the published **`qleaner`** npm package. The Action step installs that package globally first.
+- You do **not** copy [`.github/scripts/pr-report.ts`](.github/scripts/pr-report.ts) into your repo; it ships compiled as **`dist/.github/scripts/pr-report.js`** in the published **`qleaner`** npm package. The Action step installs that package globally first.
 
 **Check-only workflow** (no PR comment — omit the last two steps and `pull-requests: write`).
 
@@ -164,13 +180,12 @@ jobs:
 
 | Input | Default | Purpose |
 | --- | --- | --- |
-| `qleaner-version` | `1.5.1` | npm version of `qleaner` to install |
+| `qleaner-version` | `2.0.0` | npm version of `qleaner` to install |
 | `node-version` | `20` | Node.js for `setup-node` |
 | `scan-path` | `.` | First argument to `qleaner tidy` |
-| `image-assets-path` | *(empty)* | First argument to `qleaner image` |
-| `image-code-path` | *(empty)* | Second argument to `qleaner image` |
-| `tidy-extra-args` | `-r` | Extra tidy flags (default **`-r`** = per-step dry-run detail tables) |
-| `image-extra-args` | `-d -T 0.1` | Extra image flags (dry-run + similarity threshold) |
+| `image-project-path` | *(empty)* | Project path for `qleaner image` (skipped when empty) |
+| `tidy-extra-args` | *(empty)* | Optional tidy flags; pass `-r` for per-step detail tables |
+| `image-extra-args` | `-d -T 0.1` | Extra image flags (dry-run + size threshold) |
 | `skip-image` | `false` | Set `true` to skip image scan |
 | `skip-summary` | `false` | Set `true` to skip summary |
 | `restore-cache` | `true` | Restore `unused-check-cache.json` before the run |
@@ -181,39 +196,56 @@ The composite Action does **not** post to GitHub by itself — use the **full wo
 
 ### This repository (dogfooding)
 
-[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@1.5.1` from npm**. It uses `node .github/scripts/pr-report.js` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
+[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@2.0.0` from npm** (available after the release is published). It uses `npx --yes tsx .github/scripts/pr-report.ts` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
 
 **Branch protection:** After the workflow runs on a PR, you can require status check **`hygiene-check`** (job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run (workflow missing on the base branch, Actions disabled, or fork PR awaiting approval).
+
+## Publishing (maintainers)
+
+1. Add repo secret **`NPM_TOKEN`** (npm token with publish rights) in GitHub → Settings → Secrets.
+2. Bump `"version"` in `package.json` (and lockfile) to match the release.
+3. Merge to the default branch, then create a **GitHub Release** with tag **`vX.Y.Z`** matching that version (e.g. `v2.0.0` for `2.0.0`).
+4. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs on `release: published`: `npm ci` → `npm publish` (`prepublishOnly` builds `dist/`). Do not commit `dist/`.
+
+## Monorepos
+
+Run Qleaner **per package**, not from the repo root unless that root is itself an app:
+
+```bash
+cd apps/web
+qleaner init .          # or: qleaner init apps/web from repo root
+qleaner scan . --dry-run
+qleaner image . --dry-run
+```
+
+Each package gets its own `qleaner.config.json` and `unused-check-cache.json`. In GitHub Actions, set `scan-path` and `image-project-path` to that package (e.g. `apps/web`), or use a matrix job per app later. There is no `init --workspaces` yet.
 
 ## Quick Start
 
 ### 1. Initialize Configuration
 
-**IMPORTANT:** Proper configuration is critical for Qleaner to accurately find and resolve files in your project, especially for large codebases. Take time to get this right!
+**IMPORTANT:** Proper configuration is critical for Qleaner to accurately find and resolve files in your project, especially for large codebases.
 
-First, set up Qleaner for your project:
+Set up Qleaner for your project (non-interactive):
 
 ```bash
 qleaner init
+# Nested app / monorepo package:
+qleaner init apps/web
+# Overwrite existing config:
+qleaner init . --force
 ```
 
-This interactive command will ask you:
-1. **Path to scan** - Default directory for unused-file scans and for commands that use `qleaner.config.json` (e.g. `exports`, `prune`, `tidy`)
-2. **Package manager** (npm/yarn/pnpm)
-3. **Image path resolution** - Relative or alias paths vs absolute paths from `public/` (e.g. `/images/logo.png`)
-4. **Framework** (React, Next.js, or Vue) - Sets entry-point patterns and, for Vue, default `excludeDirPrint` (`layouts`, `pages`)
-5. **Configuration file for path aliases** - **This is crucial!** Select which config file Qleaner should use to resolve import aliases:
-   - `tsconfig.json` (most common for TypeScript projects)
-   - `jsconfig.json` (for JavaScript projects)
-   - `tsconfig.app.json` (for monorepos or specific app configs)
-   - `tsconfig.base.json` (for monorepo base configs)
-   - `none` (if you don't use path aliases or want to configure manually)
+`init` auto-detects:
 
-**Why this matters:** Qleaner uses your project's `jsconfig.json` or `tsconfig.json` file to understand how import paths are resolved. This enables accurate file finding even in large codebases with complex path aliases (e.g., `@/components`, `~/utils`, etc.). Selecting the correct config file ensures Qleaner can properly trace dependencies and find all file references.
+1. **Path to scan** — optional `[projectPath]` (default cwd); written into `qleaner.config.json`
+2. **Package manager** — from lockfiles (npm / yarn / pnpm)
+3. **Framework** — React, Next.js, Vue, Nuxt, or vanilla (entry-point patterns and Vue/Nuxt directory exclusions)
+4. **Path aliases** — from `tsconfig` / `jsconfig` when present (including discovered `codeAlias`)
 
-**If you don't use jsconfig/tsconfig:** Select "none" during initialization, then manually add your path aliases to the `paths` field in `qleaner.config.json` (see Configuration section below).
+Review or edit `qleaner.config.json` if detection misses an alias or entry file. Manually add `paths` when you have no tsconfig/jsconfig (see Configuration below).
 
-This creates a `qleaner.config.json` file in your project root with sensible defaults. It also updates **`.gitignore`**: a **`# Qleaner`** section is appended with **`unused-check-cache.json`** and **`.trash/`** when those patterns are not already ignored (so the dependency cache and soft-delete folder stay out of version control). If `.gitignore` did not exist, it is created with that section.
+This creates `qleaner.config.json` and updates **`.gitignore`**: a **`# Qleaner`** section with **`unused-check-cache.json`** and **`.trash/`** when those patterns are not already ignored.
 
 ### 2. Scan for Unused Code Files
 
@@ -232,75 +264,60 @@ qleaner scan src
 
 ### 3. Scan for Unused Images
 
-Find images that aren't referenced in your code:
+Find images that aren't referenced in your project (inventory + code refs under one path):
 
 ```bash
-# Scan images in public/images against code in src
-qleaner image public/images src --dry-run
+# Scan the current project (cwd)
+qleaner image --dry-run
 
-# With alias paths (e.g., @/assets/images/logo.png)
-qleaner image public/images src -a --dry-run
-
-# With root-referenced paths (e.g., /images/logo.png)
-qleaner image public/images src -r --dry-run
+# Scan a nested app (same path style as init/scan)
+qleaner image src/infisical-main/frontend --dry-run -H
 ```
+
+**Breaking change:** older `qleaner image <assetsDir> <codeRoot>` (and `-a`/`-r`) is replaced by a single optional `[projectPath]`. Path styles are resolved automatically.
 
 ## Commands
 
-The CLI is implemented in [`bin/cli.js`](https://github.com/trevismurithi/react-cleaner/blob/main/bin/cli.js). Program name **`qleaner`**, tagline *A tool to clean up your React code*, and **`qleaner --version`** match that file (version is read from `package.json`). Run **`qleaner --help`** for the same command and option list Commander registers there.
+The CLI is implemented in [`bin/cli.ts`](https://github.com/trevismurithi/react-cleaner/blob/main/bin/cli.ts) and published as `dist/bin/cli.js`. Program name **`qleaner`**, tagline *A tool to clean up your React code*, and **`qleaner --version`** match that file (version is read from `package.json`). Run **`qleaner --help`** for the same command and option list Commander registers there.
 
 ### `qleaner init`
 
-Initialize Qleaner with an interactive configuration wizard. This command asks you a series of questions to set up Qleaner for your project and creates a `qleaner.config.json` file in your project root with sensible defaults.
+Non-interactive setup: detects framework, package manager, path aliases, and entry points, then writes `qleaner.config.json`. Safe for CI.
 
-After writing the config, init updates **`.gitignore`**: it adds **`unused-check-cache.json`** and **`.trash/`** under a **`# Qleaner`** heading only when those entries are not already present (missing lines are appended; existing rules are left unchanged).
+**Arguments:**
+- `[projectPath]` - Project root to initialize (default: cwd)
 
-**Configuration is Critical:** Getting the configuration right, especially the jsconfig/tsconfig selection, is essential for Qleaner to accurately find files in large codebases. Incorrect configuration may result in false positives (files reported as unused when they're actually used) or missed dependencies.
+**Options:**
+- `-f, --force` - Overwrite an existing `qleaner.config.json`
 
-**Questions asked:**
-1. **Path to scan** - Directory Qleaner uses by default for scans and code-analysis commands
-2. **Package manager** (npm, yarn, or pnpm)
-3. **Image path resolution** - Relative/alias vs absolute-from-`public/` paths
-4. **Framework** (React, Next.js, or Vue) - Entry files and Vue-specific directory exclusions
-5. **Configuration file for path aliases** - **Most important question!** Select which config file Qleaner should use:
-   - `tsconfig.json` - Standard TypeScript configuration
-   - `jsconfig.json` - Standard JavaScript configuration  
-   - `tsconfig.app.json` - App-specific config (common in monorepos)
-   - `tsconfig.base.json` - Base config (common in monorepos)
-   - `none` - No config file (use manual path configuration)
+After writing the config, init updates **`.gitignore`**: it adds **`unused-check-cache.json`** and **`.trash/`** under a **`# Qleaner`** heading only when those entries are not already present.
 
-**Vue & Nuxt:** Choosing **Vue** during init sets `excludeDirPrint` to `layouts` and `pages` by default (route files under those directories are not reported as unused). Globs include `**/*.{ts,js,jsx,vue}`. **Nuxt 3** apps typically use the same layout—select Vue, point `path` at your source tree, and run `qleaner scan` before `tidy` or `exports`.
+**What gets detected:**
+1. **Path** — `[projectPath]` or cwd
+2. **Package manager** — npm / yarn / pnpm from lockfiles
+3. **Framework** — React, Next.js, Vue, Nuxt, or vanilla (entry-point patterns; Vue/Nuxt get `layouts` / `pages` in `excludeDirPrint` and `.vue` globs)
+4. **Path aliases** — from tsconfig/jsconfig when present
 
-**Why the config file matters:**
-- Qleaner reads path aliases from your `jsconfig.json` or `tsconfig.json` to resolve imports like `@/components/Button` or `~/utils/helpers`
-- This enables accurate dependency tracking even in large projects with complex import structures
-- Without the correct config file, Qleaner may not properly resolve aliased imports, leading to incorrect results
-
-**If you don't have a jsconfig/tsconfig file:**
-- Select "none" during initialization
-- Manually configure path aliases in the `paths` field of `qleaner.config.json` (see Configuration section)
-- Example: `"paths": { "@/*": ["./src/*"], "~/*": ["./src/*"] }`
+**Configuration still matters:** Review `paths`, `codeAlias`, and `excludeFilePrint` after init. Incorrect aliases can cause false positives. Without tsconfig/jsconfig, set `paths` manually (see Configuration): `"paths": { "@/*": ["./src/*"] }`.
 
 **Examples:**
 ```bash
-# Initialize with interactive prompts
 qleaner init
+qleaner init apps/web
+qleaner init . --force
 
-# After initialization, verify your config
 cat qleaner.config.json
-
-# Then run your first scan
-qleaner scan src --dry-run
+qleaner scan . --dry-run
 ```
 
-**Note:** If you already have a `qleaner.config.json` file, this command will prompt you before overwriting it. You can manually edit the config file instead if needed.
+**Note:** Without `--force`, init exits if `qleaner.config.json` already exists.
 
 ### `qleaner scan`
 
 Scan a directory for unused code files. Merge order: values from `qleaner.config.json` first, then CLI flags (CLI wins).
 
 **Arguments:**
-- `[pathToScan]` - Directory to scan (default **`.`**; combined with config `path` and exclusions as implemented in `command.js`)
+- `[pathToScan]` - Directory to scan (default **`.`**; combined with config `path` and exclusions as implemented in `command.ts`)
 
 **Options:**
 - `-e, --exclude-dir <dir...>` - Exclude directories from scan (e.g., `-e node_modules dist`)
@@ -336,13 +353,12 @@ qleaner scan src --clear-cache
 qleaner scan src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
 ```
 
-### `qleaner image <directory> <rootPath>`
+### `qleaner image [projectPath]`
 
-Scan for unused images by comparing image files against references in your code. Detects images (png, jpg, jpeg, svg, gif, webp) that exist in your assets directory but are never referenced in your source code.
+Scan for unused images under a single project directory. Inventories image files (png, jpg, jpeg, svg, gif, webp, ico, avif) and matches them against references in code/CSS. Resolves imports, relative paths, `public/`/`static/` URLs, and `@/`/`~/` aliases automatically.
 
 **Arguments:**
-- `<directory>` - Directory containing image files to scan (e.g., `public/images`, `src/assets`)
-- `<rootPath>` - Root directory of your source code that references images (e.g., `src`, `app`)
+- `[projectPath]` - Project root to scan (default: cwd). Same path style as `qleaner init` / `qleaner scan`.
 
 **Options:**
 - `-u, --auto-prune` - Move **all** reported unused images to **`.trash`** without a prompt (only when **not** using `--dry-run`)
@@ -351,46 +367,44 @@ Scan for unused images by comparing image files against references in your code.
 - `-F, --exclude-file-assets <file...>` - Exclude specific image files by name pattern
 - `-E, --exclude-dir-code <dir...>` - Exclude directories when scanning code for image references (e.g., `-E node_modules dist`)
 - `-S, --exclude-file-code <file...>` - Exclude specific files when scanning code for image references
-- `-r, --is-root-folder-referenced` - Images use root-referenced paths (e.g., `/images/logo.png` where `/` is the root)
-- `-a, --alias` - Images use alias/import paths (e.g., `@/assets/images/logo.png` or `~/assets/logo.png`)
 - `-t, --table` - Display results in a formatted table with columns: Unused Images, In Code, Exists, Size
 - `-C, --clear-cache` - Clear cache before scanning (recommended after major code changes)
 - `-H, --hide-not-found-images` - Hide images referenced in code but not found on disk (dead links)
 - `-d, --dry-run` - Show what would be deleted without actually deleting; does not move files and does not run `--auto-prune`
 
-**Important:** Either `-r` (root-referenced) or `-a` (alias) must be set, but not both. They cannot have the same value.
+**Breaking change:** the old two-argument form `qleaner image <assetsDir> <codeRoot>` and the `-a`/`-r` flags are removed. Use one project path instead.
 
 **Examples:**
 ```bash
-# Basic image scan with root-referenced paths (e.g., /images/logo.png)
-qleaner image public/images src -r
+# Scan cwd
+qleaner image --dry-run
 
-# With alias paths (e.g., @/assets/images/logo.png)
-qleaner image src/assets/images src -a
+# Nested app
+qleaner image src/infisical-main/frontend --dry-run
 
 # Dry run with table format
-qleaner image public/images src -r --dry-run --table
+qleaner image . --dry-run --table
 
 # Hide dead image links and use table format
-qleaner image public/images src -r -H -t
+qleaner image . -H -t
 
 # Exclude directories from code scan
-qleaner image public/images src -r -E node_modules dist test
+qleaner image . -E node_modules dist test
 
 # Exclude specific directories from asset scan
-qleaner image src/assets src -a -e icons fonts
+qleaner image . -e icons fonts
 
 # Clear cache and rescan
-qleaner image public/images src -r --clear-cache
+qleaner image . --clear-cache
 
-# Comprehensive scan with all options
-qleaner image src/assets src -a --exclude-dir-code node_modules dist --hide-not-found-images --table --dry-run
+# Comprehensive scan with common options
+qleaner image . --exclude-dir-code node_modules dist --hide-not-found-images --table --dry-run
 
 # Highlight unused images larger than 2 MB (report only)
-qleaner image public/images src -r --dry-run -T 2 --table
+qleaner image . --dry-run -T 2 --table
 
 # Move all unused images to .trash without prompting (after a trusted dry-run)
-qleaner image public/images src -r --auto-prune
+qleaner image . --auto-prune
 ```
 
 **Supported Image Reference Patterns:**
@@ -507,17 +521,17 @@ qleaner prune .
 
 Remove **`console`** debug calls: `log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace` (standalone expression statements only).
 
-> **Note:** `qleaner prune-logs --help` may describe flags differently; **runtime behavior** matches [`controllers/list.js`](controllers/list.js) (`pruneConsoleLogs`, `runSurgicalPass`) as summarized below.
+> **Note:** `qleaner prune-logs --help` may describe flags differently; **runtime behavior** matches [`controllers/list.ts`](controllers/list.ts) (`pruneConsoleLogs`, `runSurgicalPass`) as summarized below.
 
 **Arguments:**
 - `[pathToScan]` - Directory to scan (default **`.`**); globs come from `qleaner.config.json` like other prune commands
 
 **Options:**
-- `-d, --dry-run` - Report counts only (no edits). Prints totals as **`N (high-risk sensitive: H, medium: M, low: L)`**. With **`--list-risk-categories`** also set, prints per-tier **hit tables** (file, line, preview) when the dry-run result includes `foundByRisk` (capped per tier in `controllers/list.js`).
+- `-d, --dry-run` - Report counts only (no edits). Prints totals as **`N (high-risk sensitive: H, medium: M, low: L)`**. With **`--list-risk-categories`** also set, prints per-tier **hit tables** (file, line, preview) when the dry-run result includes `foundByRisk` (capped per tier in `controllers/list.ts`).
 - **`-i` / `--list-risk-categories-info`** - Print the risk-tier **category index** (pattern file paths and section titles), then **return** without scanning or editing.
 - **`--list-risk-categories`** - Does **not** skip the scan by itself. Use with **`-d`** to dry-run and optionally show hit tables as above, or use **`-i`** for the index-only path.
 
-**Heuristics (not a security scanner):** Patterns live in **`utils/consoleLogHighRiskPatterns.js`** and **`utils/consoleLogMediumRiskPatterns.js`**; classification order is high → medium → low.
+**Heuristics (not a security scanner):** Patterns live in **`utils/consoleLogHighRiskPatterns.ts`** and **`utils/consoleLogMediumRiskPatterns.ts`**; classification order is high → medium → low.
 
 **Examples:**
 ```bash
@@ -576,7 +590,7 @@ qleaner undo images
 - **`--list-risk-categories`** - Console-log step only: per-tier hit tables when `foundByRisk` is present (also enabled when **`-r`** is set).
 - **`-i` / `--list-risk-categories-info`** - Print the console-log risk category index; tidy **continues** with remaining steps.
 
-Sequence (see `controllers/list.js`):
+Sequence (see `controllers/list.ts`):
 
 1. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply if **`--auto-fix`**  
 2. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
@@ -647,7 +661,7 @@ qleaner summary --dependencies
 - Top 10 dead image hotspots (dead image links referenced by many files)
 - Top 10 alive image hotspots (images referenced by many files)
 
-**Note:** Requires a cache file. Run `qleaner scan` to generate code cache and/or `qleaner image <dir> <root>` to generate image cache first.
+**Note:** Requires a cache file. Run `qleaner scan` to generate code cache and/or `qleaner image [projectPath]` to generate image cache first.
 
 ## Configuration
 
@@ -800,7 +814,7 @@ When you run **`qleaner scan`** without `--dry-run`:
 ### Code Analysis
 1. **File Discovery** - Uses `fast-glob` to find all code files matching patterns with intelligent exclusion handling
 2. **Path Alias Resolution** - Reads path aliases from your `jsconfig.json` or `tsconfig.json` (or manual `paths` config) to understand how imports are resolved. This enables accurate file finding even in large codebases with complex import structures.
-3. **AST Parsing** - Parses JavaScript/TypeScript with Babel; **`.ts` / `.mts` / `.cts`** are parsed without the JSX plugin so TypeScript angle-bracket assertions (e.g. `<Type>expr`) are valid, while **`.tsx` / `.js` / `.jsx`** keep JSX parsing. **Vue & Nuxt:** `.vue` SFCs are compiled with **`@vue/compiler-sfc`**; script blocks use **`lang`** for the TS/JSX split. Image and dependency scanning understand `.vue` files (`utils/astParser.js`, `utils/fileProcessing.js`, `controllers/image.js`). For **Nuxt**, run `qleaner init`, choose **Vue**, and set `path` to your app root (e.g. `src/` or project root).
+3. **AST Parsing** - Parses JavaScript/TypeScript with Babel; **`.ts` / `.mts` / `.cts`** are parsed without the JSX plugin so TypeScript angle-bracket assertions (e.g. `<Type>expr`) are valid, while **`.tsx` / `.js` / `.jsx`** keep JSX parsing. **Vue & Nuxt:** `.vue` SFCs are compiled with **`@vue/compiler-sfc`**; script blocks use **`lang`** for the TS/JSX split. Image and dependency scanning understand `.vue` files (`utils/astParser.ts`, `utils/fileProcessing.ts`, `controllers/image.ts`). For **Nuxt**, run `qleaner init`, choose **Vue**, and set `path` to your app root (e.g. `src/` or project root).
 4. **Module Resolution** - Uses `enhanced-resolve` with your project's path aliases to resolve import paths accurately. Supports:
    - Path aliases (e.g., `@/components`, `~/utils`)
    - Relative imports (`./component`, `../utils`)
@@ -846,7 +860,7 @@ qleaner scan src --dry-run --table
 qleaner scan src --clear-cache --dry-run --table
 
 # 5. Scan for unused images (dry run)
-qleaner image public/images src -r --dry-run --table
+qleaner image . --dry-run --table
 
 # 6. Check for unused dependencies
 qleaner dep --table
@@ -869,7 +883,7 @@ qleaner summary --dependencies
 
 # 11. Once confident with results, run actual scans and delete files
 qleaner scan src
-qleaner image public/images src -r
+qleaner image .
 
 # 12. Optional one-shot cleanup (dry-run each step; add --auto-fix to apply)
 # qleaner tidy

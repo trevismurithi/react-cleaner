@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "bin/**/*",
+    "controllers/**/*",
+    "utils/**/*",
+    "command.ts",
+    "types/**/*",
+    ".github/scripts/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "src/**"]
+}
