@@ -1,0 +1,33 @@
+name: Release
+
+# Publishes `qleaner` to npm when a GitHub Release is published.
+# Requires repo secret NPM_TOKEN (npm access token with publish rights).
+# Tag / release name should match package.json version (e.g. v2.0.0 for 2.0.0).
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

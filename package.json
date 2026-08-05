@@ -1,10 +1,13 @@
 {
   "name": "qleaner",
   "description": "A CLI tool for analyzing and identifying unused files, images, imports, and dead code in React, Vue, Nuxt, TypeScript, and JavaScript projects to help optimize bundle size and maintain clean codebases",
-  "version": "1.5.1",
+  "version": "2.0.0",
   "license": "MIT",
-  "main": "command.js",
-  "bin": "bin/cli.js",
+  "main": "dist/command.js",
+  "bin": "dist/bin/cli.js",
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/trevismurithi/react-cleaner.git"
@@ -14,15 +17,21 @@
   },
   "homepage": "https://github.com/trevismurithi/react-cleaner#readme",
   "keywords": [
+    "qleaner",
     "react",
+    "nextjs",
+    "vue",
+    "nuxt",
     "cleaner",
     "unused",
+    "unused-files",
     "files",
     "images",
     "imports",
     "list",
     "cli",
     "dead-code",
+    "dead-code-elimination",
     "code-analysis",
     "static-analysis",
     "unused-assets",
@@ -46,21 +55,28 @@
     "react-cleanup",
     "code-cleaner",
     "unused-imports",
-    "orphaned-files"
+    "orphaned-files",
+    "github-action"
   ],
   "scripts": {
-    "start": "node ./bin/cli.js",
-    "resolve": "node ./utils/resolver.js",
-    "scan": "node ./scanning.js",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "start": "node ./dist/bin/cli.js",
+    "dev": "tsx ./bin/cli.ts",
+    "resolve": "node ./dist/utils/resolver.js",
+    "eval:entries": "tsx scripts/eval-entry-points.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/babel__traverse": "^7.28.0",
     "@types/node": "^25.2.0",
+    "@types/prompts": "^2.4.9",
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript-eslint": "^8.66.0"
   },
   "dependencies": {
     "@babel/parser": "^7.28.5",
@@ -75,6 +91,6 @@
     "fast-glob": "^3.3.3",
     "prompts": "^2.4.2",
     "ts-morph": "^28.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   }
 }

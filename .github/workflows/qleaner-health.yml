@@ -1,8 +1,9 @@
 name: "Qleaner Health Guardian"
 
 # Installs the published `qleaner` package from npm (see action.yml) and runs the global
-# `qleaner` CLI — not `yarn start`. `tidy-extra-args: "-r"` captures per-step report tables in tidy_report.txt.
-# PR report version is resolved from the installed package in pr-report.js.
+# `qleaner` CLI — not `yarn start`. Tidy is quiet by default; pass tidy-extra-args: "-r" for detail tables.
+# Dogfood needs qleaner@2.0.0 on npm after the v2.0.0 release is published.
+# PR report is built from the checked-out .github/scripts/pr-report.ts.
 
 # Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
 # Branch protection → Required status checks must list that exact name once this workflow has run on a PR.
@@ -28,18 +29,16 @@ jobs:
       - name: 2. Run Qleaner from npm
         uses: ./
         with:
-          qleaner-version: "1.5.1"
+          qleaner-version: "2.0.0"
           scan-path: src/infisical-main/frontend
-          image-assets-path: src/infisical-main/frontend/public
-          image-code-path: src/infisical-main/frontend
-          tidy-extra-args: "-r"
+          image-project-path: src/infisical-main/frontend
           image-extra-args: "-d -T 0.1"
 
       - name: 3. Build PR health report
         env:
           NO_COLOR: "1"
         run: |
-          node .github/scripts/pr-report.js qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
+          npx --yes tsx .github/scripts/pr-report.ts qleaner.stats.json health_summary.txt tidy_report.txt image_report.txt > pr_report.md
 
       - name: 4. Post PR Health Report
         if: always()
