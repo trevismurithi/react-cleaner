@@ -112,6 +112,10 @@ async function loadChalk(): Promise<ChalkInstance> {
       "-d, --dry-run",
       "Show what would be deleted without actually deleting (skips prompt)",
     )
+    .option(
+      "-q, --quiet",
+      "Rebuild graph cache; print nothing; skip delete prompt",
+    )
     .option("-u, --auto-fix", "Automatically fix the unused files by moving them to the .trash directory")
     .option(
       "-C, --clear-cache",
@@ -189,6 +193,10 @@ async function loadChalk(): Promise<ChalkInstance> {
       "--report",
       "Print a table of unreferenced exports (export name and file); works with or without --dry-run",
     )
+    .option(
+      "--interactive",
+      "Suggest unused exports and remove only the selected ones",
+    )
     .action(async (pathToScan: string, options: Record<string, unknown>) => {
       await runTimedCommand(chalk, "exports", () =>
         unusedExports(chalk, pathToScan, {
@@ -210,6 +218,10 @@ async function loadChalk(): Promise<ChalkInstance> {
     .option(
       "-r, --report",
       "Print a table of unused variables, functions, and classes (file, line, name, kind)",
+    )
+    .option(
+      "--interactive",
+      "Suggest unused code and remove only the selected items",
     )
     .action(async (pathToScan: string, options: Record<string, unknown>) => {
       await runTimedCommand(chalk, "prune", () =>
@@ -238,6 +250,10 @@ async function loadChalk(): Promise<ChalkInstance> {
     .option(
       "-i, --list-risk-categories-info",
       "Same as --list-risk-categories (short alias); then exit (no scan)",
+    )
+    .option(
+      "--interactive",
+      "Suggest console log removals and apply only the selected items",
     )
     .action(async (pathToScan: string, options: Record<string, unknown>) => {
       await runTimedCommand(chalk, "prune-logs", () =>
@@ -275,6 +291,10 @@ async function loadChalk(): Promise<ChalkInstance> {
       "-r, --report",
       "Print a table of duplicate functions and classes (file, line, name, kind)",
     )
+    .option(
+      "--interactive",
+      "Suggest duplicate removals and apply only the selected items",
+    )
     .action(async (pathToScan: string, options: Record<string, unknown>) => {
       await runTimedCommand(chalk, "duplicates", () =>
         checkForDuplicates(chalk, pathToScan, {
@@ -304,6 +324,10 @@ async function loadChalk(): Promise<ChalkInstance> {
     .option(
       "-i, --list-risk-categories-info",
       "Print console-log risk tier docs (category index); tidy continues with remaining steps",
+    )
+    .option(
+      "--interactive",
+      "After each step’s dry-run, select which suggested items to remove",
     )
     .action(async (pathToScan: string, options: Record<string, unknown>) => {
       await runTimedCommand(chalk, "tidy", () =>

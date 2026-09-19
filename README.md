@@ -23,19 +23,19 @@
 - **Find Unused Images** - Detect image assets that are never referenced in your code
 - **Unused Dependencies** - Discover npm/yarn/pnpm packages that are installed but not used; optionally uninstall them in one step
 - **Dead Image Links** - Find image references in code that point to non-existent files
-- **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them
+- **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them, or **`--interactive`** to select which exports to remove
 - **Vue & Nuxt** - Scan `.vue` single-file components (`@vue/compiler-sfc`); Vue/Nuxt detection during `qleaner init` sets `pages` / `layouts` exclusions and `.vue` globs
-- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table
-- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.ts` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.ts`](utils/consoleLogHighRiskPatterns.ts) and [`utils/consoleLogMediumRiskPatterns.ts`](utils/consoleLogMediumRiskPatterns.ts)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
-- **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table
-- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
+- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table; **`--interactive`** lets you select which symbols to remove
+- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.ts` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.ts`](utils/consoleLogHighRiskPatterns.ts) and [`utils/consoleLogMediumRiskPatterns.ts`](utils/consoleLogMediumRiskPatterns.ts)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only. **`--interactive`** suggests hits (low-risk pre-checked) and removes only the selected calls.
+- **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table; **`--interactive`** removes only selected duplicates
+- **Tidy** - Run the main cleanup pipeline (quiet graph rebuild, logs, unused code, duplicates, unused exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--interactive`** prompts after each step so you apply only selected items (wins over **`-u`**). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
 - **Project Summary** - Get comprehensive statistics about your codebase
 - **File Size Analysis** - Identify the largest files and potential optimization targets
 - **Dependency Analysis** - See which files have heavy dependencies and hotspots
 - **Smart Caching** - Fast incremental scans with intelligent cache invalidation (`unused-check-cache.json`, including `parentGraph.fixes` fingerprints for surgical passes when present)
 - **Dry-Run Mode** - Where supported, `-d` / `--dry-run` matches the CLI: show what would be deleted without actually deleting (skips prompt)
-- **Interactive Deletion** - Choose to delete files permanently or move them to `.trash`, or use **`scan --auto-fix`** to move all reported unused files to `.trash` without a prompt
+- **Interactive Deletion** - Choose unused **files** to delete or move to `.trash`, or use **`scan --auto-fix`**. Surgical commands (`prune`, `duplicates`, `prune-logs`, `exports`, `tidy`) accept **`--interactive`** to suggest in-file removals and apply only the selected items
 - **Enhanced File Finding** - Advanced path resolution using jsconfig/tsconfig for accurate dependency tracking in large codebases with complex import structures
 - **Advanced Image Detection** - Sophisticated AST parsing extracts image references from imports, requires, JSX, CSS, styled-components, template literals, arrays, and more
 
@@ -327,6 +327,7 @@ Scan a directory for unused code files. Merge order: values from `qleaner.config
 - `-t, --table` - Display results in a formatted table
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-u, --auto-fix` - Skip the interactive prompt and move **all** reported unused files to `.trash` (only when **not** using `--dry-run`; same flag name as `dep` is **not** shared: on `scan` this is auto-fix, on `dep` `-u` is `--uninstall`)
+- `-q, --quiet` - Rebuild the graph cache and print nothing (no unused-file table, totals, cache blurb, or delete prompt). Used by `exports` and `tidy` when they only need a fresh scan before other checks.
 - `-C, --clear-cache` - Clear cache before scanning (useful after major changes)
 
 **Examples:**
@@ -348,6 +349,9 @@ qleaner scan src -F index.tsx main.tsx app.tsx
 
 # Clear cache and perform fresh scan
 qleaner scan src --clear-cache
+
+# Rebuild cache only (no unused-file listing or prompt)
+qleaner scan src --quiet
 
 # Comprehensive scan with multiple exclusions
 qleaner scan src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
@@ -483,16 +487,18 @@ List **unused exports** (symbols exported from a file that nothing imports, foll
 - `[pathToScan]` - Project directory to analyze (default **`.`**)
 
 **Options:**
-- `-r, --fresh-scan` - Clear graph-related state before analyzing (via `scan` with `clearCache` as implemented in `unusedExports`)
+- `-r, --fresh-scan` - Clear graph-related state before analyzing (via a **quiet** `scan` with `clearCache` as implemented in `unusedExports`)
 - `-f, --fix` - Fix (remove) the unused exports
 - `-d, --dry-run` - Only print how many unused exports were found (no table unless `--report`)
 - `--report` - Print a table of unreferenced exports (export name and file); works with or without `--dry-run` (`-r` on this command is **`--fresh-scan`**)
+- `--interactive` - Print the unused-export table, then remove only the selected exports (does not require `--fix`; **`--dry-run` wins** if both are set). Graph rebuild during this command is quiet.
 
 **Examples:**
 ```bash
 qleaner exports . --dry-run
 qleaner exports . --dry-run --report
 qleaner exports . --fix --report
+qleaner exports . --interactive
 ```
 
 **Note:** Requires `unused-check-cache.json` from `qleaner scan` over the same project tree you care about. With `--fix`, files are edited in place—use version control.
@@ -507,11 +513,13 @@ Remove **unused internal declarations** (unused variables, functions, classes, e
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-r, --report` - Print a table of unused symbols (file, line, name, kind); works with or without `--dry-run`
+- `--interactive` - Suggest unused symbols and remove only the selected items. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
 
 **Examples:**
 ```bash
 qleaner prune . --dry-run -r
 qleaner prune . -r
+qleaner prune . --interactive
 qleaner prune .
 ```
 
@@ -530,6 +538,7 @@ Remove **`console`** debug calls: `log`, `dir`, `dirxml`, `table`, `debug`, `inf
 - `-d, --dry-run` - Report counts only (no edits). Prints totals as **`N (high-risk sensitive: H, medium: M, low: L)`**. With **`--list-risk-categories`** also set, prints per-tier **hit tables** (file, line, preview) when the dry-run result includes `foundByRisk` (capped per tier in `controllers/list.ts`).
 - **`-i` / `--list-risk-categories-info`** - Print the risk-tier **category index** (pattern file paths and section titles), then **return** without scanning or editing.
 - **`--list-risk-categories`** - Does **not** skip the scan by itself. Use with **`-d`** to dry-run and optionally show hit tables as above, or use **`-i`** for the index-only path.
+- **`--interactive`** - Suggest console-log removals (with per-tier tables) and apply only the selected items. Low-risk hits are pre-checked. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
 
 **Heuristics (not a security scanner):** Patterns live in **`utils/consoleLogHighRiskPatterns.ts`** and **`utils/consoleLogMediumRiskPatterns.ts`**; classification order is high → medium → low.
 
@@ -544,6 +553,9 @@ qleaner prune-logs src --dry-run --list-risk-categories
 
 # Apply removals (not a dry run)
 qleaner prune-logs src
+
+# Suggest removals and apply only the selected calls
+qleaner prune-logs src --interactive
 ```
 
 ### `qleaner duplicates`
@@ -556,11 +568,13 @@ Detect and clean **duplicate** code patterns across files under the configured `
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-r, --report` - Print a table of duplicate functions and classes (file, line, name, kind); works with or without `--dry-run`
+- `--interactive` - Suggest duplicate removals and apply only the selected items. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
 
 **Examples:**
 ```bash
 qleaner duplicates . --dry-run -r
 qleaner duplicates . -r
+qleaner duplicates . --interactive
 qleaner duplicates .
 ```
 
@@ -579,7 +593,7 @@ qleaner undo images
 
 ### `qleaner tidy`
 
-**Tidy up the project** — runs a pipeline of checks; each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work.
+**Tidy up the project** — starts with a **quiet scan** to refresh the graph. Each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work. **`--interactive`** prompts per step instead of applying all.
 
 **Arguments:**
 - `[pathToScan]` - Project root or source directory for globs (default **`.`**)
@@ -589,14 +603,16 @@ qleaner undo images
 - **`-r` / `--report`** - During each step’s dry-run, print detail tables: console log tiers, unused code, duplicates, and exports (also enables console-log tier tables; same as passing **`--list-risk-categories`** for that step).
 - **`--list-risk-categories`** - Console-log step only: per-tier hit tables when `foundByRisk` is present (also enabled when **`-r`** is set).
 - **`-i` / `--list-risk-categories-info`** - Print the console-log risk category index; tidy **continues** with remaining steps.
+- **`--interactive`** - After each step’s suggestions, select which items to remove (wins over **`-u`**). Finishes with a normal unused-file `scan` prompt.
 
 Sequence (see `controllers/list.ts`):
 
-1. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply if **`--auto-fix`**  
-2. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
-3. **Duplicates** — dry-run (detail table with **`-r`**) → apply if needed  
-4. **Unused exports** — dry-run (detail table with **`-r`**) → apply with **fix** if needed  
-5. **Unused files scan** — `scan` with `dryRun: true` only when **`--auto-fix`** ran (reports unused files; does not move them)
+1. **Quiet scan** — rebuild graph cache with no unused-file listing  
+2. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply all if **`--auto-fix`**, or selected items if **`--interactive`**  
+3. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
+4. **Duplicates** — dry-run (detail table with **`-r`**) → apply if needed  
+5. **Unused exports** — dry-run (detail table with **`-r`**) → apply with **fix** if needed (`exports` rebuilds the graph quietly)  
+6. **Unused files scan** — after any mutation: dry-run `scan` for **`--auto-fix`** (reports unused files; does not move them); with **`--interactive`**, print unused files and offer `askDeleteFiles`
 
 Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with **`--dry-run`** and **`-r`** until you trust the behavior.
 
@@ -610,6 +626,9 @@ qleaner tidy -r
 
 # Risk index for console logs (pipeline continues)
 qleaner tidy -i
+
+# Select items to remove at each step
+qleaner tidy . --interactive
 
 # Apply safe code cleanups when issues are found
 qleaner tidy . --auto-fix

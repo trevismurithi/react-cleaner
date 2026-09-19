@@ -16,7 +16,7 @@ import {
 import { logStage } from "./utils";
 import { matchesHighRiskConsoleArgText } from "./consoleLogHighRiskPatterns";
 import { matchesMediumRiskConsoleArgText } from "./consoleLogMediumRiskPatterns";
-import type { ChalkInstance, FixPassKey } from "../types";
+import type { ChalkInstance, FixPassKey, SurgicalCandidate } from "../types";
 
 /** Keys under `parentGraph.fixes` — must match `FIX_PASS_KEYS` in cache.js */
 const FIX_PASS: Record<FixPassKey, FixPassKey> = {
@@ -24,6 +24,35 @@ const FIX_PASS: Record<FixPassKey, FixPassKey> = {
   nukeConsoleLogs: "nukeConsoleLogs",
   deduplicateLogic: "deduplicateLogic",
 };
+
+/** Stable identity for a dry-run candidate so a later apply pass can filter it. */
+export function surgicalCandidateKey(item: SurgicalCandidate): string {
+  const file = path.resolve(item.file);
+  const line = item.line != null ? String(item.line) : "";
+  if (item.preview != null && item.preview !== "") {
+    return `${file}|${line}|${item.preview}`;
+  }
+  return `${file}|${line}|${item.name ?? ""}|${item.kind ?? ""}`;
+}
+
+function selectedKeySet(
+  selected?: SurgicalCandidate[],
+): Set<string> | undefined {
+  if (selected == null) {
+    return undefined;
+  }
+  return new Set(selected.map(surgicalCandidateKey));
+}
+
+function isCandidateSelected(
+  item: SurgicalCandidate,
+  selectedKeys: Set<string> | undefined,
+): boolean {
+  if (selectedKeys == null) {
+    return true;
+  }
+  return selectedKeys.has(surgicalCandidateKey(item));
+}
 
 interface EditStats {
   totalItemsRemoved: number;
@@ -494,11 +523,13 @@ export async function pruneInternal(
   isDryRun = false,
   chalk: ChalkInstance,
   message = "Removing unused code",
+  selected?: SurgicalCandidate[],
 ): Promise<(SavingsReport & { found: PruneFoundItem[] }) | FoundListResult> {
   logStage(chalk, message);
   const cwd = process.cwd();
   const passHashes = getFixPassHashes(cwd, FIX_PASS.pruneInternal);
   const found: PruneFoundItem[] = [];
+  const selectedKeys = selectedKeySet(selected);
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -513,7 +544,7 @@ export async function pruneInternal(
 
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
-    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+    if (selectedKeys == null && shouldSkipFixPass(resolved, passHashes, isDryRun)) {
       continue;
     }
 
@@ -526,6 +557,7 @@ export async function pruneInternal(
       stats,
       isDryRun,
       found,
+      selectedKeys,
     );
     if (isAffected && !isDryRun) {
       await sourceFile.save();
@@ -537,7 +569,7 @@ export async function pruneInternal(
       stats.bytesSaved += bytesSaved;
       stats.filesModified++;
     }
-    if (!isDryRun) {
+    if (!isDryRun && selectedKeys == null) {
       const hash = recordFixPassFingerprint(cwd, FIX_PASS.pruneInternal, resolved);
       if (hash != null) {
         passHashes.set(resolved, hash);
@@ -565,6 +597,7 @@ function pruneInternalUnused(
   stats: EditStats,
   isDryRun: boolean,
   found: PruneFoundItem[],
+  selectedKeys?: Set<string>,
 ): boolean {
   let isAffected = false;
   // Check Variables, Functions, and Classes
@@ -594,16 +627,24 @@ function pruneInternalUnused(
     // Note: In TS-Morph, the declaration itself is sometimes counted as a reference,
     // so we check if references are only within the declaration's own range.
     if (references.length === 0) {
-      isAffected = true;
-      found.push({
+      const item: PruneFoundItem = {
         file: filePath,
         line: node.getStartLineNumber(),
         name: getPruneCandidateName(node),
         kind: getPruneCandidateKind(node),
-      });
-      if (!isDryRun) {
-        (node as any).remove();
+      };
+      if (isDryRun) {
+        isAffected = true;
+        found.push(item);
+        stats.totalItemsRemoved++;
+        return;
       }
+      if (!isCandidateSelected(item, selectedKeys)) {
+        return;
+      }
+      isAffected = true;
+      found.push(item);
+      (node as any).remove();
       stats.totalItemsRemoved++;
     }
   });
@@ -620,10 +661,12 @@ export async function nukeConsoleLogs(
   isDryRun = false,
   chalk: ChalkInstance,
   message = "Removing console logs",
+  selected?: SurgicalCandidate[],
 ): Promise<SavingsReport | ConsoleLogDryRunResult> {
   logStage(chalk, message);
   const cwd = process.cwd();
   const passHashes = getFixPassHashes(cwd, FIX_PASS.nukeConsoleLogs);
+  const selectedKeys = selectedKeySet(selected);
   let logsFound = 0;
   let highRiskLogs = 0;
   let mediumRiskLogs = 0;
@@ -646,11 +689,10 @@ export async function nukeConsoleLogs(
   };
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
-    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+    if (selectedKeys == null && shouldSkipFixPass(resolved, passHashes, isDryRun)) {
       continue;
     }
 
-    let logsRemoved = 0;
     const sourceFile = project.addSourceFileAtPath(filePath);
     const initialLoc = sourceFile.getEndLineNumber();
     const initialSize = fs.statSync(filePath).size;
@@ -679,42 +721,54 @@ export async function nukeConsoleLogs(
     }
 
     if (removableStatements.length > 0) {
-      logsRemoved = removableStatements.length;
-      logsFound += removableStatements.length;
-      for (const call of removableCalls) {
-        switch (consoleLogDryRunRiskTier(call)) {
-          case "high":
-            highRiskLogs++;
-            foundByRisk.high.push({
-              file: filePath,
-              line: call.getStartLineNumber(),
-              preview: call.getText(),
-            });
-            break;
-          case "medium":
-            mediumRiskLogs++;
-            foundByRisk.medium.push({
-              file: filePath,
-              line: call.getStartLineNumber(),
-              preview: call.getText(),
-            });
-            break;
-          default:
-            lowRiskLogs++;
-            foundByRisk.low.push({
-              file: filePath,
-              line: call.getStartLineNumber(),
-              preview: call.getText(),
-            });
+      const uniqueByStart = new Map<number, ExpressionStatement>();
+      for (let i = 0; i < removableCalls.length; i++) {
+        const call = removableCalls[i];
+        const stmt = removableStatements[i];
+        if (!call || !stmt) {
+          continue;
+        }
+        const item: SurgicalCandidate = {
+          file: filePath,
+          line: call.getStartLineNumber(),
+          preview: call.getText(),
+        };
+        const tier = consoleLogDryRunRiskTier(call);
+        const recordHit = isDryRun || isCandidateSelected(item, selectedKeys);
+        if (recordHit) {
+          logsFound++;
+          switch (tier) {
+            case "high":
+              highRiskLogs++;
+              foundByRisk.high.push({
+                file: filePath,
+                line: item.line as number,
+                preview: item.preview as string,
+              });
+              break;
+            case "medium":
+              mediumRiskLogs++;
+              foundByRisk.medium.push({
+                file: filePath,
+                line: item.line as number,
+                preview: item.preview as string,
+              });
+              break;
+            default:
+              lowRiskLogs++;
+              foundByRisk.low.push({
+                file: filePath,
+                line: item.line as number,
+                preview: item.preview as string,
+              });
+          }
+        }
+        if (!isDryRun && isCandidateSelected(item, selectedKeys)) {
+          uniqueByStart.set(stmt.getStart(), stmt);
         }
       }
 
-      if (!isDryRun) {
-        // Remove bottom-to-top so edits don't disturb earlier node positions.
-        const uniqueByStart = new Map<number, ExpressionStatement>();
-        for (const stmt of removableStatements) {
-          uniqueByStart.set(stmt.getStart(), stmt);
-        }
+      if (!isDryRun && uniqueByStart.size > 0) {
         const toRemove = [...uniqueByStart.values()].sort(
           (a, b) => b.getStart() - a.getStart(),
         );
@@ -728,13 +782,13 @@ export async function nukeConsoleLogs(
         const finalSize = fs.statSync(filePath).size;
         const linesRemoved = initialLoc - finalLoc;
         const bytesSaved = initialSize - finalSize;
-        stats.totalItemsRemoved += logsRemoved;
+        stats.totalItemsRemoved += uniqueByStart.size;
         stats.totalLinesRemoved += linesRemoved;
         stats.bytesSaved += bytesSaved;
         stats.filesModified++;
       }
     }
-    if (!isDryRun) {
+    if (!isDryRun && selectedKeys == null) {
       const hash = recordFixPassFingerprint(cwd, FIX_PASS.nukeConsoleLogs, resolved);
       if (hash != null) {
         passHashes.set(resolved, hash);
@@ -761,11 +815,13 @@ export async function deduplicateLogic(
   isDryRun = false,
   chalk: ChalkInstance,
   message = "Removing duplicates",
+  selected?: SurgicalCandidate[],
 ): Promise<(SavingsReport & { found: PruneFoundItem[] }) | FoundListResult> {
   logStage(chalk, message);
   const cwd = process.cwd();
   const passHashes = getFixPassHashes(cwd, FIX_PASS.deduplicateLogic);
   const found: PruneFoundItem[] = [];
+  const selectedKeys = selectedKeySet(selected);
   const project = new Project({
     compilerOptions: {
       allowJs: true,
@@ -779,7 +835,7 @@ export async function deduplicateLogic(
   };
   for (const filePath of files) {
     const resolved = path.resolve(filePath);
-    if (shouldSkipFixPass(resolved, passHashes, isDryRun)) {
+    if (selectedKeys == null && shouldSkipFixPass(resolved, passHashes, isDryRun)) {
       continue;
     }
 
@@ -799,15 +855,22 @@ export async function deduplicateLogic(
       const codeBody = node.getText(); // The actual source code of the function/class
 
       if (seenCode.has(codeBody)) {
-        found.push({
+        const item: PruneFoundItem = {
           file: filePath,
           line: node.getStartLineNumber(),
           name: getPruneCandidateName(node),
           kind: getPruneCandidateKind(node),
-        });
-        if (!isDryRun) {
-          node.remove();
+        };
+        if (isDryRun) {
+          found.push(item);
+          duplicatesRemoved++;
+          return;
         }
+        if (!isCandidateSelected(item, selectedKeys)) {
+          return;
+        }
+        found.push(item);
+        node.remove();
         duplicatesRemoved++;
       } else {
         seenCode.add(codeBody);
@@ -827,7 +890,7 @@ export async function deduplicateLogic(
       stats.bytesSaved += bytesSaved;
       stats.filesModified++;
     }
-    if (!isDryRun) {
+    if (!isDryRun && selectedKeys == null) {
       const hash = recordFixPassFingerprint(
         cwd,
         FIX_PASS.deduplicateLogic,

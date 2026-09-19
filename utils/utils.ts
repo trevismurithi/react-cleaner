@@ -89,6 +89,30 @@ export async function askDeleteFiles(
   }
 }
 
+/** Multiselect candidates to apply. Empty if stdin is not a TTY or the user picks none. */
+export async function askSelectCandidates<T>(
+  message: string,
+  choices: Array<{ title: string; value: T; selected?: boolean }>
+): Promise<T[]> {
+  if (!process.stdin.isTTY || choices.length === 0) {
+    return [];
+  }
+  const response = await prompts({
+    type: "multiselect",
+    name: "selected",
+    message,
+    choices: choices.map((choice) => ({
+      title: choice.title,
+      value: choice.value,
+      selected: Boolean(choice.selected),
+    })),
+  });
+  if (!response || !Array.isArray(response.selected)) {
+    return [];
+  }
+  return response.selected as T[];
+}
+
 /** Remove `.trash/<uuid>/` after restore when the subfolder is empty (legacy flat paths skip `.trash` itself). */
 function removeEmptyTrashSubdir(
   trashDir: string,
@@ -406,8 +430,12 @@ export function stepDelay(): Promise<void> {
 export function logStage(
   chalk: ChalkInstance | unknown,
   message: string,
-  status: "start" | "done" | "fail" | "info" = "start"
+  status: "start" | "done" | "fail" | "info" = "start",
+  quiet = false
 ): void {
+  if (quiet) {
+    return;
+  }
   const c = chalkOrPlain(chalk);
   if (status === "done") {
     console.log(`${c.green("✓")} ${message}`);
@@ -423,8 +451,12 @@ export function logStage(
 export async function timed<T>(
   label: string,
   fn: () => Promise<T> | T,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<T> {
+  if (quiet) {
+    return await fn();
+  }
   const c = chalkOrPlain(chalk);
   const start = Date.now();
   console.log(`${c.cyan("→")} ${c.bold(label)}`);

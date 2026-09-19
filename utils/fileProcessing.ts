@@ -27,7 +27,8 @@ import type { ImportResolver } from "./resolver";
 export async function scanFilesForImportsAndExports(
   files: string[],
   graph: Graph,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<{
   imports: ImportInfo[];
   exports: ExportInfo[];
@@ -97,7 +98,8 @@ export async function scanFilesForImportsAndExports(
         }
       }
     },
-    chalk
+    chalk,
+    quiet
   );
 
   return { imports, exports, oldPaths, oldExports, oldReExported };
@@ -110,7 +112,8 @@ export async function processImports(
   imports: ImportInfo[],
   graph: Graph,
   resolver: ImportResolver,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<void> {
   if (imports.length === 0) {
     return;
@@ -149,7 +152,8 @@ export async function processImports(
         graph.get(importPath)!.importedBy.add(info.file);
       }
     },
-    chalk
+    chalk,
+    quiet
   );
 }
 
@@ -160,7 +164,8 @@ export async function processExports(
   exports: ExportInfo[],
   graph: Graph,
   resolver: ImportResolver,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<void> {
   if (exports.length === 0) {
     return;
@@ -196,6 +201,7 @@ export async function processExports(
         }
       }
     },
-    chalk
+    chalk,
+    quiet
   );
 }

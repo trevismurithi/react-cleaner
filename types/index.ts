@@ -126,8 +126,19 @@ export interface CacheFile {
   imageParentGraph: SerializedImageParentGraph;
 }
 
+/** Dry-run row that a later apply pass can match by `surgicalCandidateKey`. */
+export interface SurgicalCandidate {
+  file: string;
+  line?: number;
+  name?: string;
+  kind?: string;
+  preview?: string;
+  risk?: "high" | "medium" | "low";
+}
+
 export interface ScanOptions {
   clearCache?: boolean;
+  quiet?: boolean;
   excludeFilePrint?: string[];
   excludeDirPrint?: string[];
   excludeDir?: string[];

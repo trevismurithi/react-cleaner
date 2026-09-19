@@ -35,7 +35,8 @@ export function initializeCache(
   chalk: ChalkInstance,
   code = true
 ): { parentGraph: ParentGraph; imageParentGraph: ImageParentGraph } {
-  logStage(chalk, "Loading cache");
+  const quiet = Boolean(options.quiet);
+  logStage(chalk, "Loading cache", "start", quiet);
   const cache = loadCache(process.cwd(), {
     code,
     clearCache: options.clearCache,
@@ -49,7 +50,7 @@ export function initializeCache(
       cache.imageParentGraph.imageGraph
     ) as unknown as ImageGraph;
   }
-  logStage(chalk, "Cache loaded", "done");
+  logStage(chalk, "Cache loaded", "done", quiet);
   return {
     parentGraph: {
       graph: graph || (cache.parentGraph.graph as unknown as Graph),
@@ -78,19 +79,20 @@ async function extractImportsFromFiles(
   files: string[],
   graph: Graph,
   resolver: ReturnType<typeof createResolver>,
-  chalk: ChalkInstance
+  chalk: ChalkInstance,
+  quiet = false
 ): Promise<number> {
   const { imports, exports, oldPaths, oldExports, oldReExported } =
-    await scanFilesForImportsAndExports(files, graph, chalk);
+    await scanFilesForImportsAndExports(files, graph, chalk, quiet);
 
-  await processImports(imports, graph, resolver, chalk);
-  await processExports(exports, graph, resolver, chalk);
+  await processImports(imports, graph, resolver, chalk, quiet);
+  await processExports(exports, graph, resolver, chalk, quiet);
 
   const [removedFilesCount, removedReExportedCount, removedExportsCount] =
     await Promise.all([
-      compareAndRemoveOldImports(oldPaths, graph, chalk),
-      compareAndRemoveOldReExports(oldReExported, graph, chalk),
-      compareAndRemoveOldExports(oldExports, graph, chalk),
+      compareAndRemoveOldImports(oldPaths, graph, chalk, quiet),
+      compareAndRemoveOldReExports(oldReExported, graph, chalk, quiet),
+      compareAndRemoveOldExports(oldExports, graph, chalk, quiet),
     ]);
 
   return (
@@ -219,19 +221,22 @@ async function checkUnusedFiles(
         await checkFileUsage(path.resolve(file), parentGraph, options);
       }
     },
-    chalk
+    chalk,
+    Boolean(options.quiet)
   );
 }
 
 function finalizeCacheAndReturn(
   parentGraph: ParentGraph,
   chalk: ChalkInstance,
-  imageParentGraph: ImageParentGraph
+  imageParentGraph: ImageParentGraph,
+  quiet = false
 ): Set<UnusedFileEntry | string> {
   logStage(
     chalk,
     `Found ${parentGraph.unusedFiles.size} unused files`,
-    "done"
+    "done",
+    quiet
   );
   saveCache(process.cwd(), { parentGraph, imageParentGraph });
   return parentGraph.unusedFiles;
@@ -243,7 +248,8 @@ export async function unUsedFiles(
   pathConfig: Record<string, string[]> | null = null,
   options: ScanOptions
 ): Promise<Set<UnusedFileEntry | string>> {
-  logStage(chalk, "Start Qleaner scan");
+  const quiet = Boolean(options.quiet);
+  logStage(chalk, "Start Qleaner scan", "start", quiet);
 
   const resolver = createResolver(directory, pathConfig ?? undefined);
   const { parentGraph, imageParentGraph } = initializeCache(options, chalk);
@@ -252,15 +258,17 @@ export async function unUsedFiles(
   const files = await timed(
     "Discovering files",
     () => fg(contentPaths),
-    chalk
+    chalk,
+    quiet
   );
-  logStage(chalk, `Found ${files.length} files`, "info");
+  logStage(chalk, `Found ${files.length} files`, "info", quiet);
 
   const importsCount = await extractImportsFromFiles(
     files,
     parentGraph.graph,
     resolver,
-    chalk
+    chalk,
+    quiet
   );
 
   if (parentGraph.unusedFiles.size === 0 || importsCount > 0) {
@@ -268,5 +276,5 @@ export async function unUsedFiles(
     await checkUnusedFiles(files, parentGraph, options, chalk);
   }
 
-  return finalizeCacheAndReturn(parentGraph, chalk, imageParentGraph);
+  return finalizeCacheAndReturn(parentGraph, chalk, imageParentGraph, quiet);
 }

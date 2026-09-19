@@ -7,7 +7,8 @@ import { timed } from "./utils";
 export async function compareAndRemoveOldImports(
   oldPaths: Map<string, Set<string>>,
   graph: Graph,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<number> {
   if (oldPaths.size === 0) {
     return 0;
@@ -37,7 +38,8 @@ export async function compareAndRemoveOldImports(
 
       return removedFilesCount;
     },
-    chalk
+    chalk,
+    quiet
   );
 }
 
@@ -47,7 +49,8 @@ export async function compareAndRemoveOldImports(
 export async function compareAndRemoveOldReExports(
   oldReExported: Map<string, Set<string>>,
   graph: Graph,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<number> {
   if (oldReExported.size === 0) {
     return 0;
@@ -79,7 +82,8 @@ export async function compareAndRemoveOldReExports(
 
       return removedReExportedCount;
     },
-    chalk
+    chalk,
+    quiet
   );
 }
 
@@ -89,7 +93,8 @@ export async function compareAndRemoveOldReExports(
 export async function compareAndRemoveOldExports(
   oldExports: Map<string, Set<string>>,
   graph: Graph,
-  chalk: ChalkInstance | unknown
+  chalk: ChalkInstance | unknown,
+  quiet = false
 ): Promise<number> {
   if (oldExports.size === 0) {
     return 0;
@@ -121,6 +126,7 @@ export async function compareAndRemoveOldExports(
 
       return removedExportsCount;
     },
-    chalk
+    chalk,
+    quiet
   );
 }

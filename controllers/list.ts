@@ -4,6 +4,7 @@ import { findUnusedExports } from "./code";
 import Table from "cli-table3";
 import {
   askDeleteFiles,
+  askSelectCandidates,
   loadTSConfig,
   moveFromTrash,
   uninstallDependency,
@@ -38,6 +39,7 @@ import type {
   Graph,
   QleanerConfig,
   ScanOptions,
+  SurgicalCandidate,
   UnusedFileEntry,
 } from "../types";
 
@@ -56,6 +58,7 @@ interface SurgicalOptions extends ScanOptions {
   freshScan?: boolean;
   fix?: boolean;
   autoFix?: boolean;
+  interactive?: boolean;
   table?: boolean;
   uninstall?: boolean;
   largestFiles?: boolean;
@@ -85,7 +88,8 @@ type SurgicalTransform = (
   files: string[],
   dryRun: boolean | undefined,
   chalk: ChalkInstance,
-  message: string | undefined
+  message: string | undefined,
+  selected?: SurgicalCandidate[]
 ) => Promise<SurgicalStats | number>;
 
 function cachePath(): string {
@@ -331,6 +335,90 @@ function buildUnusedExportsFound(
   return found;
 }
 
+function printSurgicalDryRunSummary(
+  chalk: ChalkInstance,
+  stats: SurgicalStats | number | undefined,
+  dryPrefix: string
+): void {
+  const detail =
+    stats &&
+    typeof stats === "object" &&
+    typeof stats.total === "number" &&
+    typeof stats.highRisk === "number" &&
+    typeof stats.mediumRisk === "number" &&
+    typeof stats.lowRisk === "number"
+      ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
+      : stats &&
+          typeof stats === "object" &&
+          typeof stats.total === "number" &&
+          Array.isArray(stats.found)
+        ? `${stats.total} symbol(s)`
+        : `${stats}`;
+  console.log(chalk.yellow(`${dryPrefix}: ${detail}`));
+}
+
+function candidatesFromStats(stats: unknown): SurgicalCandidate[] {
+  if (!stats || typeof stats !== "object") {
+    return [];
+  }
+  const result = stats as SurgicalStats;
+  if (Array.isArray(result.found) && result.found.length > 0) {
+    return result.found.map((row) => ({
+      file: typeof row.file === "string" ? row.file : "",
+      line: row.line,
+      name: row.name,
+      kind: row.kind,
+    }));
+  }
+  const byRisk = result.foundByRisk;
+  if (!byRisk || typeof byRisk !== "object") {
+    return [];
+  }
+  const candidates: SurgicalCandidate[] = [];
+  for (const risk of ["high", "medium", "low"] as const) {
+    const items = byRisk[risk];
+    if (!Array.isArray(items)) {
+      continue;
+    }
+    for (const row of items) {
+      candidates.push({
+        file: typeof row.file === "string" ? row.file : "",
+        line: row.line,
+        preview: row.preview,
+        risk,
+      });
+    }
+  }
+  return candidates;
+}
+
+function candidateChoiceTitle(item: SurgicalCandidate): string {
+  const loc = `${item.file}${item.line != null ? `:${item.line}` : ""}`;
+  if (item.preview) {
+    const preview = truncateConsolePreview(item.preview, 60);
+    const risk = item.risk ? `[${item.risk}] ` : "";
+    return `${risk}${loc} ${preview}`;
+  }
+  const name = item.name ?? "";
+  const kind = item.kind ? ` (${item.kind})` : "";
+  return `${loc} ${name}${kind}`.trim();
+}
+
+async function applySurgicalStats(
+  chalk: ChalkInstance,
+  stats: SurgicalStats | number | undefined,
+  summaryHeading: string,
+  report: boolean | undefined
+): Promise<SurgicalStats | number | undefined> {
+  const statsForSave = stripFoundFromStats(stats);
+  await updateFileAssociatedStats(new Date().toISOString(), statsForSave as any);
+  printSurgicalSummary(chalk, summaryHeading, statsForSave as SurgicalStats);
+  if (report) {
+    maybePrintSurgicalFoundReport(chalk, stats, false);
+  }
+  return stats;
+}
+
 async function runSurgicalPass(
   chalk: ChalkInstance,
   pathToScan: string,
@@ -339,44 +427,66 @@ async function runSurgicalPass(
   labels: { dryPrefix: string; summaryHeading: string }
 ): Promise<SurgicalStats | number | undefined> {
   const files = await getConfig(pathToScan);
-  const stats = await transform(files, options.dryRun, chalk, options.message);
-  if (options.dryRun) {
-    const detail =
-      stats &&
-      typeof stats === "object" &&
-      typeof stats.total === "number" &&
-      typeof stats.highRisk === "number" &&
-      typeof stats.mediumRisk === "number" &&
-      typeof stats.lowRisk === "number"
-        ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
-        : stats &&
-            typeof stats === "object" &&
-            typeof stats.total === "number" &&
-            Array.isArray(stats.found)
-          ? `${stats.total} symbol(s)`
-          : `${stats}`;
-    console.log(chalk.yellow(`${labels.dryPrefix}: ${detail}`));
+  const interactive = Boolean(options.interactive) && !options.dryRun;
+
+  if (options.dryRun || interactive) {
+    const stats = await transform(files, true, chalk, options.message);
+    printSurgicalDryRunSummary(chalk, stats, labels.dryPrefix);
+    const showRiskTables =
+      Boolean(options.listRiskCategories) || interactive;
     if (
       stats &&
       typeof stats === "object" &&
       stats.foundByRisk &&
-      options.listRiskCategories
+      showRiskTables
     ) {
       printConsoleLogDryRunFoundByRisk(chalk, stats.foundByRisk);
     }
-    if (options.report) {
+    if (options.report || interactive) {
       maybePrintSurgicalFoundReport(chalk, stats, true);
     }
-    return stats;
+    if (options.dryRun) {
+      return stats;
+    }
+
+    const candidates = candidatesFromStats(stats);
+    if (candidates.length === 0) {
+      return stats;
+    }
+    const selected = await askSelectCandidates(
+      "Select items to remove",
+      candidates.map((item) => ({
+        title: candidateChoiceTitle(item),
+        value: item,
+        selected: item.risk === "low",
+      })),
+    );
+    if (selected.length === 0) {
+      console.log(chalk.gray("No items selected. Nothing was removed."));
+      return stats;
+    }
+    const applied = await transform(
+      files,
+      false,
+      chalk,
+      options.message,
+      selected,
+    );
+    return applySurgicalStats(
+      chalk,
+      applied,
+      labels.summaryHeading,
+      options.report,
+    );
   }
 
-  const statsForSave = stripFoundFromStats(stats);
-  await updateFileAssociatedStats(new Date().toISOString(), statsForSave as any);
-  printSurgicalSummary(chalk, labels.summaryHeading, statsForSave as SurgicalStats);
-  if (options.report) {
-    maybePrintSurgicalFoundReport(chalk, stats, false);
-  }
-  return stats;
+  const stats = await transform(files, false, chalk, options.message);
+  return applySurgicalStats(
+    chalk,
+    stats,
+    labels.summaryHeading,
+    options.report,
+  );
 }
 
 function stripFoundFromStats(stats: unknown): unknown {
@@ -455,12 +565,14 @@ export async function tidyUp(
   pathToScan: string,
   options: SurgicalOptions = {}
 ): Promise<void> {
-  const { autoFix } = options;
+  const interactive = Boolean(options.interactive);
+  const autoFix = Boolean(options.autoFix) && !interactive;
   const report = Boolean(options.report);
   const listRiskCategories =
     Boolean(options.listRiskCategories) || report;
 
   logStage(chalk, "Start Qleaner tidy");
+  await scan(chalk, pathToScan, { quiet: true });
 
   const steps = [
     {
@@ -482,6 +594,7 @@ export async function tidyUp(
           report,
           listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+          interactive,
         }),
     },
     {
@@ -499,6 +612,7 @@ export async function tidyUp(
         pruneUnusedCode(chalk, pathToScan, {
           message: "Removing unused code",
           report,
+          interactive,
         }),
     },
     {
@@ -516,6 +630,7 @@ export async function tidyUp(
         checkForDuplicates(chalk, pathToScan, {
           message: "Removing duplicate code",
           report,
+          interactive,
         }),
     },
     {
@@ -534,6 +649,7 @@ export async function tidyUp(
           fix: true,
           message: "Removing unreferenced exports",
           report,
+          interactive,
         }),
     },
   ];
@@ -542,6 +658,12 @@ export async function tidyUp(
     if (report && step.reportTitle) {
       printRule(chalk, "cyan");
       console.log(chalk.cyan.bold(`Tidy — ${step.reportTitle}`));
+    }
+    if (interactive) {
+      logStage(chalk, step.fixLabel);
+      await step.fix();
+      logStage(chalk, step.fixLabel, "done");
+      continue;
     }
     logStage(chalk, step.checkLabel);
     const count = await step.dry();
@@ -556,6 +678,9 @@ export async function tidyUp(
   if (autoFix) {
     logStage(chalk, "Rescanning unused files after tidy fixes");
     await scan(chalk, pathToScan, { dryRun: true, clearCache: false });
+  } else if (interactive) {
+    logStage(chalk, "Scanning unused files after tidy");
+    await scan(chalk, pathToScan, { clearCache: false });
   }
 
   logStage(chalk, "Tidy completed", "done");
@@ -659,13 +784,12 @@ export async function unusedExports(
   options: SurgicalOptions = {}
 ): Promise<number> {
   await scan(chalk, pathToScan, {
-    dryRun: true,
+    quiet: true,
     clearCache: Boolean(options.freshScan),
   });
   const { unUsedExportsWithPath, fileAssociated } =
     await findUnusedExports(chalk);
   const found = buildUnusedExportsFound(unUsedExportsWithPath);
-  const listToRemove = combineValues(unUsedExportsWithPath);
 
   if (found.length === 0) {
     console.log(
@@ -684,25 +808,62 @@ export async function unusedExports(
     return found.length;
   }
 
-  if (!options.fix || options.report) {
+  const interactive = Boolean(options.interactive);
+  if (!options.fix || options.report || interactive) {
     printUnusedExportsReport(chalk, found, true);
   }
 
-  if (options.fix) {
+  let toRemove = unUsedExportsWithPath;
+  if (interactive) {
+    const selected = await askSelectCandidates(
+      "Select unused exports to remove",
+      found.map((item) => ({
+        title: candidateChoiceTitle(item),
+        value: item,
+      })),
+    );
+    if (selected.length === 0) {
+      console.log(chalk.gray("No exports selected. Nothing was removed."));
+      console.log(chalk.yellow(`Total unused exports: ${found.length}`));
+      return found.length;
+    }
+    const selectedNames = new Set(selected.map((item) => item.name));
+    toRemove = new Map(
+      [...unUsedExportsWithPath.entries()].filter(([name]) =>
+        selectedNames.has(name),
+      ),
+    );
+  }
+
+  if (options.fix || interactive) {
     const stats = await editFile(
-      listToRemove,
+      combineValues(toRemove),
       fileAssociated,
       chalk,
       options.message,
     );
     await updateFileAssociatedStats(new Date().toISOString(), stats as any);
     if (options.report) {
-      printUnusedExportsReport(chalk, found, false);
+      printUnusedExportsReport(
+        chalk,
+        interactive ? selectedExportRows(toRemove) : found,
+        false,
+      );
     }
   }
 
   console.log(chalk.yellow(`Total unused exports: ${found.length}`));
   return found.length;
+}
+
+function selectedExportRows(
+  unUsedExportsWithPath: Map<string, string>
+): Array<{ file: string; name: string }> {
+  const rows: Array<{ file: string; name: string }> = [];
+  for (const [name, file] of unUsedExportsWithPath.entries()) {
+    rows.push({ file, name });
+  }
+  return rows;
 }
 
 export async function list(
@@ -893,7 +1054,7 @@ export async function scan(
   chalk: ChalkInstance,
   pathToScan: string,
   options: SurgicalOptions
-): Promise<void> {
+): Promise<Set<UnusedFileEntry | string>> {
   const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
     pathToScan,
     options,
@@ -907,12 +1068,16 @@ export async function scan(
     mergedOpts,
   );
 
+  if (mergedOpts.quiet) {
+    return unusedFiles;
+  }
+
   const fileArray = Array.from(unusedFiles) as UnusedFileEntry[];
 
   if (fileArray.length === 0) {
     console.log(chalk.green.bold("\n✓ No unused files found!"));
     console.log(chalk.green(`${RULE}\n`));
-    return;
+    return unusedFiles;
   }
 
   if (mergedOpts.dryRun) {
@@ -965,6 +1130,8 @@ export async function scan(
       askDeleteFiles(unusedFiles as Set<TrashableFile>);
     }
   }
+
+  return unusedFiles;
 }
 
 export async function undoDeletions(
