@@ -2,7 +2,8 @@ name: "Qleaner Health Guardian"
 
 # Installs the published `qleaner` package from npm (see action.yml) and runs the global
 # `qleaner` CLI — not `yarn start`. Tidy is quiet by default; pass tidy-extra-args: "-r" for detail tables.
-# Dogfood needs qleaner@2.0.0 on npm after the v2.0.0 release is published.
+# AI is optional and off: no --explain, no Ollama, no API keys. Summary health score is deterministic.
+# Dogfood needs qleaner@2.1.0 on npm after the v2.1.0 release is published.
 # PR report is built from the checked-out .github/scripts/pr-report.ts.
 
 # Runs as the GitHub Actions check named after the job id below (default: "hygiene-check").
@@ -29,10 +30,11 @@ jobs:
       - name: 2. Run Qleaner from npm
         uses: ./
         with:
-          qleaner-version: "2.0.0"
+          qleaner-version: "2.1.0"
           scan-path: src/infisical-main/frontend
           image-project-path: src/infisical-main/frontend
           image-extra-args: "-d -T 0.1"
+          # AI off: omit summary-extra-args. Health score does not need Ollama or an API key.
 
       - name: 3. Build PR health report
         env:

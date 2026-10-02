@@ -20,8 +20,11 @@ import {
   summarizeAll,
   getTop10LargestFiles,
   dependenciesSummary,
+  collectSummaryAiPack,
   formatFilePath,
 } from "./summary";
+import { maybeExplain } from "../utils/ai/run";
+import type { AiCommandId } from "../utils/ai/types";
 import { query, unusedDependencies as findUnusedDeps } from "./query";
 import {
   editFile,
@@ -31,6 +34,7 @@ import {
 } from "../utils/editFile";
 import { CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS } from "../utils/consoleLogHighRiskPatterns";
 import { CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS } from "../utils/consoleLogMediumRiskPatterns";
+import { loadProjectConsoleLogPatterns } from "../utils/consoleLogCustomPatterns";
 import { buildContentPaths } from "../utils/pathBuilder";
 import fg from "fast-glob";
 import type {
@@ -64,6 +68,9 @@ interface SurgicalOptions extends ScanOptions {
   largestFiles?: boolean;
   dependencies?: boolean;
   clearCache?: boolean;
+  explain?: boolean;
+  domain?: string | null;
+  ask?: string;
 }
 
 interface SurgicalStats {
@@ -419,12 +426,42 @@ async function applySurgicalStats(
   return stats;
 }
 
+async function explainSurgicalStats(
+  chalk: ChalkInstance,
+  commandId: AiCommandId | undefined,
+  stats: SurgicalStats | number | undefined,
+  options: SurgicalOptions
+): Promise<void> {
+  if (!commandId || stats == null) {
+    return;
+  }
+  if (typeof stats === "number" && stats === 0) {
+    return;
+  }
+  if (
+    typeof stats === "object" &&
+    (stats.total === 0 ||
+      (Array.isArray(stats.found) && stats.found.length === 0 && !stats.foundByRisk))
+  ) {
+    return;
+  }
+  const findings =
+    typeof stats === "object"
+      ? { ...stats, domain: options.domain }
+      : { total: stats, domain: options.domain };
+  await maybeExplain(commandId, findings, options, chalk);
+}
+
 async function runSurgicalPass(
   chalk: ChalkInstance,
   pathToScan: string,
   options: SurgicalOptions,
   transform: SurgicalTransform,
-  labels: { dryPrefix: string; summaryHeading: string }
+  labels: {
+    dryPrefix: string;
+    summaryHeading: string;
+    commandId?: AiCommandId;
+  }
 ): Promise<SurgicalStats | number | undefined> {
   const files = await getConfig(pathToScan);
   const interactive = Boolean(options.interactive) && !options.dryRun;
@@ -445,6 +482,7 @@ async function runSurgicalPass(
     if (options.report || interactive) {
       maybePrintSurgicalFoundReport(chalk, stats, true);
     }
+    await explainSurgicalStats(chalk, labels.commandId, stats, options);
     if (options.dryRun) {
       return stats;
     }
@@ -570,9 +608,12 @@ export async function tidyUp(
   const report = Boolean(options.report);
   const listRiskCategories =
     Boolean(options.listRiskCategories) || report;
+  const nested: SurgicalOptions = {
+    explain: false,
+  };
 
   logStage(chalk, "Start Qleaner tidy");
-  await scan(chalk, pathToScan, { quiet: true });
+  await scan(chalk, pathToScan, { quiet: true, explain: false });
 
   const steps = [
     {
@@ -587,6 +628,7 @@ export async function tidyUp(
           report,
           listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+          ...nested,
         }),
       fix: () =>
         pruneConsoleLogs(chalk, pathToScan, {
@@ -595,6 +637,7 @@ export async function tidyUp(
           listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
           interactive,
+          ...nested,
         }),
     },
     {
@@ -607,12 +650,14 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for unused code",
           report,
+          ...nested,
         }),
       fix: () =>
         pruneUnusedCode(chalk, pathToScan, {
           message: "Removing unused code",
           report,
           interactive,
+          ...nested,
         }),
     },
     {
@@ -625,12 +670,14 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for duplicate code",
           report,
+          ...nested,
         }),
       fix: () =>
         checkForDuplicates(chalk, pathToScan, {
           message: "Removing duplicate code",
           report,
           interactive,
+          ...nested,
         }),
     },
     {
@@ -643,6 +690,7 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for unreferenced exports",
           report,
+          ...nested,
         }),
       fix: () =>
         unusedExports(chalk, pathToScan, {
@@ -650,6 +698,7 @@ export async function tidyUp(
           message: "Removing unreferenced exports",
           report,
           interactive,
+          ...nested,
         }),
     },
   ];
@@ -677,10 +726,14 @@ export async function tidyUp(
 
   if (autoFix) {
     logStage(chalk, "Rescanning unused files after tidy fixes");
-    await scan(chalk, pathToScan, { dryRun: true, clearCache: false });
+    await scan(chalk, pathToScan, {
+      dryRun: true,
+      clearCache: false,
+      explain: false,
+    });
   } else if (interactive) {
     logStage(chalk, "Scanning unused files after tidy");
-    await scan(chalk, pathToScan, { clearCache: false });
+    await scan(chalk, pathToScan, { clearCache: false, explain: false });
   }
 
   logStage(chalk, "Tidy completed", "done");
@@ -714,10 +767,29 @@ function printConsoleLogRiskCategoryReference(chalk: ChalkInstance): void {
   console.log(chalk.cyan.bold("Console log risk tiers (dry-run & tidy)"));
   console.log(
     chalk.gray(
-      "Each removable console.debug/log/info/… call is classified from its argument source text: high → medium → low.",
+      "Each removable console.debug/log/info/… call is classified from its argument source text: ignore → custom high → builtin high → custom medium → builtin medium → low.",
     ),
   );
   printRule(chalk, "cyan");
+
+  const custom = loadProjectConsoleLogPatterns();
+  console.log(chalk.yellow.bold("Project consoleLogPatterns"));
+  console.log(
+    chalk.white("Config: qleaner.config.json → consoleLogPatterns (high, medium, ignore)"),
+  );
+  const listPatterns = (label: string, patterns: string[]) => {
+    console.log(chalk.white(`  ${label}: ${patterns.length}`));
+    patterns.slice(0, 20).forEach((pattern) => {
+      console.log(chalk.gray(`    /${pattern}/i`));
+    });
+  };
+  listPatterns("high", custom.raw.high);
+  listPatterns("medium", custom.raw.medium);
+  listPatterns("ignore", custom.raw.ignore);
+  if (custom.invalid.length > 0) {
+    console.log(chalk.red(`  skipped invalid patterns: ${custom.invalid.length}`));
+  }
+  console.log();
 
   console.log(chalk.yellow.bold("High-risk sensitive"));
   console.log(chalk.white(`Patterns file: ${highPath}`));
@@ -749,6 +821,11 @@ function printConsoleLogRiskCategoryReference(chalk: ChalkInstance): void {
   console.log(
     chalk.gray("Search for `consoleLogDryRunRiskTier` in that file."),
   );
+  console.log(
+    chalk.gray(
+      "Pass --explain --domain <name> to re-rank listed calls for that industry (Ollama). Domain is required for the AI re-rank.",
+    ),
+  );
   printRule(chalk, "cyan");
 }
 
@@ -764,6 +841,7 @@ export async function pruneConsoleLogs(
   return runSurgicalPass(chalk, pathToScan, options, nukeConsoleLogs as SurgicalTransform, {
     dryPrefix: "Total console logs found",
     summaryHeading: "Prune console logs",
+    commandId: "prune-logs",
   });
 }
 
@@ -786,6 +864,7 @@ export async function unusedExports(
   await scan(chalk, pathToScan, {
     quiet: true,
     clearCache: Boolean(options.freshScan),
+    explain: false,
   });
   const { unUsedExportsWithPath, fileAssociated } =
     await findUnusedExports(chalk);
@@ -971,10 +1050,28 @@ export async function summary(
   );
   if (options.largestFiles) {
     getTop10LargestFiles(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("largest"),
+      options,
+      chalk,
+    );
   } else if (options.dependencies) {
     dependenciesSummary(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("dependencies"),
+      options,
+      chalk,
+    );
   } else {
     summarizeAll(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("all"),
+      options,
+      chalk,
+    );
   }
 }
 
@@ -1101,6 +1198,17 @@ export async function scan(
       chalk.magenta(String(fileArray.length)),
   );
   console.log(chalk.green(RULE));
+
+  await maybeExplain(
+    "scan",
+    {
+      unusedFiles: fileArray,
+      total: fileArray.length,
+      totalBytes: totalSize,
+    },
+    mergedOpts,
+    chalk,
+  );
 
   console.log(chalk.cyan("\n💾 Cache Information"));
   console.log(chalk.cyan(RULE));

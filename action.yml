@@ -1,5 +1,5 @@
 name: Qleaner Health Guardian
-description: Install Qleaner from npm and run read-only tidy, image scan, and summary. React, Vue, Next, and Nuxt.
+description: Install Qleaner from npm and run read-only tidy, image scan, and summary (no AI). React, Vue, Next, and Nuxt.
 author: trevismurithi
 
 branding:
@@ -8,9 +8,9 @@ branding:
 
 inputs:
   qleaner-version:
-    description: npm version tag for the published `qleaner` package (e.g. 2.0.0 or latest).
+    description: npm version tag for the published `qleaner` package (e.g. 2.1.0 or latest).
     required: false
-    default: "2.0.0"
+    default: "2.1.0"
   node-version:
     description: Node.js version for setup-node.
     required: false
@@ -39,6 +39,10 @@ inputs:
     description: Skip `qleaner summary` when true.
     required: false
     default: "false"
+  summary-extra-args:
+    description: Optional extra arguments for `qleaner summary`. Empty by default (deterministic health score, no AI). Pass `--explain` only if you also set a cloud provider and API key; GitHub-hosted runners do not include Ollama.
+    required: false
+    default: ""
   restore-cache:
     description: Restore `unused-check-cache.json` from the Actions cache before running.
     required: false
@@ -87,6 +91,7 @@ runs:
         IMAGE_EXTRA: ${{ inputs.image-extra-args }}
         SKIP_IMAGE: ${{ inputs.skip-image }}
         SKIP_SUMMARY: ${{ inputs.skip-summary }}
+        SUMMARY_EXTRA: ${{ inputs.summary-extra-args }}
       run: |
         set -euo pipefail
         TIDY_REPORT="tidy_report.txt"
@@ -107,7 +112,7 @@ runs:
         fi
 
         if [ "${SKIP_SUMMARY}" != "true" ]; then
-          qleaner summary > "${SUMMARY_REPORT}" 2>&1
+          qleaner summary ${SUMMARY_EXTRA} > "${SUMMARY_REPORT}" 2>&1
         else
           echo "(Summary skipped.)" > "${SUMMARY_REPORT}"
         fi

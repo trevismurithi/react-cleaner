@@ -14,8 +14,7 @@ import {
   updateFixPassEntry,
 } from "./cache";
 import { logStage } from "./utils";
-import { matchesHighRiskConsoleArgText } from "./consoleLogHighRiskPatterns";
-import { matchesMediumRiskConsoleArgText } from "./consoleLogMediumRiskPatterns";
+import { classifyConsoleArgRisk } from "./consoleLogCustomPatterns";
 import type { ChalkInstance, FixPassKey, SurgicalCandidate } from "../types";
 
 /** Keys under `parentGraph.fixes` — must match `FIX_PASS_KEYS` in cache.js */
@@ -193,13 +192,7 @@ function consoleLogDryRunRiskTier(call: CallExpression): ConsoleLogRiskTier {
     .getArguments()
     .map((a) => a.getText())
     .join(" ");
-  if (matchesHighRiskConsoleArgText(argText)) {
-    return "high";
-  }
-  if (matchesMediumRiskConsoleArgText(argText)) {
-    return "medium";
-  }
-  return "low";
+  return classifyConsoleArgRisk(argText);
 }
 
 /**
