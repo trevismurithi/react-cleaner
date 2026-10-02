@@ -9,6 +9,8 @@ import {
   REACT_ENTRY_FILES,
 } from "../utils/constants";
 import type { Framework, PackageManager, QleanerConfig } from "../types";
+import { DEFAULT_AI_CONFIG } from "../utils/ai/config";
+import { DEFAULT_CONSOLE_LOG_PATTERNS } from "../utils/consoleLogCustomPatterns";
 
 interface TsConfigJson {
   extends?: string | string[];
@@ -159,6 +161,9 @@ export async function init(options: InitOptions = {}): Promise<void> {
     excludeFileAssets: [],
     excludeDirCode: DIRECTORIES_TO_EXCLUDE,
     excludeFileCode: [],
+    domain: null,
+    consoleLogPatterns: { ...DEFAULT_CONSOLE_LOG_PATTERNS },
+    ai: { ...DEFAULT_AI_CONFIG },
   };
 
   fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2));

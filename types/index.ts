@@ -16,6 +16,22 @@ export type Framework =
   | "vanilla";
 export type PackageManager = "npm" | "yarn" | "pnpm";
 
+export interface QleanerAiConfig {
+  enabled: boolean;
+  provider: "ollama" | "openai";
+  endpoint: string;
+  model: string;
+  maxCandidates: number;
+  /** Force local pack sizes when using an OpenAI-compatible 7B proxy. */
+  profile?: "local" | "cloud";
+}
+
+export interface ConsoleLogPatternsConfig {
+  high: string[];
+  medium: string[];
+  ignore: string[];
+}
+
 export interface QleanerConfig {
   framework: Framework;
   codeAlias: string | null;
@@ -30,6 +46,12 @@ export interface QleanerConfig {
   excludeFileAssets: string[];
   excludeDirCode: string[];
   excludeFileCode: string[];
+  /** Product domain for optional local-AI ranking (e.g. healthcare, fintech). */
+  domain?: string | null;
+  /** Extra console-log risk regexes (string sources). Applied before builtin lists. */
+  consoleLogPatterns?: ConsoleLogPatternsConfig;
+  /** Local Ollama settings. Off by default; `--explain` still opts in per run. */
+  ai?: QleanerAiConfig;
   /** @deprecated Ignored — image scan uses multi-strategy resolution. */
   isRootFolderReferenced?: boolean;
   /** @deprecated Ignored — image scan uses multi-strategy resolution. */
@@ -126,8 +148,25 @@ export interface CacheFile {
   imageParentGraph: SerializedImageParentGraph;
 }
 
+/** Dry-run row that a later apply pass can match by `surgicalCandidateKey`. */
+export interface SurgicalCandidate {
+  file: string;
+  line?: number;
+  name?: string;
+  kind?: string;
+  preview?: string;
+  risk?: "high" | "medium" | "low";
+}
+
 export interface ScanOptions {
   clearCache?: boolean;
+  quiet?: boolean;
+  /** Optional AI brief after findings (Ollama or OpenAI-compatible). */
+  explain?: boolean;
+  /** Product domain for AI ranking (e.g. healthcare). */
+  domain?: string | null;
+  /** Optional question constrained to this command’s findings. */
+  ask?: string;
   excludeFilePrint?: string[];
   excludeDirPrint?: string[];
   excludeDir?: string[];

@@ -120,6 +120,92 @@ function readCacheAndHydrateGraph(): {
   return { codeGraph, imageGraph };
 }
 
+export interface ProjectHealthScore {
+  score: number;
+  label: "Good" | "Fair" | "Poor";
+  drivers: string[];
+}
+
+function ratio(part: number, whole: number): number {
+  if (whole <= 0) {
+    return 0;
+  }
+  return Math.max(0, part) / whole;
+}
+
+export function computeHealthScore(input: {
+  totalCodeFiles: number;
+  totalImageFiles: number;
+  totalUnusedFiles: number;
+  totalUnusedImages: number;
+  totalDeadImageLinks: number;
+  largeCodeFiles: number;
+}): ProjectHealthScore {
+  const unusedCode = ratio(input.totalUnusedFiles, input.totalCodeFiles) * 40;
+  const unusedImages =
+    ratio(input.totalUnusedImages, input.totalImageFiles) * 20;
+  const deadLinks =
+    ratio(input.totalDeadImageLinks, input.totalImageFiles) * 15;
+  const largeFiles = ratio(input.largeCodeFiles, input.totalCodeFiles) * 10;
+  const raw = 100 - unusedCode - unusedImages - deadLinks - largeFiles;
+  const score = Math.max(0, Math.min(100, Math.round(raw)));
+  const label: ProjectHealthScore["label"] =
+    score >= 80 ? "Good" : score >= 50 ? "Fair" : "Poor";
+  const ranked = [
+    {
+      points: unusedCode,
+      text: `unused files ${input.totalUnusedFiles}/${Math.max(input.totalCodeFiles, 1)}`,
+    },
+    {
+      points: unusedImages,
+      text: `unused images ${input.totalUnusedImages}/${Math.max(input.totalImageFiles, 1)}`,
+    },
+    {
+      points: deadLinks,
+      text: `dead image links ${input.totalDeadImageLinks}`,
+    },
+    {
+      points: largeFiles,
+      text: `code files >100KB ${input.largeCodeFiles}`,
+    },
+  ]
+    .filter((row) => row.points > 0.5)
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 2)
+    .map((row) => row.text);
+  return { score, label, drivers: ranked };
+}
+
+function projectHealthFromCache(): ProjectHealthScore {
+  const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
+  const deadImageLinks = getDeadLinks(imageGraph.graph).deadLinks;
+  return computeHealthScore({
+    totalCodeFiles: codeGraph.graph.size,
+    totalImageFiles: getTotalImageFiles(imageGraph.graph),
+    totalUnusedFiles: codeGraph.unusedFiles.size,
+    totalUnusedImages: imageGraph.unusedImages.size - deadImageLinks.size,
+    totalDeadImageLinks: deadImageLinks.size,
+    largeCodeFiles: findCodeFilesAbove100KB(codeGraph.graph).length,
+  });
+}
+
+export function printHealthScore(chalk: ChalkInstance): void {
+  const health = projectHealthFromCache();
+  const color =
+    health.label === "Good"
+      ? chalk.green
+      : health.label === "Fair"
+        ? chalk.yellow
+        : chalk.red;
+  console.log(
+    color.bold(`Health score: ${health.score} (${health.label})`),
+  );
+  if (health.drivers.length > 0) {
+    console.log(chalk.gray(`  Drivers: ${health.drivers.join("; ")}`));
+  }
+  console.log();
+}
+
 export function summarizeAll(chalk: ChalkInstance): void {
   const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
   // Get dead links from the graph
@@ -195,8 +281,9 @@ export function summarizeAll(chalk: ChalkInstance): void {
   );
   console.log(summaryTable.toString());
   console.log(
-    chalk.green("════════════════════════════════════════════════\n")
+    chalk.green("════════════════════════════════════════════════")
   );
+  printHealthScore(chalk);
 }
 
 export function getTop10LargestFiles(chalk: ChalkInstance): void {
@@ -292,6 +379,7 @@ export function getTop10LargestFiles(chalk: ChalkInstance): void {
     console.log(largeFilesTable.toString());
     console.log(chalk.green("════════════════════════════════════════════════\n"));
   }
+  printHealthScore(chalk);
 }
 
 function printSectionHeader(chalk: ChalkInstance, title: string): void {
@@ -536,4 +624,77 @@ export function dependenciesSummary(chalk: ChalkInstance): void {
   displayReexportedBy(chalk, data.top10FilesWithMostReexportedBy);
   displayDeadImageHotspots(chalk, data.top10FilesHotspotsDeadImage);
   displayAliveImageHotspots(chalk, data.top10FilesHotspotsAliveImage);
+  printHealthScore(chalk);
+}
+
+function mapFileCounts(
+  rows: Array<[string, AnyNode]> | undefined,
+  countOf: (node: AnyNode) => number
+): Array<{ file: string; count: number }> {
+  return (rows || []).slice(0, 10).map(([file, node]) => ({
+    file: formatFilePath(file, 80),
+    count: countOf(node),
+  }));
+}
+
+/** Compact totals/hotspots for the optional local-AI summary brief. */
+export function collectSummaryAiPack(
+  kind: "all" | "largest" | "dependencies"
+): Record<string, unknown> {
+  const { codeGraph, imageGraph } = readCacheAndHydrateGraph();
+  const deadImageLinks = getDeadLinks(imageGraph.graph).deadLinks;
+  const totalImageFiles = getTotalImageFiles(imageGraph.graph);
+  const health = computeHealthScore({
+    totalCodeFiles: codeGraph.graph.size,
+    totalImageFiles,
+    totalUnusedFiles: codeGraph.unusedFiles.size,
+    totalUnusedImages: imageGraph.unusedImages.size - deadImageLinks.size,
+    totalDeadImageLinks: deadImageLinks.size,
+    largeCodeFiles: findCodeFilesAbove100KB(codeGraph.graph).length,
+  });
+
+  if (kind === "largest") {
+    return {
+      view: "largest-files",
+      health,
+      topCode: getTop10LargestCodeFiles(codeGraph.graph).map(([file, size]) => ({
+        file: formatFilePath(file, 80),
+        bytes: size,
+      })),
+      topImages: getTop10LargestImages(imageGraph.graph).map(([file, size]) => ({
+        file: formatFilePath(file, 80),
+        bytes: size,
+      })),
+      totalCodeBytes: getTotalCodeSize(codeGraph.graph),
+      totalImageBytes: getTotalImageSize(imageGraph.graph),
+      codeAbove100KB: findCodeFilesAbove100KB(codeGraph.graph).length,
+    };
+  }
+
+  if (kind === "dependencies") {
+    const data = collectDependencyData(codeGraph, imageGraph);
+    return {
+      view: "dependencies",
+      health,
+      heavyImports: mapFileCounts(
+        data.top10FilesWithHeavyDependencies,
+        (node) => node.imports?.size || 0
+      ),
+      hotspots: mapFileCounts(
+        data.top10FilesHotspots,
+        (node) => node.importedBy?.size || 0
+      ),
+    };
+  }
+
+  return {
+    view: "all",
+    health,
+    totalCodeFiles: codeGraph.graph.size,
+    totalImageFiles,
+    totalUnusedFiles: codeGraph.unusedFiles.size,
+    totalUnusedImages: imageGraph.unusedImages.size - deadImageLinks.size,
+    totalDeadImageLinks: deadImageLinks.size,
+    totalFiles: codeGraph.graph.size + totalImageFiles,
+  };
 }

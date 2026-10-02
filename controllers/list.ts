@@ -4,6 +4,7 @@ import { findUnusedExports } from "./code";
 import Table from "cli-table3";
 import {
   askDeleteFiles,
+  askSelectCandidates,
   loadTSConfig,
   moveFromTrash,
   uninstallDependency,
@@ -19,8 +20,11 @@ import {
   summarizeAll,
   getTop10LargestFiles,
   dependenciesSummary,
+  collectSummaryAiPack,
   formatFilePath,
 } from "./summary";
+import { maybeExplain } from "../utils/ai/run";
+import type { AiCommandId } from "../utils/ai/types";
 import { query, unusedDependencies as findUnusedDeps } from "./query";
 import {
   editFile,
@@ -30,6 +34,7 @@ import {
 } from "../utils/editFile";
 import { CONSOLE_LOG_HIGH_RISK_CATEGORY_LABELS } from "../utils/consoleLogHighRiskPatterns";
 import { CONSOLE_LOG_MEDIUM_RISK_CATEGORY_LABELS } from "../utils/consoleLogMediumRiskPatterns";
+import { loadProjectConsoleLogPatterns } from "../utils/consoleLogCustomPatterns";
 import { buildContentPaths } from "../utils/pathBuilder";
 import fg from "fast-glob";
 import type {
@@ -38,6 +43,7 @@ import type {
   Graph,
   QleanerConfig,
   ScanOptions,
+  SurgicalCandidate,
   UnusedFileEntry,
 } from "../types";
 
@@ -56,11 +62,15 @@ interface SurgicalOptions extends ScanOptions {
   freshScan?: boolean;
   fix?: boolean;
   autoFix?: boolean;
+  interactive?: boolean;
   table?: boolean;
   uninstall?: boolean;
   largestFiles?: boolean;
   dependencies?: boolean;
   clearCache?: boolean;
+  explain?: boolean;
+  domain?: string | null;
+  ask?: string;
 }
 
 interface SurgicalStats {
@@ -85,7 +95,8 @@ type SurgicalTransform = (
   files: string[],
   dryRun: boolean | undefined,
   chalk: ChalkInstance,
-  message: string | undefined
+  message: string | undefined,
+  selected?: SurgicalCandidate[]
 ) => Promise<SurgicalStats | number>;
 
 function cachePath(): string {
@@ -331,52 +342,189 @@ function buildUnusedExportsFound(
   return found;
 }
 
+function printSurgicalDryRunSummary(
+  chalk: ChalkInstance,
+  stats: SurgicalStats | number | undefined,
+  dryPrefix: string
+): void {
+  const detail =
+    stats &&
+    typeof stats === "object" &&
+    typeof stats.total === "number" &&
+    typeof stats.highRisk === "number" &&
+    typeof stats.mediumRisk === "number" &&
+    typeof stats.lowRisk === "number"
+      ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
+      : stats &&
+          typeof stats === "object" &&
+          typeof stats.total === "number" &&
+          Array.isArray(stats.found)
+        ? `${stats.total} symbol(s)`
+        : `${stats}`;
+  console.log(chalk.yellow(`${dryPrefix}: ${detail}`));
+}
+
+function candidatesFromStats(stats: unknown): SurgicalCandidate[] {
+  if (!stats || typeof stats !== "object") {
+    return [];
+  }
+  const result = stats as SurgicalStats;
+  if (Array.isArray(result.found) && result.found.length > 0) {
+    return result.found.map((row) => ({
+      file: typeof row.file === "string" ? row.file : "",
+      line: row.line,
+      name: row.name,
+      kind: row.kind,
+    }));
+  }
+  const byRisk = result.foundByRisk;
+  if (!byRisk || typeof byRisk !== "object") {
+    return [];
+  }
+  const candidates: SurgicalCandidate[] = [];
+  for (const risk of ["high", "medium", "low"] as const) {
+    const items = byRisk[risk];
+    if (!Array.isArray(items)) {
+      continue;
+    }
+    for (const row of items) {
+      candidates.push({
+        file: typeof row.file === "string" ? row.file : "",
+        line: row.line,
+        preview: row.preview,
+        risk,
+      });
+    }
+  }
+  return candidates;
+}
+
+function candidateChoiceTitle(item: SurgicalCandidate): string {
+  const loc = `${item.file}${item.line != null ? `:${item.line}` : ""}`;
+  if (item.preview) {
+    const preview = truncateConsolePreview(item.preview, 60);
+    const risk = item.risk ? `[${item.risk}] ` : "";
+    return `${risk}${loc} ${preview}`;
+  }
+  const name = item.name ?? "";
+  const kind = item.kind ? ` (${item.kind})` : "";
+  return `${loc} ${name}${kind}`.trim();
+}
+
+async function applySurgicalStats(
+  chalk: ChalkInstance,
+  stats: SurgicalStats | number | undefined,
+  summaryHeading: string,
+  report: boolean | undefined
+): Promise<SurgicalStats | number | undefined> {
+  const statsForSave = stripFoundFromStats(stats);
+  await updateFileAssociatedStats(new Date().toISOString(), statsForSave as any);
+  printSurgicalSummary(chalk, summaryHeading, statsForSave as SurgicalStats);
+  if (report) {
+    maybePrintSurgicalFoundReport(chalk, stats, false);
+  }
+  return stats;
+}
+
+async function explainSurgicalStats(
+  chalk: ChalkInstance,
+  commandId: AiCommandId | undefined,
+  stats: SurgicalStats | number | undefined,
+  options: SurgicalOptions
+): Promise<void> {
+  if (!commandId || stats == null) {
+    return;
+  }
+  if (typeof stats === "number" && stats === 0) {
+    return;
+  }
+  if (
+    typeof stats === "object" &&
+    (stats.total === 0 ||
+      (Array.isArray(stats.found) && stats.found.length === 0 && !stats.foundByRisk))
+  ) {
+    return;
+  }
+  const findings =
+    typeof stats === "object"
+      ? { ...stats, domain: options.domain }
+      : { total: stats, domain: options.domain };
+  await maybeExplain(commandId, findings, options, chalk);
+}
+
 async function runSurgicalPass(
   chalk: ChalkInstance,
   pathToScan: string,
   options: SurgicalOptions,
   transform: SurgicalTransform,
-  labels: { dryPrefix: string; summaryHeading: string }
+  labels: {
+    dryPrefix: string;
+    summaryHeading: string;
+    commandId?: AiCommandId;
+  }
 ): Promise<SurgicalStats | number | undefined> {
   const files = await getConfig(pathToScan);
-  const stats = await transform(files, options.dryRun, chalk, options.message);
-  if (options.dryRun) {
-    const detail =
-      stats &&
-      typeof stats === "object" &&
-      typeof stats.total === "number" &&
-      typeof stats.highRisk === "number" &&
-      typeof stats.mediumRisk === "number" &&
-      typeof stats.lowRisk === "number"
-        ? `${stats.total} (high-risk sensitive: ${stats.highRisk}, medium: ${stats.mediumRisk}, low: ${stats.lowRisk})`
-        : stats &&
-            typeof stats === "object" &&
-            typeof stats.total === "number" &&
-            Array.isArray(stats.found)
-          ? `${stats.total} symbol(s)`
-          : `${stats}`;
-    console.log(chalk.yellow(`${labels.dryPrefix}: ${detail}`));
+  const interactive = Boolean(options.interactive) && !options.dryRun;
+
+  if (options.dryRun || interactive) {
+    const stats = await transform(files, true, chalk, options.message);
+    printSurgicalDryRunSummary(chalk, stats, labels.dryPrefix);
+    const showRiskTables =
+      Boolean(options.listRiskCategories) || interactive;
     if (
       stats &&
       typeof stats === "object" &&
       stats.foundByRisk &&
-      options.listRiskCategories
+      showRiskTables
     ) {
       printConsoleLogDryRunFoundByRisk(chalk, stats.foundByRisk);
     }
-    if (options.report) {
+    if (options.report || interactive) {
       maybePrintSurgicalFoundReport(chalk, stats, true);
     }
-    return stats;
+    await explainSurgicalStats(chalk, labels.commandId, stats, options);
+    if (options.dryRun) {
+      return stats;
+    }
+
+    const candidates = candidatesFromStats(stats);
+    if (candidates.length === 0) {
+      return stats;
+    }
+    const selected = await askSelectCandidates(
+      "Select items to remove",
+      candidates.map((item) => ({
+        title: candidateChoiceTitle(item),
+        value: item,
+        selected: item.risk === "low",
+      })),
+    );
+    if (selected.length === 0) {
+      console.log(chalk.gray("No items selected. Nothing was removed."));
+      return stats;
+    }
+    const applied = await transform(
+      files,
+      false,
+      chalk,
+      options.message,
+      selected,
+    );
+    return applySurgicalStats(
+      chalk,
+      applied,
+      labels.summaryHeading,
+      options.report,
+    );
   }
 
-  const statsForSave = stripFoundFromStats(stats);
-  await updateFileAssociatedStats(new Date().toISOString(), statsForSave as any);
-  printSurgicalSummary(chalk, labels.summaryHeading, statsForSave as SurgicalStats);
-  if (options.report) {
-    maybePrintSurgicalFoundReport(chalk, stats, false);
-  }
-  return stats;
+  const stats = await transform(files, false, chalk, options.message);
+  return applySurgicalStats(
+    chalk,
+    stats,
+    labels.summaryHeading,
+    options.report,
+  );
 }
 
 function stripFoundFromStats(stats: unknown): unknown {
@@ -455,12 +603,17 @@ export async function tidyUp(
   pathToScan: string,
   options: SurgicalOptions = {}
 ): Promise<void> {
-  const { autoFix } = options;
+  const interactive = Boolean(options.interactive);
+  const autoFix = Boolean(options.autoFix) && !interactive;
   const report = Boolean(options.report);
   const listRiskCategories =
     Boolean(options.listRiskCategories) || report;
+  const nested: SurgicalOptions = {
+    explain: false,
+  };
 
   logStage(chalk, "Start Qleaner tidy");
+  await scan(chalk, pathToScan, { quiet: true, explain: false });
 
   const steps = [
     {
@@ -475,6 +628,7 @@ export async function tidyUp(
           report,
           listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+          ...nested,
         }),
       fix: () =>
         pruneConsoleLogs(chalk, pathToScan, {
@@ -482,6 +636,8 @@ export async function tidyUp(
           report,
           listRiskCategories,
           listRiskCategoriesInfo: options.listRiskCategoriesInfo,
+          interactive,
+          ...nested,
         }),
     },
     {
@@ -494,11 +650,14 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for unused code",
           report,
+          ...nested,
         }),
       fix: () =>
         pruneUnusedCode(chalk, pathToScan, {
           message: "Removing unused code",
           report,
+          interactive,
+          ...nested,
         }),
     },
     {
@@ -511,11 +670,14 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for duplicate code",
           report,
+          ...nested,
         }),
       fix: () =>
         checkForDuplicates(chalk, pathToScan, {
           message: "Removing duplicate code",
           report,
+          interactive,
+          ...nested,
         }),
     },
     {
@@ -528,12 +690,15 @@ export async function tidyUp(
           dryRun: true,
           message: "Checking for unreferenced exports",
           report,
+          ...nested,
         }),
       fix: () =>
         unusedExports(chalk, pathToScan, {
           fix: true,
           message: "Removing unreferenced exports",
           report,
+          interactive,
+          ...nested,
         }),
     },
   ];
@@ -542,6 +707,12 @@ export async function tidyUp(
     if (report && step.reportTitle) {
       printRule(chalk, "cyan");
       console.log(chalk.cyan.bold(`Tidy — ${step.reportTitle}`));
+    }
+    if (interactive) {
+      logStage(chalk, step.fixLabel);
+      await step.fix();
+      logStage(chalk, step.fixLabel, "done");
+      continue;
     }
     logStage(chalk, step.checkLabel);
     const count = await step.dry();
@@ -555,7 +726,14 @@ export async function tidyUp(
 
   if (autoFix) {
     logStage(chalk, "Rescanning unused files after tidy fixes");
-    await scan(chalk, pathToScan, { dryRun: true, clearCache: false });
+    await scan(chalk, pathToScan, {
+      dryRun: true,
+      clearCache: false,
+      explain: false,
+    });
+  } else if (interactive) {
+    logStage(chalk, "Scanning unused files after tidy");
+    await scan(chalk, pathToScan, { clearCache: false, explain: false });
   }
 
   logStage(chalk, "Tidy completed", "done");
@@ -589,10 +767,29 @@ function printConsoleLogRiskCategoryReference(chalk: ChalkInstance): void {
   console.log(chalk.cyan.bold("Console log risk tiers (dry-run & tidy)"));
   console.log(
     chalk.gray(
-      "Each removable console.debug/log/info/… call is classified from its argument source text: high → medium → low.",
+      "Each removable console.debug/log/info/… call is classified from its argument source text: ignore → custom high → builtin high → custom medium → builtin medium → low.",
     ),
   );
   printRule(chalk, "cyan");
+
+  const custom = loadProjectConsoleLogPatterns();
+  console.log(chalk.yellow.bold("Project consoleLogPatterns"));
+  console.log(
+    chalk.white("Config: qleaner.config.json → consoleLogPatterns (high, medium, ignore)"),
+  );
+  const listPatterns = (label: string, patterns: string[]) => {
+    console.log(chalk.white(`  ${label}: ${patterns.length}`));
+    patterns.slice(0, 20).forEach((pattern) => {
+      console.log(chalk.gray(`    /${pattern}/i`));
+    });
+  };
+  listPatterns("high", custom.raw.high);
+  listPatterns("medium", custom.raw.medium);
+  listPatterns("ignore", custom.raw.ignore);
+  if (custom.invalid.length > 0) {
+    console.log(chalk.red(`  skipped invalid patterns: ${custom.invalid.length}`));
+  }
+  console.log();
 
   console.log(chalk.yellow.bold("High-risk sensitive"));
   console.log(chalk.white(`Patterns file: ${highPath}`));
@@ -624,6 +821,11 @@ function printConsoleLogRiskCategoryReference(chalk: ChalkInstance): void {
   console.log(
     chalk.gray("Search for `consoleLogDryRunRiskTier` in that file."),
   );
+  console.log(
+    chalk.gray(
+      "Pass --explain --domain <name> to re-rank listed calls for that industry (Ollama). Domain is required for the AI re-rank.",
+    ),
+  );
   printRule(chalk, "cyan");
 }
 
@@ -639,6 +841,7 @@ export async function pruneConsoleLogs(
   return runSurgicalPass(chalk, pathToScan, options, nukeConsoleLogs as SurgicalTransform, {
     dryPrefix: "Total console logs found",
     summaryHeading: "Prune console logs",
+    commandId: "prune-logs",
   });
 }
 
@@ -659,13 +862,13 @@ export async function unusedExports(
   options: SurgicalOptions = {}
 ): Promise<number> {
   await scan(chalk, pathToScan, {
-    dryRun: true,
+    quiet: true,
     clearCache: Boolean(options.freshScan),
+    explain: false,
   });
   const { unUsedExportsWithPath, fileAssociated } =
     await findUnusedExports(chalk);
   const found = buildUnusedExportsFound(unUsedExportsWithPath);
-  const listToRemove = combineValues(unUsedExportsWithPath);
 
   if (found.length === 0) {
     console.log(
@@ -684,25 +887,62 @@ export async function unusedExports(
     return found.length;
   }
 
-  if (!options.fix || options.report) {
+  const interactive = Boolean(options.interactive);
+  if (!options.fix || options.report || interactive) {
     printUnusedExportsReport(chalk, found, true);
   }
 
-  if (options.fix) {
+  let toRemove = unUsedExportsWithPath;
+  if (interactive) {
+    const selected = await askSelectCandidates(
+      "Select unused exports to remove",
+      found.map((item) => ({
+        title: candidateChoiceTitle(item),
+        value: item,
+      })),
+    );
+    if (selected.length === 0) {
+      console.log(chalk.gray("No exports selected. Nothing was removed."));
+      console.log(chalk.yellow(`Total unused exports: ${found.length}`));
+      return found.length;
+    }
+    const selectedNames = new Set(selected.map((item) => item.name));
+    toRemove = new Map(
+      [...unUsedExportsWithPath.entries()].filter(([name]) =>
+        selectedNames.has(name),
+      ),
+    );
+  }
+
+  if (options.fix || interactive) {
     const stats = await editFile(
-      listToRemove,
+      combineValues(toRemove),
       fileAssociated,
       chalk,
       options.message,
     );
     await updateFileAssociatedStats(new Date().toISOString(), stats as any);
     if (options.report) {
-      printUnusedExportsReport(chalk, found, false);
+      printUnusedExportsReport(
+        chalk,
+        interactive ? selectedExportRows(toRemove) : found,
+        false,
+      );
     }
   }
 
   console.log(chalk.yellow(`Total unused exports: ${found.length}`));
   return found.length;
+}
+
+function selectedExportRows(
+  unUsedExportsWithPath: Map<string, string>
+): Array<{ file: string; name: string }> {
+  const rows: Array<{ file: string; name: string }> = [];
+  for (const [name, file] of unUsedExportsWithPath.entries()) {
+    rows.push({ file, name });
+  }
+  return rows;
 }
 
 export async function list(
@@ -810,10 +1050,28 @@ export async function summary(
   );
   if (options.largestFiles) {
     getTop10LargestFiles(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("largest"),
+      options,
+      chalk,
+    );
   } else if (options.dependencies) {
     dependenciesSummary(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("dependencies"),
+      options,
+      chalk,
+    );
   } else {
     summarizeAll(chalk);
+    await maybeExplain(
+      "summary",
+      collectSummaryAiPack("all"),
+      options,
+      chalk,
+    );
   }
 }
 
@@ -893,7 +1151,7 @@ export async function scan(
   chalk: ChalkInstance,
   pathToScan: string,
   options: SurgicalOptions
-): Promise<void> {
+): Promise<Set<UnusedFileEntry | string>> {
   const { options: mergedOpts, pathConfig } = resolveScanPathConfig(
     pathToScan,
     options,
@@ -907,12 +1165,16 @@ export async function scan(
     mergedOpts,
   );
 
+  if (mergedOpts.quiet) {
+    return unusedFiles;
+  }
+
   const fileArray = Array.from(unusedFiles) as UnusedFileEntry[];
 
   if (fileArray.length === 0) {
     console.log(chalk.green.bold("\n✓ No unused files found!"));
     console.log(chalk.green(`${RULE}\n`));
-    return;
+    return unusedFiles;
   }
 
   if (mergedOpts.dryRun) {
@@ -936,6 +1198,17 @@ export async function scan(
       chalk.magenta(String(fileArray.length)),
   );
   console.log(chalk.green(RULE));
+
+  await maybeExplain(
+    "scan",
+    {
+      unusedFiles: fileArray,
+      total: fileArray.length,
+      totalBytes: totalSize,
+    },
+    mergedOpts,
+    chalk,
+  );
 
   console.log(chalk.cyan("\n💾 Cache Information"));
   console.log(chalk.cyan(RULE));
@@ -965,6 +1238,8 @@ export async function scan(
       askDeleteFiles(unusedFiles as Set<TrashableFile>);
     }
   }
+
+  return unusedFiles;
 }
 
 export async function undoDeletions(

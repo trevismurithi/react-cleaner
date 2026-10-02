@@ -2,7 +2,7 @@ name: Release
 
 # Publishes `qleaner` to npm when a GitHub Release is published.
 # Requires repo secret NPM_TOKEN (npm access token with publish rights).
-# Tag / release name should match package.json version (e.g. v2.0.0 for 2.0.0).
+# Tag / release name should match package.json version (e.g. v2.1.0 for 2.1.0).
 
 on:
   release:

@@ -1,6 +1,12 @@
 # Qleaner — unused code & asset cleaner for React / Next / Vue
 
-**Qleaner** (v2.0.0) finds unused files, images, dependencies, and dead code in **React**, **Next.js**, **Vue**, **Nuxt**, TypeScript, and JavaScript projects so you can shrink bundles and keep the codebase clean.
+**Qleaner** (v2.1.0) finds unused files, images, dependencies, and dead code in **React**, **Next.js**, **Vue**, **Nuxt**, TypeScript, and JavaScript projects so you can shrink bundles and keep the codebase clean.
+
+## What’s new in 2.1
+
+- **Optional AI briefs** — Off by default. `--explain` on **`scan`**, **`prune-logs`**, and **`summary` only** (local [Ollama](https://ollama.com) or OpenAI-compatible cloud). Display-only; never deletes.
+- **Health score** — `qleaner summary` always prints a 0–100 Good / Fair / Poor score. No model required.
+- **GitHub Actions** — Still deterministic (no `--explain`, no Ollama). Opt in with `summary-extra-args` and a cloud API key.
 
 ## What’s new in 2.0
 
@@ -23,21 +29,22 @@
 - **Find Unused Images** - Detect image assets that are never referenced in your code
 - **Unused Dependencies** - Discover npm/yarn/pnpm packages that are installed but not used; optionally uninstall them in one step
 - **Dead Image Links** - Find image references in code that point to non-existent files
-- **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them
+- **Unused Exports** - Find exported symbols nothing imports; optional `--fix` to remove them, or **`--interactive`** to select which exports to remove
 - **Vue & Nuxt** - Scan `.vue` single-file components (`@vue/compiler-sfc`); Vue/Nuxt detection during `qleaner init` sets `pages` / `layouts` exclusions and `.vue` globs
-- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table
-- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.ts` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.ts`](utils/consoleLogHighRiskPatterns.ts) and [`utils/consoleLogMediumRiskPatterns.ts`](utils/consoleLogMediumRiskPatterns.ts)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only.
-- **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table
-- **Tidy** - Run the main cleanup pipeline (logs, unused code, duplicates, exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
+- **Prune Unused Code** - Remove unused variables, functions, and classes (with dry-run); **`-r` / `--report`** prints a file, line, name, and kind table; **`--interactive`** lets you select which symbols to remove
+- **Prune Console Logs** - Strip `console` debug calls (`log`, `dir`, `dirxml`, `table`, `debug`, `info`, `trace`). With **`-d` / `--dry-run`**, reports **high / medium / low** counts; per-tier **hit tables** (file, line, preview) print when the dry-run payload includes `foundByRisk` **and** you pass **`--list-risk-categories`** (see `controllers/list.ts` → `runSurgicalPass`). **`-i` / `--list-risk-categories-info`** prints the risk category index (paths to [`utils/consoleLogHighRiskPatterns.ts`](utils/consoleLogHighRiskPatterns.ts) and [`utils/consoleLogMediumRiskPatterns.ts`](utils/consoleLogMediumRiskPatterns.ts)) and **returns without scanning**. **`--list-risk-categories` alone does not skip the scan**—use **`-d`** for a dry run or **`-i`** for docs only. **`--interactive`** suggests hits (low-risk pre-checked) and removes only the selected calls.
+- **Duplicate Detection** - Find and clean duplicate functions and classes; **`-r` / `--report`** prints a detail table; **`--interactive`** removes only selected duplicates
+- **Tidy** - Run the main cleanup pipeline (quiet graph rebuild, logs, unused code, duplicates, unused exports) in one command; optional **`[pathToScan]`** (default `.`) and **`--auto-fix` / `-u`**. **`-r` / `--report`** prints per-step dry-run tables for all four steps (console log tiers, unused code, duplicates, exports). **`--interactive`** prompts after each step so you apply only selected items (wins over **`-u`**). **`--list-risk-categories`** limits extra console-log tier tables to that step only; **`-i`** prints the console-log risk index (pipeline continues).
 - **Undo** - Restore files moved during cleanup from `.trash` (code or images)
 - **Project Summary** - Get comprehensive statistics about your codebase
 - **File Size Analysis** - Identify the largest files and potential optimization targets
 - **Dependency Analysis** - See which files have heavy dependencies and hotspots
 - **Smart Caching** - Fast incremental scans with intelligent cache invalidation (`unused-check-cache.json`, including `parentGraph.fixes` fingerprints for surgical passes when present)
 - **Dry-Run Mode** - Where supported, `-d` / `--dry-run` matches the CLI: show what would be deleted without actually deleting (skips prompt)
-- **Interactive Deletion** - Choose to delete files permanently or move them to `.trash`, or use **`scan --auto-fix`** to move all reported unused files to `.trash` without a prompt
+- **Interactive Deletion** - Choose unused **files** to delete or move to `.trash`, or use **`scan --auto-fix`**. Surgical commands (`prune`, `duplicates`, `prune-logs`, `exports`, `tidy`) accept **`--interactive`** to suggest in-file removals and apply only the selected items
 - **Enhanced File Finding** - Advanced path resolution using jsconfig/tsconfig for accurate dependency tracking in large codebases with complex import structures
 - **Advanced Image Detection** - Sophisticated AST parsing extracts image references from imports, requires, JSX, CSS, styled-components, template literals, arrays, and more
+- **Optional AI briefs** - Off by default. On **`scan`**, **`prune-logs`**, and **`summary` only**, `--explain` prints a display-only brief after existing tables (never deletes). Default provider is local [Ollama](https://ollama.com); `ai.provider: "openai"` uses any OpenAI-compatible cloud endpoint. `scan` labels unused paths as asset-code vs code. `--domain` re-ranks `prune-logs` hits. `summary` always prints a health score without AI; `--explain` adds a narrative. GitHub Actions do **not** run `--explain` unless you opt in. See **Optional AI** under Commands.
 
 ## Installation
 
@@ -65,17 +72,19 @@ npm install qleaner --save-dev
 
 Qleaner ships a **composite GitHub Action** at the repo root: **[`action.yml`](action.yml)** (“Qleaner Health Guardian”). It installs the published **`qleaner`** package from npm and runs the global **`qleaner`** CLI — not `yarn start` from a cloned dev checkout.
 
-Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v2.0.0`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
+Publish to the [GitHub Marketplace](https://github.com/marketplace?type=actions) by tagging a release (e.g. `v2.1.0`) that includes `action.yml`. Pin the same version on npm (`qleaner-version` input).
+
+**AI is optional and off in CI.** The action does **not** install Ollama, does **not** pass `--explain`, and does **not** need an API key. `qleaner summary` still prints a deterministic **health score**. Opt in only if you want a cloud narrative (see **Optional AI in CI** below).
 
 ### What the action does
 
 1. Sets up Node.js (default 20).
-2. Runs `npm install -g qleaner@<version>` (default **2.0.0**).
+2. Runs `npm install -g qleaner@<version>` (default **2.1.0**).
 3. Restores **`unused-check-cache.json`** from the Actions cache (key uses `qleaner.config.json` and `package-lock.json`).
 4. Runs read-only captures in the job workspace:
    - `qleaner tidy <scan-path> …` → `tidy_report.txt` (quiet by default; pass `tidy-extra-args: "-r"` for per-step detail tables)
    - `qleaner image <projectPath> …` → `image_report.txt` (skipped if `image-project-path` is empty)
-   - `qleaner summary` → `health_summary.txt`
+   - `qleaner summary` → `health_summary.txt` (health score; no `--explain` unless you set `summary-extra-args`)
 
 No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command exits **0**.
 
@@ -86,7 +95,7 @@ No `--auto-fix` / `-u`: CI is dry-run only. The job succeeds when every command 
 - Commit **`qleaner.config.json`** (run `qleaner init` locally, or in CI: `qleaner init <path> --force`).
 - Add **`unused-check-cache.json`** and **`.trash/`** to `.gitignore` (`init` can do this).
 - Set **`with:`** paths to match **your** app layout (not this repo’s Infisical sample tree).
-- Pin the Action ref to a tag on this repo (e.g. `uses: trevismurithi/react-cleaner@v2.0.0`). Creating a GitHub Release publishes npm via [`.github/workflows/release.yml`](.github/workflows/release.yml) when `NPM_TOKEN` is set.
+- Pin the Action ref to a tag on this repo (e.g. `uses: trevismurithi/react-cleaner@v2.1.0`). Creating a GitHub Release publishes npm via [`.github/workflows/release.yml`](.github/workflows/release.yml) when `NPM_TOKEN` is set.
 
 **Full workflow** (status check + PR health report comment):
 
@@ -112,14 +121,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Qleaner
-        uses: trevismurithi/react-cleaner@v2.0.0
+        uses: trevismurithi/react-cleaner@v2.1.0
         with:
-          qleaner-version: "2.0.0"
+          qleaner-version: "2.1.0"
           scan-path: src
           image-project-path: src
           # Optional: per-step detail tables (off by default)
           # tidy-extra-args: "-r"
           image-extra-args: "-d -T 0.1"
+          # AI stays off. Health score does not need Ollama or an API key.
+          # summary-extra-args: "--explain"
 
       - name: Build PR health report
         if: github.event_name == 'pull_request'
@@ -168,9 +179,10 @@ jobs:
             }
 ```
 
-- **`uses: …@v2.0.0`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v2.0.0` — the ref is exact).
+- **`uses: …@v2.1.0`** must match an existing tag on `trevismurithi/react-cleaner` (e.g. `v2.1.0` — the ref is exact).
 - **No image scan:** set `image-project-path` to `""` (or omit and rely on the default).
 - **Quieter tidy:** leave `tidy-extra-args` unset; set `tidy-extra-args: "-r"` only when you want per-step dry-run detail tables.
+- **No AI by default:** leave `summary-extra-args` unset. Do not install Ollama on the runner.
 - **Report only on PRs:** `workflow_dispatch` runs Qleaner but skips the comment steps (`if: github.event_name == 'pull_request'`).
 - You do **not** copy [`.github/scripts/pr-report.ts`](.github/scripts/pr-report.ts) into your repo; it ships compiled as **`dist/.github/scripts/pr-report.js`** in the published **`qleaner`** npm package. The Action step installs that package globally first.
 
@@ -180,7 +192,7 @@ jobs:
 
 | Input | Default | Purpose |
 | --- | --- | --- |
-| `qleaner-version` | `2.0.0` | npm version of `qleaner` to install |
+| `qleaner-version` | `2.1.0` | npm version of `qleaner` to install |
 | `node-version` | `20` | Node.js for `setup-node` |
 | `scan-path` | `.` | First argument to `qleaner tidy` |
 | `image-project-path` | *(empty)* | Project path for `qleaner image` (skipped when empty) |
@@ -188,15 +200,40 @@ jobs:
 | `image-extra-args` | `-d -T 0.1` | Extra image flags (dry-run + size threshold) |
 | `skip-image` | `false` | Set `true` to skip image scan |
 | `skip-summary` | `false` | Set `true` to skip summary |
+| `summary-extra-args` | *(empty)* | Extra summary flags. Leave empty for the health score only. Pass `--explain` only with a cloud provider and secret key |
 | `restore-cache` | `true` | Restore `unused-check-cache.json` before the run |
 
 **Outputs:** `tidy-report-file`, `image-report-file`, `summary-file` (filenames in the workspace).
 
 The composite Action does **not** post to GitHub by itself — use the **full workflow** above for the PR comment.
 
+### Optional AI in CI
+
+GitHub-hosted runners do **not** include Ollama. Leave AI off unless you want a cloud narrative on the summary.
+
+1. Store a key as a repo secret (e.g. `QLEANER_AI_API_KEY`). Never commit keys to `qleaner.config.json`.
+2. Pass `summary-extra-args: "--explain"` and set provider env on the Action step:
+
+```yaml
+      - name: Run Qleaner
+        uses: trevismurithi/react-cleaner@v2.1.0
+        with:
+          qleaner-version: "2.1.0"
+          scan-path: src
+          image-project-path: src
+          summary-extra-args: "--explain"
+        env:
+          QLEANER_AI_PROVIDER: openai
+          QLEANER_AI_ENDPOINT: https://api.openai.com/v1
+          QLEANER_AI_MODEL: gpt-4.1-mini
+          QLEANER_AI_API_KEY: ${{ secrets.QLEANER_AI_API_KEY }}
+```
+
+Without a key, `--explain` prints a skip line and the rest of the job still succeeds. This repo’s dogfood workflow ([`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml)) does **not** enable AI.
+
 ### This repository (dogfooding)
 
-[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@2.0.0` from npm** (available after the release is published). It uses `npx --yes tsx .github/scripts/pr-report.ts` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
+[`.github/workflows/qleaner-health.yml`](.github/workflows/qleaner-health.yml) uses **`uses: ./`** to test the local `action.yml` while still installing **`qleaner@2.1.0` from npm** (available after the release is published). It does **not** set `summary-extra-args` or AI secrets. It uses `npx --yes tsx .github/scripts/pr-report.ts` from the checked-out repo instead of `$(npm root -g)/qleaner/...` (same script, easier for dogfooding). Paths under `with:` target the bundled Infisical sample tree (`src/infisical-main/frontend`, etc.) — copy the **full workflow** above for other repos, not those paths.
 
 **Branch protection:** After the workflow runs on a PR, you can require status check **`hygiene-check`** (job id). If you see **“Expected — Waiting for status to be reported”**, the workflow did not run (workflow missing on the base branch, Actions disabled, or fork PR awaiting approval).
 
@@ -204,7 +241,7 @@ The composite Action does **not** post to GitHub by itself — use the **full wo
 
 1. Add repo secret **`NPM_TOKEN`** (npm token with publish rights) in GitHub → Settings → Secrets.
 2. Bump `"version"` in `package.json` (and lockfile) to match the release.
-3. Merge to the default branch, then create a **GitHub Release** with tag **`vX.Y.Z`** matching that version (e.g. `v2.0.0` for `2.0.0`).
+3. Merge to the default branch, then create a **GitHub Release** with tag **`vX.Y.Z`** matching that version (e.g. `v2.1.0` for `2.1.0`).
 4. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs on `release: published`: `npm ci` → `npm publish` (`prepublishOnly` builds `dist/`). Do not commit `dist/`.
 
 ## Monorepos
@@ -280,6 +317,72 @@ qleaner image src/infisical-main/frontend --dry-run -H
 
 The CLI is implemented in [`bin/cli.ts`](https://github.com/trevismurithi/react-cleaner/blob/main/bin/cli.ts) and published as `dist/bin/cli.js`. Program name **`qleaner`**, tagline *A tool to clean up your React code*, and **`qleaner --version`** match that file (version is read from `package.json`). Run **`qleaner --help`** for the same command and option list Commander registers there.
 
+### Optional AI
+
+AI is **off by default**. Static analysis and the summary **health score** do not need Ollama or an API key. After tables, an opt-in model can print a short brief. It does **not** write files or change `--auto-fix` / `--interactive` / `--uninstall`. GitHub Actions do **not** run `--explain` unless you opt in (see GitHub Actions above).
+
+AI flags exist only on **`scan`**, **`prune-logs`**, and **`summary`**. Default provider is local [Ollama](https://ollama.com). Set `ai.provider` to `"openai"` for OpenAI, Vercel AI Gateway, Groq, or any OpenAI-compatible `/v1/chat/completions` endpoint.
+
+**Ollama (default):**
+
+```bash
+ollama pull qwen2.5-coder:7b
+ollama serve
+```
+
+```json
+"ai": {
+  "enabled": false,
+  "provider": "ollama",
+  "endpoint": "http://127.0.0.1:11434",
+  "model": "qwen2.5-coder:7b"
+}
+```
+
+**OpenAI-compatible (cloud):** never put API keys in `qleaner.config.json`.
+
+```json
+"ai": {
+  "enabled": true,
+  "provider": "openai",
+  "endpoint": "https://api.openai.com/v1",
+  "model": "gpt-4.1-mini"
+}
+```
+
+```bash
+export QLEANER_AI_API_KEY=sk-...   # or OPENAI_API_KEY
+qleaner summary --explain
+```
+
+Vercel AI Gateway: `provider: "openai"` and `endpoint` set to the gateway base URL (the client appends `/chat/completions`). A 7B behind an OpenAI-compatible proxy can set `"profile": "local"` to keep small scan batches.
+
+Cloud requests send **short unused paths**, log previews, and summary totals — not file contents. Those paths leave your machine.
+
+**Flags** (those three commands only):
+
+| Flag | Meaning |
+| --- | --- |
+| `--explain` | Print an AI brief for this run |
+| `--domain <name>` | Product domain (e.g. `healthcare`, `fintech`). **Required** to re-rank `prune-logs` hits |
+| `--ask <question>` | Extra question constrained to this command’s findings |
+
+Also runs when `qleaner.config.json` has `"ai": { "enabled": true }` (`init` writes `false`). Env: `QLEANER_AI_PROVIDER`, `QLEANER_AI_ENDPOINT`, `QLEANER_AI_MODEL`, `QLEANER_AI_API_KEY` / `OPENAI_API_KEY`.
+
+- **`scan --explain`** — sends the **full unused-file list as short paths only** (no source, no size ranking). The model labels each path `asset` or `code` with a 0–100 confidence score. Local batches ~40 ids; cloud ~150.
+- **`prune-logs --explain --domain <name>`** — re-ranks **listed** console hits for that industry. No domain → heuristic tables only. Custom regexes live in `consoleLogPatterns`.
+- **`summary`** — always prints a deterministic **health score** (0–100). `--explain` adds a short narrative from the same totals.
+
+Qleaner waits until the model finishes (Ctrl+C to stop). Object-shaped `warnings` from the model are printed as text. Missing cloud keys, HTTP 401/403, or an unreachable endpoint skip the brief and keep the tables.
+
+Skipped on `scan --quiet` (including tidy’s inner graph rebuild) and `prune-logs -i` (docs only). CI does not pass `--explain` unless you opt in (see GitHub Actions).
+
+```bash
+qleaner scan src --dry-run --explain
+qleaner prune-logs src --dry-run --list-risk-categories --explain --domain fintech
+qleaner summary --explain
+```
+
 ### `qleaner init`
 
 Non-interactive setup: detects framework, package manager, path aliases, and entry points, then writes `qleaner.config.json`. Safe for CI.
@@ -327,7 +430,9 @@ Scan a directory for unused code files. Merge order: values from `qleaner.config
 - `-t, --table` - Display results in a formatted table
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-u, --auto-fix` - Skip the interactive prompt and move **all** reported unused files to `.trash` (only when **not** using `--dry-run`; same flag name as `dep` is **not** shared: on `scan` this is auto-fix, on `dep` `-u` is `--uninstall`)
+- `-q, --quiet` - Rebuild the graph cache and print nothing (no unused-file table, totals, cache blurb, or delete prompt). Used by `exports` and `tidy` when they only need a fresh scan before other checks.
 - `-C, --clear-cache` - Clear cache before scanning (useful after major changes)
+- `--explain` / `--domain` / `--ask` - optional AI classification of unused paths (see Optional AI). Skipped with `--quiet`.
 
 **Examples:**
 ```bash
@@ -336,6 +441,9 @@ qleaner scan src
 
 # Dry run with table output (recommended first time)
 qleaner scan src --dry-run --table
+
+# Classify unused paths as asset-code vs code (optional --explain)
+qleaner scan src --dry-run --explain
 
 # Move every reported unused file to .trash without prompting (use after a trusted dry-run)
 qleaner scan src --auto-fix
@@ -348,6 +456,9 @@ qleaner scan src -F index.tsx main.tsx app.tsx
 
 # Clear cache and perform fresh scan
 qleaner scan src --clear-cache
+
+# Rebuild cache only (no unused-file listing or prompt)
+qleaner scan src --quiet
 
 # Comprehensive scan with multiple exclusions
 qleaner scan src --exclude-dir node_modules dist build --exclude-extensions test.tsx test.ts --table
@@ -483,16 +594,18 @@ List **unused exports** (symbols exported from a file that nothing imports, foll
 - `[pathToScan]` - Project directory to analyze (default **`.`**)
 
 **Options:**
-- `-r, --fresh-scan` - Clear graph-related state before analyzing (via `scan` with `clearCache` as implemented in `unusedExports`)
+- `-r, --fresh-scan` - Clear graph-related state before analyzing (via a **quiet** `scan` with `clearCache` as implemented in `unusedExports`)
 - `-f, --fix` - Fix (remove) the unused exports
 - `-d, --dry-run` - Only print how many unused exports were found (no table unless `--report`)
 - `--report` - Print a table of unreferenced exports (export name and file); works with or without `--dry-run` (`-r` on this command is **`--fresh-scan`**)
+- `--interactive` - Print the unused-export table, then remove only the selected exports (does not require `--fix`; **`--dry-run` wins** if both are set). Graph rebuild during this command is quiet.
 
 **Examples:**
 ```bash
 qleaner exports . --dry-run
 qleaner exports . --dry-run --report
 qleaner exports . --fix --report
+qleaner exports . --interactive
 ```
 
 **Note:** Requires `unused-check-cache.json` from `qleaner scan` over the same project tree you care about. With `--fix`, files are edited in place—use version control.
@@ -507,11 +620,13 @@ Remove **unused internal declarations** (unused variables, functions, classes, e
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-r, --report` - Print a table of unused symbols (file, line, name, kind); works with or without `--dry-run`
+- `--interactive` - Suggest unused symbols and remove only the selected items. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
 
 **Examples:**
 ```bash
 qleaner prune . --dry-run -r
 qleaner prune . -r
+qleaner prune . --interactive
 qleaner prune .
 ```
 
@@ -530,8 +645,10 @@ Remove **`console`** debug calls: `log`, `dir`, `dirxml`, `table`, `debug`, `inf
 - `-d, --dry-run` - Report counts only (no edits). Prints totals as **`N (high-risk sensitive: H, medium: M, low: L)`**. With **`--list-risk-categories`** also set, prints per-tier **hit tables** (file, line, preview) when the dry-run result includes `foundByRisk` (capped per tier in `controllers/list.ts`).
 - **`-i` / `--list-risk-categories-info`** - Print the risk-tier **category index** (pattern file paths and section titles), then **return** without scanning or editing.
 - **`--list-risk-categories`** - Does **not** skip the scan by itself. Use with **`-d`** to dry-run and optionally show hit tables as above, or use **`-i`** for the index-only path.
+- **`--interactive`** - Suggest console-log removals (with per-tier tables) and apply only the selected items. Low-risk hits are pre-checked. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
+- `--explain` / `--domain` / `--ask` - optional AI brief. **`--domain` is required** to re-rank listed calls (see Optional AI). No AI on **`-i`**.
 
-**Heuristics (not a security scanner):** Patterns live in **`utils/consoleLogHighRiskPatterns.ts`** and **`utils/consoleLogMediumRiskPatterns.ts`**; classification order is high → medium → low.
+**Heuristics (not a security scanner):** Builtin patterns live in **`utils/consoleLogHighRiskPatterns.ts`** and **`utils/consoleLogMediumRiskPatterns.ts`**. Add project regexes in **`consoleLogPatterns`** (`high`, `medium`, `ignore`). Classification order is ignore → custom high → builtin high → custom medium → builtin medium → low. `ignore` keeps a call removable but not sensitive.
 
 **Examples:**
 ```bash
@@ -542,8 +659,14 @@ qleaner prune-logs -i
 qleaner prune-logs src --dry-run
 qleaner prune-logs src --dry-run --list-risk-categories
 
+# Domain-aware AI re-rank of listed logs (optional --explain)
+qleaner prune-logs src --dry-run --list-risk-categories --explain --domain healthcare
+
 # Apply removals (not a dry run)
 qleaner prune-logs src
+
+# Suggest removals and apply only the selected calls
+qleaner prune-logs src --interactive
 ```
 
 ### `qleaner duplicates`
@@ -556,11 +679,13 @@ Detect and clean **duplicate** code patterns across files under the configured `
 **Options:**
 - `-d, --dry-run` - Show what would be deleted without actually deleting (skips prompt)
 - `-r, --report` - Print a table of duplicate functions and classes (file, line, name, kind); works with or without `--dry-run`
+- `--interactive` - Suggest duplicate removals and apply only the selected items. **`--dry-run` wins** if both are set. Default with no flags is still apply-all.
 
 **Examples:**
 ```bash
 qleaner duplicates . --dry-run -r
 qleaner duplicates . -r
+qleaner duplicates . --interactive
 qleaner duplicates .
 ```
 
@@ -579,7 +704,7 @@ qleaner undo images
 
 ### `qleaner tidy`
 
-**Tidy up the project** — runs a pipeline of checks; each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work.
+**Tidy up the project** — starts with a **quiet scan** to refresh the graph. Each step **dry-runs first**, then applies edits **only if** `--auto-fix` / `-u` is set and the dry-run reported work. **`--interactive`** prompts per step instead of applying all.
 
 **Arguments:**
 - `[pathToScan]` - Project root or source directory for globs (default **`.`**)
@@ -589,14 +714,16 @@ qleaner undo images
 - **`-r` / `--report`** - During each step’s dry-run, print detail tables: console log tiers, unused code, duplicates, and exports (also enables console-log tier tables; same as passing **`--list-risk-categories`** for that step).
 - **`--list-risk-categories`** - Console-log step only: per-tier hit tables when `foundByRisk` is present (also enabled when **`-r`** is set).
 - **`-i` / `--list-risk-categories-info`** - Print the console-log risk category index; tidy **continues** with remaining steps.
+- **`--interactive`** - After each step’s suggestions, select which items to remove (wins over **`-u`**). Finishes with a normal unused-file `scan` prompt.
 
 Sequence (see `controllers/list.ts`):
 
-1. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply if **`--auto-fix`**  
-2. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
-3. **Duplicates** — dry-run (detail table with **`-r`**) → apply if needed  
-4. **Unused exports** — dry-run (detail table with **`-r`**) → apply with **fix** if needed  
-5. **Unused files scan** — `scan` with `dryRun: true` only when **`--auto-fix`** ran (reports unused files; does not move them)
+1. **Quiet scan** — rebuild graph cache with no unused-file listing  
+2. **Console logs** — dry-run (counts + tier tables with **`-r`** or **`--list-risk-categories`**) → apply all if **`--auto-fix`**, or selected items if **`--interactive`**  
+3. **Unused internal code** — `prune` dry-run (detail table with **`-r`**) → apply if needed  
+4. **Duplicates** — dry-run (detail table with **`-r`**) → apply if needed  
+5. **Unused exports** — dry-run (detail table with **`-r`**) → apply with **fix** if needed (`exports` rebuilds the graph quietly)  
+6. **Unused files scan** — after any mutation: dry-run `scan` for **`--auto-fix`** (reports unused files; does not move them); with **`--interactive`**, print unused files and offer `askDeleteFiles`
 
 Prefer exercising `prune`, `prune-logs`, `duplicates`, `exports`, and `scan` manually with **`--dry-run`** and **`-r`** until you trust the behavior.
 
@@ -611,6 +738,9 @@ qleaner tidy -r
 # Risk index for console logs (pipeline continues)
 qleaner tidy -i
 
+# Select items to remove at each step
+qleaner tidy . --interactive
+
 # Apply safe code cleanups when issues are found
 qleaner tidy . --auto-fix
 ```
@@ -622,13 +752,17 @@ Get comprehensive project statistics and insights. (`qleaner summary --help` use
 **Options:**
 - `-l, --largest-files` - Show top 10 largest code and image files
 - `-d, --dependencies` - Show dependency analysis and hotspots
+- `--explain` / `--domain` / `--ask` - optional AI health narrative (see Optional AI)
 
-**Note:** When no options are provided, shows a general project summary with totals.
+**Note:** When no options are provided, shows a general project summary with totals **and a health score** (0–100, Good / Fair / Poor). The score is deterministic and does not need AI.
 
 **Examples:**
 ```bash
-# Full project summary
+# Full project summary (health score, no AI)
 qleaner summary
+
+# Optional AI narrative (same totals; needs Ollama or a cloud key)
+qleaner summary --explain
 
 # Show largest files
 qleaner summary --largest-files
@@ -646,12 +780,14 @@ qleaner summary --dependencies
 - Total unused images count
 - Total dead image links count
 - Total files count
+- Health score (0–100) with the two largest penalty drivers
 
 **Largest Files** (`-l` or `--largest-files`):
 - Top 10 largest code files (sorted by size in KB)
 - Top 10 largest image files (sorted by size in MB)
 - Total code size and total image size
 - Code files exceeding 100 KB (warning list)
+- Health score (same formula as the general summary)
 
 **Dependencies** (`-d` or `--dependencies`):
 - Top 10 files with heavy dependencies (most imports)
@@ -660,6 +796,7 @@ qleaner summary --dependencies
 - Top 10 dependency hotspots (most used dependencies/packages)
 - Top 10 dead image hotspots (dead image links referenced by many files)
 - Top 10 alive image hotspots (images referenced by many files)
+- Health score (same formula as the general summary)
 
 **Note:** Requires a cache file. Run `qleaner scan` to generate code cache and/or `qleaner image [projectPath]` to generate image cache first.
 
@@ -689,7 +826,20 @@ Qleaner can be configured via `qleaner.config.json` or CLI flags. For **`qleaner
   "alias": false,
   "autoFix": false,
   "autoPrune": false,
-  "sizeThresholdMb": null
+  "sizeThresholdMb": null,
+  "domain": null,
+  "consoleLogPatterns": {
+    "high": [],
+    "medium": [],
+    "ignore": []
+  },
+  "ai": {
+    "enabled": false,
+    "provider": "ollama",
+    "endpoint": "http://127.0.0.1:11434",
+    "model": "qwen2.5-coder:7b",
+    "maxCandidates": 12
+  }
 }
 ```
 
@@ -701,6 +851,9 @@ Qleaner can be configured via `qleaner.config.json` or CLI flags. For **`qleaner
 | `autoFix` | boolean | When `true` (and not overridden), `qleaner scan` without `--dry-run` moves all reported unused files to `.trash` via `moveToTrash` instead of opening the interactive delete prompt (same effect as `--auto-fix` / `-u` on the scan command). |
 | `autoPrune` | boolean | When `true`, `qleaner image` without `--dry-run` moves all reported unused images to `.trash` without a prompt (same as `--auto-prune` / `-u` on the image command). |
 | `sizeThresholdMb` | number \| null | Optional default for highlighting large unused images in the image report (same semantics as `--size-threshold-mb` / `-T`). |
+| `domain` | string \| null | Optional product domain for AI ranking (e.g. `healthcare`). CLI `--domain` overrides. Required for `prune-logs --explain`. |
+| `consoleLogPatterns` | object | Extra console-log regex strings: `high`, `medium`, `ignore`. Invalid or >200-character patterns are skipped. Classification: ignore → custom high → builtin high → custom medium → builtin medium → low. |
+| `ai` | object | Optional AI for **scan**, **prune-logs**, and **summary**. `enabled` default `false`; `--explain` still opts in. `provider`: `"ollama"` (default) or `"openai"` (OpenAI-compatible). `endpoint`, `model`, `maxCandidates`, optional `profile` (`local` \| `cloud`). Never store API keys here. Env: `QLEANER_AI_PROVIDER`, `QLEANER_AI_ENDPOINT`, `QLEANER_AI_MODEL`, `QLEANER_AI_API_KEY` / `OPENAI_API_KEY`. |
 | `framework` | string | One of `react`, `nextjs`, or `vue` (use **`vue`** for Vue and **Nuxt** apps). Sets default `excludeFilePrint` and, for Vue, default `excludeDirPrint` (`layouts`, `pages`). |
 | `codeAlias` | string \| null | **Critical!** Config file to use for path alias resolution. Options: `"tsconfig.json"`, `"jsconfig.json"`, `"tsconfig.app.json"`, `"tsconfig.base.json"`, or `null` for manual configuration. Qleaner reads path aliases from this file to resolve imports (e.g., `@/components`, `~/utils`). |
 | `paths` | object | **Manual path aliases** (only used if `codeAlias` is `null`). Object mapping alias patterns to file paths. Example: `{ "@/*": ["./src/*"], "~/*": ["./src/*"] }`. If `codeAlias` is set, this field is ignored and paths are read from the config file instead. |
